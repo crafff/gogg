@@ -110,6 +110,9 @@ func NewDefaultRouter() *Router {
 	r := NewRouter()
 	r.Register(TaskTypeAccountByRiotID, HandleAccountByRiotID)
 	r.Register(TaskTypeMatchByID, HandleMatchByID)
+	r.Register(TaskTypeChallengeLeaguesByQueue, HandleChallengeLeaguesByQueue)
+	r.Register(TaskTypeVersion, HandleVersions)
+	r.Register(TaskTypeMatchByPUUID, HandleMatchByPuuid)
 	return r
 }
 ```
@@ -133,6 +136,20 @@ taskQueue <- crawler.Task{
 - `worker.go` 保持通用，不写具体业务分支。
 - payload 尽量使用结构体，不直接用 `map[string]string`。
 - 新增后执行：`go test ./...`。
+
+## 5. 新增一个Processor
+
+目标：在获取到versions信息后，新增一个Processor来处理这个结果（例如打印版本列表）。
+
+### Step 1: 在processer层新增processor文件
+新增 `internal/crawler/processor_versions.go`：
+
+### Step 2: 在storage层新增repo文件
+新增 `internal/storage/repo_versions.go`：
+
+### Step 3: 在result_processor里面新增一个case来调用这个processor
+修改 `internal/crawler/worker.go` 的结果处理部分：
+
 
 
 ## 关于PostgreSQL Docker镜像

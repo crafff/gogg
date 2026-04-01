@@ -37,5 +37,8 @@ func NewDefaultRouter() *Router {
 	r := NewRouter()
 	r.Register(TaskTypeAccountByRiotID, HandleAccountByRiotID)
 	r.Register(TaskTypeChallengeLeaguesByQueue, HandleChallengeLeaguesByQueue)
+	r.Register(TaskTypeVersion, HandleVersions)
+	r.Register(TaskTypeMatchByPUUID, HandleMatchByPuuid)
+	r.Register(TaskTypeMatchDetailByMatchID, HandleMatchDetailByMatchID)
 	return r
 }

@@ -19,3 +19,4 @@ services:
 
 volumes:
   gogg_postgres_data:
+

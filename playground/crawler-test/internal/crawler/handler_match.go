@@ -7,11 +7,11 @@ import (
 	"crawler-test/internal/riot"
 )
 
-func HandleChallengeLeaguesByQueue(ctx context.Context, payload interface{}, client *riot.Client) (interface{}, error) {
-	p, ok := payload.(ChallengeLeaguesByQueuePayload)
+func HandleMatchByPuuid(ctx context.Context, payload interface{}, client *riot.Client) (interface{}, error) {
+	p, ok := payload.(MatchByPUUIDPayload)
 	if !ok {
-		return nil, fmt.Errorf("invalid payload for %s", TaskTypeChallengeLeaguesByQueue)
+		return nil, fmt.Errorf("invalid payload for %s", TaskTypeMatchByPUUID)
 	}
 
-	return client.GetChallengerLeaguesByQueue(ctx, p.Queue)
+	return client.GetMatchsByPuuid(ctx, p.Puuid, p.StartTime, p.EndTime, p.MatchType, p.Start, p.Count)
 }

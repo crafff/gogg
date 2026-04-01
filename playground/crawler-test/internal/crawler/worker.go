@@ -80,19 +80,10 @@ func StartWorker(ctx context.Context, id int, tasks <-chan Task, client *riot.Cl
 				}
 
 				// 3. 成功拿到数据
-				// ()断言
-				// result.(type) 类型选择，返回变量的类型，要配个switch使用，不能单独使用
-				// result.(T) 类型断言，如果result不是这个类型，程序会panic，可以单独使用
-				switch v := result.(type) {
-				case *riot.AccountDTO:
-					log.Printf("Worker-%d 任务成功: id=%s 玩家=%s#%s PUUID=%s 耗时=%dms", id, task.ID, v.GameName, v.TagLine, v.Puuid, time.Since(start).Milliseconds())
-				default:
-					log.Printf("Worker-%d 任务成功: id=%s type=%s 耗时=%dms", id, task.ID, task.Type, time.Since(start).Milliseconds())
-				}
 
-				break
+				log.Printf("Worker-%d 任务成功: id=%s type=%s 耗时=%dms", id, task.ID, task.Type, time.Since(start).Milliseconds())
+				
 			}
-			// 此时可以将 account.Puuid 丢给数据库或下一个队列（比如去抓 MatchID）
 		}
 	}
 }

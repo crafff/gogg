@@ -2,18 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
-	"crawler-test/internal/crawler" // 替换为你的实际模块名
+	"crawler-test/internal/crawler"
 	"crawler-test/internal/process"
 	"crawler-test/internal/riot"
 	"crawler-test/internal/storage"
@@ -69,7 +67,6 @@ func loadConfig(filename string) (*Config, error) {
 }
 
 func main() {
-	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -79,93 +76,273 @@ func main() {
 		log.Fatalf("加载配置失败: %v", err)
 	}
 
-	log.Printf("配置加载成功，Worker=%d，队列大小=%d", cfg.Crawler.WorkerCount, cfg.Crawler.QueueSize)
+	log.Printf("配置加载成功")
+	if !cfg.Database.Enabled {
+		log.Fatal("自动流水线依赖数据库，请设置 database.enabled=true")
+	}
 
-	// 2. 初始化核心组件 (注入配置中的参数)
+	// 2. 初始化核心组件
 	client := riot.NewClient(cfg.Riot.APIKey)
 	limiter := riot.NewRateLimiter()
-	router := crawler.NewDefaultRouter()
 
-	var resultProcessor crawler.ResultProcessor
-	if cfg.Database.Enabled {
-		store, err := storage.NewStore(ctx, storage.Config{
-			DSN:             cfg.Database.DSN,
-			MaxOpenConns:    cfg.Database.MaxOpenConns,
-			MaxIdleConns:    cfg.Database.MaxIdleConns,
-			ConnMaxLifetime: time.Duration(cfg.Database.ConnMaxLifetime) * time.Second,
-		})
-		if err != nil {
-			log.Fatalf("初始化数据库失败: %v", err)
-		}
-		defer store.Close()
+	store, err := storage.NewStore(ctx, storage.Config{
+		DSN:             cfg.Database.DSN,
+		MaxOpenConns:    cfg.Database.MaxOpenConns,
+		MaxIdleConns:    cfg.Database.MaxIdleConns,
+		ConnMaxLifetime: time.Duration(cfg.Database.ConnMaxLifetime) * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("初始化数据库失败: %v", err)
+	}
+	defer store.Close()
 
-		if err := store.InitSchema(ctx); err != nil {
-			log.Fatalf("初始化数据库表结构失败: %v", err)
-		}
-
-		resultProcessor = process.NewResultProcessor(store)
-		log.Println("数据库持久化已启用")
-	} else {
-		log.Println("数据库持久化未启用，跳过写库")
+	if err := store.InitSchema(ctx); err != nil {
+		log.Fatalf("初始化数据库表结构失败: %v", err)
 	}
 
-	// 3. 创建任务队列 (使用配置中的 QueueSize)
-	taskQueue := make(chan crawler.Task, cfg.Crawler.QueueSize)
+	resultProcessor := process.NewResultProcessor(store)
 
-	// 5. 启动 Worker 池 (使用配置中的 WorkerCount)
-	log.Printf("正在启动 %d 个 Worker...", cfg.Crawler.WorkerCount)
-	for i := 1; i <= cfg.Crawler.WorkerCount; i++ {
-		wg.Add(1)
-		go crawler.StartWorker(ctx, i, taskQueue, client, limiter, router, resultProcessor, &wg)
+	if err := runAutoPipeline(ctx, client, limiter, resultProcessor, store); err != nil {
+		log.Fatalf("自动流水线执行失败: %v", err)
 	}
 
-	// 6. 模拟生产任务投递
+	log.Println("自动流水线执行完成")
+}
+
+func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.RateLimiter, resultProcessor *process.ResultProcessor, store *storage.Store) error {
 	var taskIDCounter uint64
-	go func() {
-		log.Println("任务投递器启动")
-		// players := []crawler.AccountByRiotIDPayload{
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// 	{GameName: "RuitaoZhou", TagLine: "123"},
-		// }
-		leagues := []crawler.ChallengeLeaguesByQueuePayload{
-			{Queue: "RANKED_SOLO_5x5"},
+	nextTaskID := func() string {
+		return fmt.Sprintf("task-%d", atomic.AddUint64(&taskIDCounter, 1))
+	}
+
+	const matchPageSize = 100
+	var err error
+
+	log.Println("步骤1/4: 获取版本信息并入库")
+	var versions *riot.VersionResponse
+	for {
+		if err := limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("wait limiter before versions: %w", err)
 		}
-		// taskID := atomic.AddUint64(&taskIDCounter, 1)
-		// for _, p := range players {
-		// 	task := crawler.Task{
-		// 		ID:      fmt.Sprintf("task-%d", taskID),
-		// 		Type:    crawler.TaskTypeAccountByRiotID,
-		// 		Payload: p,
-		// 		Retries: 3,
-		// 	}
-		// 	taskQueue <- task
-		// 	log.Printf("任务已入队: id=%s type=%s 玩家=%s#%s", task.ID, task.Type, p.GameName, p.TagLine)
-		// }
-		for _, l := range leagues {
-			taskID := atomic.AddUint64(&taskIDCounter, 1)
-			task := crawler.Task{
-				ID:      fmt.Sprintf("task-%d", taskID),
-				Type:    crawler.TaskTypeChallengeLeaguesByQueue,
-				Payload: l,
-				Retries: 3,
+		versions, err = client.GetVersions(ctx)
+		retry, retryErr := waitForRateLimitRetry(ctx, err)
+		if retryErr != nil {
+			return retryErr
+		}
+		if retry {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("fetch versions: %w", err)
+		}
+		break
+	}
+	if err := resultProcessor.Process(ctx, crawler.Task{
+		ID:      nextTaskID(),
+		Type:    crawler.TaskTypeVersion,
+		Payload: crawler.VersionPayload{},
+		Retries: 1,
+	}, versions); err != nil {
+		return fmt.Errorf("persist versions: %w", err)
+	}
+
+	latestVersion, err := store.GetLatestActiveVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("load latest active version: %w", err)
+	}
+	log.Printf("最新版本: version=%s start_at=%s", latestVersion.Version, latestVersion.StartAt.UTC().Format(time.RFC3339))
+
+	log.Println("步骤2/4: 获取 challenger puuid 并入库")
+	queue := "RANKED_SOLO_5x5"
+	var league *riot.LeagueListDTO
+	for {
+		if err := limiter.Wait(ctx); err != nil {
+			return fmt.Errorf("wait limiter before challenger: %w", err)
+		}
+		league, err = client.GetChallengerLeaguesByQueue(ctx, queue)
+		retry, retryErr := waitForRateLimitRetry(ctx, err)
+		if retryErr != nil {
+			return retryErr
+		}
+		if retry {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("fetch challenger by queue %s: %w", queue, err)
+		}
+		break
+	}
+	if err := resultProcessor.Process(ctx, crawler.Task{
+		ID:   nextTaskID(),
+		Type: crawler.TaskTypeChallengeLeaguesByQueue,
+		Payload: crawler.ChallengeLeaguesByQueuePayload{
+			Queue: queue,
+		},
+		Retries: 2,
+	}, league); err != nil {
+		return fmt.Errorf("persist challenger players: %w", err)
+	}
+
+	log.Println("步骤3/4: 根据 puuid 分页增量抓取 match id 并更新 sync_state")
+	players, err := store.ListPlayers(ctx)
+	if err != nil {
+		return fmt.Errorf("list players: %w", err)
+	}
+	log.Printf("待同步玩家数: %d", len(players))
+
+	for i, player := range players {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		syncState, err := store.GetPlayerMatchSyncState(ctx, player.ID, latestVersion.ID)
+		if err != nil {
+			log.Printf("读取玩家同步状态失败，跳过 player_id=%d puuid=%s err=%v", player.ID, player.Puuid, err)
+			continue
+		}
+
+		windowStart := latestVersion.StartAt.UTC()
+		if syncState != nil && syncState.LastCheckedAt != nil && syncState.LastCheckedAt.After(windowStart) {
+			windowStart = syncState.LastCheckedAt.UTC()
+		}
+
+		startTime := windowStart.Unix()
+		totalFetched := 0
+		for offset := 0; ; offset += matchPageSize {
+			var matches *riot.Matchs
+			for {
+				if err := limiter.Wait(ctx); err != nil {
+					return fmt.Errorf("wait limiter before match ids: %w", err)
+				}
+
+				matches, err = client.GetMatchsByPuuid(ctx, player.Puuid, startTime, -1, "", offset, matchPageSize)
+				retry, retryErr := waitForRateLimitRetry(ctx, err)
+				if retryErr != nil {
+					return retryErr
+				}
+				if retry {
+					continue
+				}
+				if err != nil {
+					log.Printf("抓取 match ids 失败，跳过该玩家: player_id=%d puuid=%s offset=%d err=%v", player.ID, player.Puuid, offset, err)
+					totalFetched = -1
+				}
+				break
 			}
-			taskQueue <- task
-			log.Printf("任务已入队: id=%s type=%s 队列=%s", task.ID, task.Type, l.Queue)
+			if totalFetched < 0 {
+				break
+			}
+
+			if len(*matches) == 0 {
+				break
+			}
+
+			if err := resultProcessor.Process(ctx, crawler.Task{
+				ID:   nextTaskID(),
+				Type: crawler.TaskTypeMatchByPUUID,
+				Payload: crawler.MatchByPUUIDPayload{
+					Puuid:     player.Puuid,
+					StartTime: startTime,
+					Start:     offset,
+					Count:     matchPageSize,
+				},
+				Retries: 2,
+			}, matches); err != nil {
+				log.Printf("入库 match ids 失败，跳过该玩家: player_id=%d puuid=%s offset=%d err=%v", player.ID, player.Puuid, offset, err)
+				totalFetched = -1
+				break
+			}
+
+			totalFetched += len(*matches)
+			if len(*matches) < matchPageSize {
+				break
+			}
 		}
-		log.Printf("任务投递完成，总数=%d", len(leagues))
-	}()
 
-	// 7. 阻塞主线程，等待退出信号
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	receivedSig := <-sig
-	log.Printf("收到退出信号: %s，开始优雅关闭", receivedSig.String())
-	cancel()
+		if totalFetched >= 0 {
+			now := time.Now().UTC()
+			if err := store.UpsertPlayerMatchSyncState(ctx, storage.PlayerMatchSyncStateSeed{
+				PlayerID:      player.ID,
+				VersionID:     latestVersion.ID,
+				LastCheckedAt: &now,
+			}); err != nil {
+				log.Printf("更新玩家同步状态失败: player_id=%d puuid=%s err=%v", player.ID, player.Puuid, err)
+			} else {
+				log.Printf("玩家同步完成 %d/%d: player_id=%d puuid=%s window_start=%s fetched=%d", i+1, len(players), player.ID, player.Puuid, windowStart.Format(time.RFC3339), totalFetched)
+			}
+		}
+	}
 
-	wg.Wait()
-	log.Println("爬虫已安全退出")
+	log.Println("步骤4/4: 获取 processed_at 为空的比赛详情")
+	pendingMatchIDs, err := store.ListPendingMatchIDs(ctx, 0)
+	if err != nil {
+		return fmt.Errorf("list pending match ids: %w", err)
+	}
+	log.Printf("待补全比赛详情数量: %d", len(pendingMatchIDs))
+
+	for i, matchID := range pendingMatchIDs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		var detail *riot.MatchDetailDTO
+		for {
+			if err := limiter.Wait(ctx); err != nil {
+				return fmt.Errorf("wait limiter before match detail: %w", err)
+			}
+			detail, err = client.GetMatchDetailByMatchID(ctx, matchID)
+			retry, retryErr := waitForRateLimitRetry(ctx, err)
+			if retryErr != nil {
+				return retryErr
+			}
+			if retry {
+				continue
+			}
+			if err != nil {
+				log.Printf("抓取比赛详情失败，跳过 match_id=%s err=%v", matchID, err)
+			}
+			break
+		}
+		if err != nil {
+			continue
+		}
+
+		if err := resultProcessor.Process(ctx, crawler.Task{
+			ID:   nextTaskID(),
+			Type: crawler.TaskTypeMatchDetailByMatchID,
+			Payload: crawler.MatchDetailByMatchIDPayload{
+				MatchID: matchID,
+			},
+			Retries: 2,
+		}, detail); err != nil {
+			log.Printf("入库比赛详情失败，跳过 match_id=%s err=%v", matchID, err)
+			continue
+		}
+
+		log.Printf("比赛详情同步完成 %d/%d: match_id=%s", i+1, len(pendingMatchIDs), matchID)
+	}
+
+	return nil
+}
+
+func waitForRateLimitRetry(ctx context.Context, err error) (bool, error) {
+	if err == nil {
+		return false, nil
+	}
+
+	var rateLimitErr *riot.RateLimitError
+	if !errors.As(err, &rateLimitErr) {
+		return false, nil
+	}
+
+	log.Printf("触发限流，等待后重试: retry_after=%s", rateLimitErr.RetryAfter)
+	timer := time.NewTimer(rateLimitErr.RetryAfter)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false, ctx.Err()
+	case <-timer.C:
+		return true, nil
+	}
 }
