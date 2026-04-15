@@ -22,7 +22,7 @@ func NewRouter(app *App) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
 	})
-
+	
 	mux.HandleFunc("/api/rankings/champions", func(w http.ResponseWriter, r *http.Request) {
 		// fmt.Printf("Received request: %s %s\n", r.Method, r.URL.String())
 		if r.Method != http.MethodGet {
@@ -30,32 +30,59 @@ func NewRouter(app *App) http.Handler {
 			return
 		}
 
-		limit := intQuery(r, "limit", 20, 1, 200)
+		limit := intQuery(r, "limit", -1, -1, 500)
 		minGames := intQuery(r, "minGames", 20, 1, 20000)
 		queueID := intQuery(r, "queueId", 420, 0, 9999)
 		position := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("position")))
+		positionThreshold := floatQuery(r, "positionThreshold", 5.0, 0, 100)
+		version := strings.TrimSpace(r.URL.Query().Get("version"))
 		// fmt.Printf("Query params - queueId: %d, position: '%s', minGames: %d, limit: %d\n", queueID, position, minGames, limit)
 
-		items, err := app.repos.rankingStore.GetChampionRankings(r.Context(), ChampionRankingQuery{
+		if version == "latest" {
+			latestVersion, err := app.repos.versionStore.GetLatestVersion()
+			if err != nil {
+				http.Error(w, "failed to get latest version: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			version = latestVersion
+		}
+
+		query := ChampionRankingQuery{
 			QueueID:  queueID,
-			Position: position,
+			GameVersion: version,
 			MinGames: minGames,
 			Limit:    limit,
-		})
+		}
+
+		var items []ChampionRankingItem
+		var err error
+
+		if position != "" {
+			query.Position = position
+			items, err = app.repos.rankingStore.GetRankingsByPosition(r.Context(), query)
+		} else {
+			query.PositionThreshold = positionThreshold
+			items, err = app.repos.rankingStore.GetOverallRankings(r.Context(), query)
+		}
+
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{
-				"error": err.Error(),
-			})
+			http.Error(w, "failed to get champion rankings: "+err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if items == nil {
+			items = []ChampionRankingItem{}
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"items": items,
 			"meta": map[string]any{
-				"queueId":  queueID,
-				"position": position,
-				"minGames": minGames,
-				"limit":    limit,
+				"queueId":     queueID,
+				"gameVersion": version, // 返回查询所用的版本号，方便前端展示
+				"position":    position,      // 如果未指定则为空字符串
+				"minGames":    minGames,
+				"limit":       limit,
+				"positionThreshold": positionThreshold,
 			},
 		})
 	})
@@ -93,6 +120,25 @@ func intQuery(r *http.Request, key string, fallback, min, max int) int {
 	}
 
 	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+func floatQuery(r *http.Request, key string, fallback, min, max float64) float64 {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return fallback
+	}
+
+	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return fallback
 	}

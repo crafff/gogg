@@ -15,6 +15,7 @@ import (
 
 type Repos struct {
 	rankingStore *RankingStore
+	versionStore *VersionStore
 }
 
 // App contains the HTTP server runtime.
@@ -33,6 +34,7 @@ func NewApp(ctx context.Context, cfg Config) (*App, error) {
 
 	repos := &Repos{
 		rankingStore: NewRankingStore(pool),
+		versionStore: NewVersionStore(pool),
 	}
 
 	app := &App{
