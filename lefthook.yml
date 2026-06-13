@@ -25,7 +25,11 @@ pre-commit:
 
     golangci-lint:
       glob: "*.go"
-      run: golangci-lint run --new-from-rev=HEAD --fast {staged_files}
+      # golangci-lint needs whole packages to type-check, not loose
+      # files. Reduce staged files to their unique package dirs.
+      run: |
+        pkgs=$(echo {staged_files} | tr ' ' '\n' | xargs -n1 dirname | sort -u | sed 's|^|./|')
+        [ -z "$pkgs" ] || golangci-lint run --fast $pkgs
 
     # ── Web ───────────────────────────────────────────────────
     prettier:

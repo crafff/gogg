@@ -1,8 +1,16 @@
-go 1.26
+go 1.26.1
+
+toolchain go1.26.3
 
 // During the refactor we use a Go Workspace to stitch together
 // the legacy single-module root (./) and the new per-app /
 // per-package modules under apps/ and packages/.
+//
+// The `go` directive must be >= the highest `go` directive in
+// any member module's go.mod. Keep it bumped if any module's
+// requirement rises. `toolchain` pins the actual compiler so
+// every dev (and CI) uses the same version regardless of what
+// they have locally; bump it deliberately and in its own commit.
 //
 // As each new module lands (apps/api, apps/worker, packages/sqlc,
 // packages/domain, packages/riotapi), append it here via:

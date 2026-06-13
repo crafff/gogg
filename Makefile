@@ -38,20 +38,29 @@ dev-reset: ## Tear down AND drop all volumes (data loss!)
 	docker compose -f $(COMPOSE_FILE) down -v
 
 # ── Quality gates ───────────────────────────────────────────
+# `npm run <script> --if-present` exits 0 when the script is
+# missing from package.json. The legacy web/ package.json doesn't
+# define lint/test/format scripts yet (Phase D adds them when
+# the new web app lands); --if-present lets the same Makefile
+# work today and a year from now.
+
 .PHONY: lint
 lint: ## Run all linters (go + web)
 	golangci-lint run ./...
-	@if [ -d web ]; then cd web && npm run lint; fi
+	@if [ -f web/package.json ]; then cd web && npm run lint --if-present; fi
+	@if [ -f apps/web/package.json ]; then cd apps/web && npm run lint --if-present; fi
 
 .PHONY: fmt
 fmt: ## Format all code
 	gofmt -w -s .
-	@if [ -d web ]; then cd web && npm run format 2>/dev/null || true; fi
+	@if [ -f web/package.json ]; then cd web && npm run format --if-present; fi
+	@if [ -f apps/web/package.json ]; then cd apps/web && npm run format --if-present; fi
 
 .PHONY: test
 test: ## Run all tests
 	go test ./...
-	@if [ -d web ]; then cd web && npm run test --silent 2>/dev/null || true; fi
+	@if [ -f web/package.json ]; then cd web && npm run test --if-present --silent; fi
+	@if [ -f apps/web/package.json ]; then cd apps/web && npm run test --if-present --silent; fi
 
 .PHONY: test-int
 test-int: ## Run integration tests (requires `make dev` running)

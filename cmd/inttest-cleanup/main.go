@@ -36,9 +36,12 @@ func main() {
 
 	// Check schema exists before dropping.
 	var exists bool
-	pool.QueryRow(ctx,
+	if err := pool.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)`, schema,
-	).Scan(&exists)
+	).Scan(&exists); err != nil {
+		fmt.Fprintf(os.Stderr, "check schema: %v\n", err)
+		os.Exit(1)
+	}
 
 	if !exists {
 		fmt.Printf("schema %q does not exist, nothing to do\n", schema)
@@ -48,7 +51,10 @@ func main() {
 	// Count rows in key tables so the user can see what they're deleting.
 	for _, tbl := range []string{"matches", "match_participants", "player_rank_snapshots", "runs"} {
 		var n int
-		pool.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", schema, tbl)).Scan(&n)
+		if err := pool.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", schema, tbl)).Scan(&n); err != nil {
+			fmt.Fprintf(os.Stderr, "  %s.%s count: %v\n", schema, tbl, err)
+			continue
+		}
 		fmt.Printf("  %s.%-28s %d rows\n", schema, tbl, n)
 	}
 
