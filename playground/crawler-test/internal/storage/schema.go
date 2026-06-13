@@ -204,4 +204,18 @@ CREATE TABLE IF NOT EXISTS match_participant_perks_ext (
 CREATE INDEX IF NOT EXISTS idx_perks_champ_win ON match_participant_perks_ext(champion_id, win);
 CREATE INDEX IF NOT EXISTS idx_perks_champ_keystone ON match_participant_perks_ext(champion_id, perk_0);
 
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  id BIGSERIAL PRIMARY KEY,
+  pipeline_type TEXT NOT NULL,
+  start_step INT NOT NULL DEFAULT 0,
+  current_step INT NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'running',
+  heartbeat_at TIMESTAMPTZ,
+  config_snapshot JSONB NOT NULL DEFAULT '{}',
+  error_summary TEXT,
+  finished_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 `

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -67,7 +69,7 @@ func loadConfig(filename string) (*Config, error) {
 }
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	// 1. 加载配置
@@ -100,16 +102,77 @@ func main() {
 		log.Fatalf("初始化数据库表结构失败: %v", err)
 	}
 
+	// 3. 获取 advisory lock 防止并发运行
+	lockConn, err := store.AcquirePipelineLock(ctx)
+	if err != nil {
+		log.Fatalf("获取流水线锁失败（是否已有实例在运行？）: %v", err)
+	}
+	defer store.ReleasePipelineLock(context.Background(), lockConn)
+
+	// 4. 创建 pipeline run 记录
+	cfgSnapshot, _ := store.SnapshotPipelineConfig(cfg)
+	runID, err := store.CreatePipelineRun(ctx, storage.PipelineRunSeed{
+		PipelineType:   "auto",
+		StartStep:      1,
+		CurrentStep:    1,
+		Status:         "running",
+		ConfigSnapshot: cfgSnapshot,
+	})
+	if err != nil {
+		log.Fatalf("创建流水线运行记录失败: %v", err)
+	}
+	log.Printf("流水线记录已创建: run_id=%d", runID)
+
+	// 5. 后台 heartbeat goroutine
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := store.HeartbeatPipelineRun(context.Background(), runID); err != nil {
+					log.Printf("heartbeat 失败: %v", err)
+				}
+			}
+		}
+	}()
+
 	resultProcessor := process.NewResultProcessor(store)
 
-	if err := runAutoPipeline(ctx, client, limiter, resultProcessor, store); err != nil {
-		log.Fatalf("自动流水线执行失败: %v", err)
+	pipelineErr := runAutoPipeline(ctx, client, limiter, resultProcessor, store, runID)
+
+	cancel() // 停止 heartbeat
+	<-heartbeatDone
+
+	// 6. 更新最终状态
+	finalStatus := "success"
+	errSummary := ""
+	if pipelineErr != nil {
+		if errors.Is(pipelineErr, context.Canceled) {
+			finalStatus = "cancelled"
+			errSummary = "手动中断"
+			log.Printf("流水线被手动中断")
+		} else {
+			finalStatus = "failed"
+			errSummary = pipelineErr.Error()
+			log.Printf("流水线执行失败: %v", pipelineErr)
+		}
+	}
+	if err := store.FinishPipelineRun(context.Background(), runID, finalStatus, errSummary); err != nil {
+		log.Printf("更新流水线状态失败: %v", err)
 	}
 
+	if pipelineErr != nil && !errors.Is(pipelineErr, context.Canceled) {
+		os.Exit(1)
+	}
 	log.Println("自动流水线执行完成")
 }
 
-func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.RateLimiter, resultProcessor *process.ResultProcessor, store *storage.Store) error {
+func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.RateLimiter, resultProcessor *process.ResultProcessor, store *storage.Store, runID int64) error {
 	var taskIDCounter uint64
 	nextTaskID := func() string {
 		return fmt.Sprintf("task-%d", atomic.AddUint64(&taskIDCounter, 1))
@@ -118,6 +181,7 @@ func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.Rat
 	const matchPageSize = 100
 	var err error
 
+	_ = store.UpdatePipelineRunStep(ctx, runID, 1)
 	log.Println("步骤1/4: 获取版本信息并入库")
 	var versions *riot.VersionResponse
 	for {
@@ -152,6 +216,7 @@ func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.Rat
 	}
 	log.Printf("最新版本: version=%s start_at=%s", latestVersion.Version, latestVersion.StartAt.UTC().Format(time.RFC3339))
 
+	_ = store.UpdatePipelineRunStep(ctx, runID, 2)
 	log.Println("步骤2/4: 获取 challenger puuid 并入库")
 	queue := "RANKED_SOLO_5x5"
 	var league *riot.LeagueListDTO
@@ -183,6 +248,7 @@ func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.Rat
 		return fmt.Errorf("persist challenger players: %w", err)
 	}
 
+	_ = store.UpdatePipelineRunStep(ctx, runID, 3)
 	log.Println("步骤3/4: 根据 puuid 分页增量抓取 match id 并更新 sync_state")
 	players, err := store.ListPlayers(ctx)
 	if err != nil {
@@ -273,6 +339,7 @@ func runAutoPipeline(ctx context.Context, client *riot.Client, limiter *riot.Rat
 		}
 	}
 
+	_ = store.UpdatePipelineRunStep(ctx, runID, 4)
 	log.Println("步骤4/4: 获取 processed_at 为空的比赛详情")
 	pendingMatchIDs, err := store.ListPendingMatchIDs(ctx, 0)
 	if err != nil {

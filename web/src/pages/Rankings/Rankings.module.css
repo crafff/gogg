@@ -1,0 +1,88 @@
+.section {
+  margin-bottom: 2rem;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.listViewport {
+  transition: opacity 180ms ease;
+  will-change: opacity;
+}
+
+.fadeIn {
+  opacity: 1;
+}
+
+.fadeOut {
+  opacity: 0;
+}
+
+.loadMoreHint {
+  margin-top: 0.8rem;
+  text-align: center;
+  color: #b5c6ec;
+  font-size: 0.88rem;
+  min-height: 22px;
+}
+
+.centerLoader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 260px;
+  color: #c8d6f8;
+}
+
+.inlineLoaderWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+}
+
+.loader,
+.loaderSmall {
+  display: inline-block;
+  border-radius: 999px;
+  border: 3px solid rgba(196, 214, 255, 0.22);
+  border-top-color: #f5d19a;
+  animation: spin 0.9s linear infinite;
+}
+
+.loader {
+  width: 22px;
+  height: 22px;
+}
+
+.loaderSmall {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.statsBar {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.2rem;
+}
+
+.statsBar strong {
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 600;
+}
+
+.statsDivider {
+  color: rgba(255, 255, 255, 0.2);
+}

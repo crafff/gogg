@@ -1,33 +1,85 @@
 package riotapi
 
 import (
-    "context"
-    "net/http"
-    "golang.org/x/time/rate"
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/bytedance/sonic"
 )
 
+// Client wraps the Riot API HTTP client with rate limiting.
+// platformURL: platform-level routing, e.g. https://kr.api.riotgames.com
+// regionalURL: regional routing, e.g.  https://asia.api.riotgames.com
 type Client struct {
-    httpClient *http.Client
-    apiKey     string
-    // 限流器：比如开发版 Key 每秒 20 个请求
-    limiter    *rate.Limiter 
+	apiKey      string
+	platformURL string
+	regionalURL string
+	limiter     *RateLimiter
+	http        *http.Client
 }
 
-func NewClient(apiKey string) *Client {
-    return &Client{
-        httpClient: &http.Client{},
-        apiKey:     apiKey,
-        limiter:    rate.NewLimiter(rate.Limit(20), 1), // 每秒 20 个令牌
-    }
+func NewClient(apiKey, platformURL, regionalURL string) *Client {
+	return &Client{
+		apiKey:      apiKey,
+		platformURL: platformURL,
+		regionalURL: regionalURL,
+		limiter:     NewRateLimiter(),
+		http:        &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
-func (c *Client) DoRequest(req *http.Request) (*http.Response, error) {
-    // 关键：在发起请求前，先等限流器“放行”
-    err := c.limiter.Wait(context.Background())
-    if err != nil {
-        return nil, err
-    }
-    
-    req.Header.Set("X-Riot-Token", c.apiKey)
-    return c.httpClient.Do(req)
+const maxRetries = 5
+
+func (c *Client) doRequest(ctx context.Context, url string, result any) error {
+	for attempt := range maxRetries {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("X-Riot-Token", c.apiKey)
+
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			retrySec, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+			resp.Body.Close()
+			if retrySec <= 0 {
+				retrySec = 10
+			}
+			wait := time.Duration(retrySec) * time.Second
+			slog.WarnContext(ctx, "rate limited by Riot API",
+				"retry_after_s", retrySec, "attempt", attempt+1)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+			}
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			var riotErr RiotError
+			_ = sonic.ConfigDefault.NewDecoder(resp.Body).Decode(&riotErr)
+			resp.Body.Close()
+			return &riotErr
+		}
+
+		if result != nil {
+			err = sonic.ConfigDefault.NewDecoder(resp.Body).Decode(result)
+		}
+		resp.Body.Close()
+		return err
+	}
+	return fmt.Errorf("riot API request failed after %d retries: %s", maxRetries, url)
 }
