@@ -127,6 +127,20 @@ build-worker:
 		go build -trimpath -o bin/gogg-worker ./apps/worker/cmd/worker; \
 	else echo "apps/worker/cmd/worker/main.go not present yet"; fi
 
+.PHONY: run-api
+run-api: ## Run gogg-api locally with dev config from deploy/secrets
+	@# When a sops-encrypted dev secrets file exists, decrypt it into a
+	@# temp file and point APP_CONFIG_PATH at it. Otherwise fall back to
+	@# the legacy ./config.yaml or env-only config.
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-api.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/api/cmd/api; \
+	else \
+		go run ./apps/api/cmd/api; \
+	fi
+
 # ── Hooks ───────────────────────────────────────────────────
 .PHONY: hooks
 hooks: ## Install pre-commit hooks via lefthook
