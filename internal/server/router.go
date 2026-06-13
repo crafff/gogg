@@ -30,13 +30,14 @@ func NewRouter(app *App) http.Handler {
 			return
 		}
 
-		limit := intQuery(r, "limit", -1, -1, 500)
-		minGames := intQuery(r, "minGames", 20, 1, 20000)
-		queueID := intQuery(r, "queueId", 420, 0, 9999)
-		position := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("position")))
+		limit             := intQuery(r, "limit", -1, -1, 500)
+		minGames          := intQuery(r, "minGames", 20, 1, 20000)
+		queueID           := intQuery(r, "queueId", 420, 0, 9999)
+		position          := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("position")))
 		positionThreshold := floatQuery(r, "positionThreshold", 5.0, 0, 100)
-		version := strings.TrimSpace(r.URL.Query().Get("version"))
-		// fmt.Printf("Query params - queueId: %d, position: '%s', minGames: %d, limit: %d\n", queueID, position, minGames, limit)
+		version           := strings.TrimSpace(r.URL.Query().Get("version"))
+		region            := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("region")))
+		tierGroup         := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tier")))
 
 		if version == "latest" {
 			latestVersion, err := app.repos.versionStore.GetLatestVersion()
@@ -48,21 +49,24 @@ func NewRouter(app *App) http.Handler {
 		}
 
 		query := ChampionRankingQuery{
-			QueueID:  queueID,
-			GameVersion: version,
-			MinGames: minGames,
-			Limit:    limit,
+			QueueID:   queueID,
+			Version:   version,
+			Region:    region,
+			TierGroup: tierGroup,
+			MinGames:  minGames,
+			Limit:     limit,
 		}
 
 		var items []ChampionRankingItem
+		var totalMatches int
 		var err error
 
 		if position != "" {
 			query.Position = position
-			items, err = app.repos.rankingStore.GetRankingsByPosition(r.Context(), query)
+			items, totalMatches, err = app.repos.rankingStore.GetRankingsByPosition(r.Context(), query)
 		} else {
 			query.PositionThreshold = positionThreshold
-			items, err = app.repos.rankingStore.GetOverallRankings(r.Context(), query)
+			items, totalMatches, err = app.repos.rankingStore.GetOverallRankings(r.Context(), query)
 		}
 
 		if err != nil {
@@ -77,14 +81,49 @@ func NewRouter(app *App) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"items": items,
 			"meta": map[string]any{
-				"queueId":     queueID,
-				"gameVersion": version, // 返回查询所用的版本号，方便前端展示
-				"position":    position,      // 如果未指定则为空字符串
-				"minGames":    minGames,
-				"limit":       limit,
+				"queueId":           queueID,
+				"version":           version,
+				"region":            region,
+				"tier":              tierGroup,
+				"position":          position,
+				"minGames":          minGames,
+				"limit":             limit,
 				"positionThreshold": positionThreshold,
+				"totalMatches":      totalMatches,
 			},
 		})
+	})
+
+	mux.HandleFunc("/api/versions", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		versions, err := app.repos.versionStore.GetVersionsWithData(r.Context())
+		if err != nil {
+			http.Error(w, "failed to get versions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if versions == nil {
+			versions = []string{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+	})
+
+	mux.HandleFunc("/api/regions", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		regions, err := app.repos.rankingStore.GetRegionsWithData(r.Context())
+		if err != nil {
+			http.Error(w, "failed to get regions: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if regions == nil {
+			regions = []string{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"regions": regions})
 	})
 
 	if distHandler := buildDistHandler(app.webDistDir); distHandler != nil {
