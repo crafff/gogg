@@ -1,0 +1,68 @@
+# Pre-commit and commit-msg hooks managed by lefthook.
+# Install once per clone with:  make hooks   (== `lefthook install`)
+#
+# Each hook runs only on the files actually staged for the commit
+# (lefthook's {staged_files} substitution). Failures block the
+# commit; emergency override is `git commit --no-verify` and
+# must be justified in review.
+
+pre-commit:
+  parallel: true
+  commands:
+    # ── Go ────────────────────────────────────────────────────
+    gofmt:
+      glob: "*.go"
+      run: gofmt -l -s {staged_files} | tee /dev/stderr | (! grep .)
+      stage_fixed: false
+
+    govet:
+      glob: "*.go"
+      # Vet at package granularity, not file. Pull the package
+      # set from the changed files.
+      run: |
+        pkgs=$(echo {staged_files} | tr ' ' '\n' | xargs -n1 dirname | sort -u | sed 's|^|./|')
+        [ -z "$pkgs" ] || go vet $pkgs
+
+    golangci-lint:
+      glob: "*.go"
+      run: golangci-lint run --new-from-rev=HEAD --fast {staged_files}
+
+    # ── Web ───────────────────────────────────────────────────
+    prettier:
+      glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx,json,css,md}"
+      run: |
+        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
+        npx prettier --check {staged_files}
+
+    eslint:
+      glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx}"
+      run: |
+        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
+        npx eslint --max-warnings 0 {staged_files}
+
+    # ── Security ──────────────────────────────────────────────
+    gitleaks:
+      run: gitleaks protect --staged --redact --no-banner
+
+    # ── Generic ───────────────────────────────────────────────
+    no-trailing-whitespace:
+      glob: "*.{go,ts,tsx,js,jsx,yaml,yml,md,sql,Dockerfile,sh}"
+      run: |
+        if grep -nE ' +$' {staged_files}; then
+          echo "trailing whitespace; run 'make fmt'"
+          exit 1
+        fi
+
+# ── Commit message ──────────────────────────────────────────
+commit-msg:
+  commands:
+    commitlint:
+      run: |
+        npx --yes @commitlint/cli@19 --edit {1} \
+          --config .commitlintrc.json
+
+# ── Skip rules ──────────────────────────────────────────────
+# Skip everything when the commit is a merge or revert.
+skip_output:
+  - meta
+  - success
