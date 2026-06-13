@@ -94,6 +94,11 @@ services:
       POSTGRES_PWD: temporalpass
       POSTGRES_SEEDS: temporal-pg
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      # auto-setup:1.25.2 no longer ships a default dynamicconfig
+      # file; mount our own so server startup doesn't crash on
+      # the missing file. See deploy/compose/temporal/dynamicconfig/.
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
     ports:
       - "7233:7233"
     healthcheck:

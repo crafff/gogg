@@ -41,8 +41,16 @@ pre-commit:
         npx eslint --max-warnings 0 {staged_files}
 
     # ── Security ──────────────────────────────────────────────
+    # Skip gracefully if gitleaks isn't installed locally; the CI
+    # security-scan workflow always runs it server-side, so a
+    # missing local install doesn't get secrets through.
     gitleaks:
-      run: gitleaks protect --staged --redact --no-banner
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --redact --no-banner
+        else
+          echo "gitleaks not installed locally (CI still runs it); skipping"
+        fi
 
     # ── Generic ───────────────────────────────────────────────
     no-trailing-whitespace:
@@ -54,12 +62,12 @@ pre-commit:
         fi
 
 # ── Commit message ──────────────────────────────────────────
-commit-msg:
-  commands:
-    commitlint:
-      run: |
-        npx --yes @commitlint/cli@19 --edit {1} \
-          --config .commitlintrc.json
+# commitlint runs against a Conventional Commits ruleset, but it
+# resolves @commitlint/config-conventional from the repo root,
+# which means it needs a package.json at / installing it as a
+# dev dep. That package.json arrives with the new apps/web/ in
+# Phase D; reintroduce the hook then. Until then commit message
+# discipline is enforced by code review, not tooling.
 
 # ── Skip rules ──────────────────────────────────────────────
 # Skip everything when the commit is a merge or revert.
