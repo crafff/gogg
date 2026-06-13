@@ -1,0 +1,14 @@
+go 1.26
+
+// During the refactor we use a Go Workspace to stitch together
+// the legacy single-module root (./) and the new per-app /
+// per-package modules under apps/ and packages/.
+//
+// As each new module lands (apps/api, apps/worker, packages/sqlc,
+// packages/domain, packages/riotapi), append it here via:
+//   go work use ./apps/api
+// and bump this file in the same commit so CI stays green.
+
+use (
+	.
+)
