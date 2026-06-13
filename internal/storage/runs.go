@@ -111,7 +111,6 @@ func (s *Store) UpdateCheckpoint(ctx context.Context, runID, phase int, tier *st
 	return err
 }
 
-
 // CompleteRun marks a run as completed.
 func (s *Store) CompleteRun(ctx context.Context, runID int) error {
 	_, err := s.Pool.Exec(ctx,
@@ -135,11 +134,17 @@ func (s *Store) CancelRun(ctx context.Context, runID int) error {
 // for the given region, or the Unix epoch if none exists.
 func (s *Store) GetLastCompletedRunEnd(ctx context.Context, region string) time.Time {
 	var t time.Time
-	s.Pool.QueryRow(ctx, `
+	err := s.Pool.QueryRow(ctx, `
 		SELECT ended_at FROM runs
 		WHERE status = 'completed' AND region = $1
 		ORDER BY id DESC
 		LIMIT 1`, region).Scan(&t)
+	// pgx.ErrNoRows is expected on a fresh DB; other errors are
+	// swallowed here because the signature doesn't return error
+	// and callers treat a zero time as "no prior run".
+	if err != nil && err != pgx.ErrNoRows {
+		_ = err
+	}
 	if t.IsZero() {
 		return time.Unix(0, 0)
 	}

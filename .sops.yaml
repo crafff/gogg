@@ -1,0 +1,22 @@
+# SOPS recipient configuration.
+#
+# Each rule says: "for files matching this pattern, encrypt to
+# these age public keys". A leaked dev key must not decrypt prod.
+#
+# Add your age public key (output of `age-keygen`) below; until
+# then sops will refuse to encrypt and the scaffold stays inert.
+
+creation_rules:
+  - path_regex: deploy/secrets/dev\.enc\.yaml$
+    age: >-
+      # paste dev age public key here, e.g.
+      # age1qz9p3...
+      REPLACE_WITH_DEV_AGE_PUBLIC_KEY
+
+  - path_regex: deploy/secrets/staging\.enc\.yaml$
+    age: >-
+      REPLACE_WITH_STAGING_AGE_PUBLIC_KEY
+
+  - path_regex: deploy/secrets/prod\.enc\.yaml$
+    age: >-
+      REPLACE_WITH_PROD_AGE_PUBLIC_KEY

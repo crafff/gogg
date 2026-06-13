@@ -2,9 +2,9 @@ package server
 
 import (
 	"encoding/json"
-	// "fmt"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -22,7 +22,7 @@ func NewRouter(app *App) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ready"))
 	})
-	
+
 	mux.HandleFunc("/api/rankings/champions", func(w http.ResponseWriter, r *http.Request) {
 		// fmt.Printf("Received request: %s %s\n", r.Method, r.URL.String())
 		if r.Method != http.MethodGet {
@@ -30,14 +30,14 @@ func NewRouter(app *App) http.Handler {
 			return
 		}
 
-		limit             := intQuery(r, "limit", -1, -1, 500)
-		minGames          := intQuery(r, "minGames", 20, 1, 20000)
-		queueID           := intQuery(r, "queueId", 420, 0, 9999)
-		position          := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("position")))
+		limit := intQuery(r, "limit", -1, -1, 500)
+		minGames := intQuery(r, "minGames", 20, 1, 20000)
+		queueID := intQuery(r, "queueId", 420, 0, 9999)
+		position := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("position")))
 		positionThreshold := floatQuery(r, "positionThreshold", 5.0, 0, 100)
-		version           := strings.TrimSpace(r.URL.Query().Get("version"))
-		region            := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("region")))
-		tierGroup         := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tier")))
+		version := strings.TrimSpace(r.URL.Query().Get("version"))
+		region := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("region")))
+		tierGroup := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tier")))
 
 		if version == "latest" {
 			latestVersion, err := app.repos.versionStore.GetLatestVersion()
@@ -210,6 +210,11 @@ func buildDistHandler(distDir string) http.Handler {
 		return nil
 	}
 
+	absDist, err := filepath.Abs(distDir)
+	if err != nil {
+		return nil
+	}
+
 	fs := http.FileServer(http.Dir(distDir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
@@ -217,9 +222,19 @@ func buildDistHandler(distDir string) http.Handler {
 			return
 		}
 
-		relPath := strings.TrimPrefix(filepath.Clean(r.URL.Path), string(filepath.Separator))
-		target := filepath.Join(distDir, relPath)
-		if info, err := os.Stat(target); err == nil && !info.IsDir() {
+		// Clean using path (URL paths always use '/') then convert
+		// to the OS-specific separator before joining with distDir.
+		// path.Clean strips ../ components so the URL "/../etc/passwd"
+		// becomes "/etc/passwd", but as belt-and-braces we also
+		// verify the joined path doesn't escape the served dir.
+		cleaned := path.Clean("/" + strings.TrimPrefix(r.URL.Path, "/"))
+		target := filepath.Join(distDir, filepath.FromSlash(cleaned))
+		absTarget, err := filepath.Abs(target)
+		if err != nil || !strings.HasPrefix(absTarget+string(filepath.Separator), absDist+string(filepath.Separator)) {
+			http.NotFound(w, r)
+			return
+		}
+		if info, err := os.Stat(absTarget); err == nil && !info.IsDir() {
 			fs.ServeHTTP(w, r)
 			return
 		}

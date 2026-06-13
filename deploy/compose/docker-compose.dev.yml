@@ -1,0 +1,133 @@
+# Local development stack for the refactor.
+#
+# Brings up everything the new `gogg-api` and `gogg-worker` need:
+#   - postgres        : application DB (port 55433 to avoid clash with host pg)
+#   - redis           : cache, session, rate-limit token store
+#   - temporal-pg     : Temporal's own persistence (isolated from app DB)
+#   - temporal        : Temporal server (frontend on 7233)
+#   - temporal-ui     : Temporal Web UI (http://localhost:8233)
+#   - mailhog         : SMTP sink for password-reset / OAuth emails in dev
+#
+# The legacy /docker-compose.yml at the repo root keeps the old
+# stack alive in parallel; it will be deleted when Phase B retires
+# the legacy server. Use the dev stack via `make dev`.
+
+name: gogg-dev
+
+networks:
+  gogg-dev:
+    driver: bridge
+
+volumes:
+  pg_data:
+  temporal_pg_data:
+  redis_data:
+
+services:
+  # ── App database ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: gogg-dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gogg
+      POSTGRES_PASSWORD: goggpass
+      POSTGRES_DB: gogg
+    ports:
+      - "55433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gogg -d gogg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [gogg-dev]
+
+  # ── Cache / session store ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: gogg-dev-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [gogg-dev]
+
+  # ── Temporal persistence (isolated from app DB) ─────────────
+  temporal-pg:
+    image: postgres:16-alpine
+    container_name: gogg-dev-temporal-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporalpass
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [gogg-dev]
+
+  # ── Temporal server ─────────────────────────────────────────
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    container_name: gogg-dev-temporal
+    restart: unless-stopped
+    depends_on:
+      temporal-pg:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporalpass
+      POSTGRES_SEEDS: temporal-pg
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      # auto-setup:1.25.2 no longer ships a default dynamicconfig
+      # file; mount our own so server startup doesn't crash on
+      # the missing file. See deploy/compose/temporal/dynamicconfig/.
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    ports:
+      - "7233:7233"
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [gogg-dev]
+
+  # ── Temporal Web UI ─────────────────────────────────────────
+  temporal-ui:
+    image: temporalio/ui:2.32.0
+    container_name: gogg-dev-temporal-ui
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    ports:
+      - "8233:8080"
+    networks: [gogg-dev]
+
+  # ── Dev mail sink (used by user-system OAuth / reset flows) ─
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: gogg-dev-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks: [gogg-dev]

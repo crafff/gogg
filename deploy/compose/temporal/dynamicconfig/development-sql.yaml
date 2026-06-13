@@ -1,0 +1,33 @@
+# Temporal server dynamic config for local dev.
+#
+# Mounted into the temporal container at
+# /etc/temporal/config/dynamicconfig/development-sql.yaml and
+# referenced by env var DYNAMIC_CONFIG_FILE_PATH.
+#
+# Each key is a Temporal dynamic config setting; constraints
+# narrow the scope (namespace, task queue, etc.). Empty list
+# means "use built-in defaults", which is fine for V1.
+#
+# Reference: https://docs.temporal.io/references/dynamic-configuration
+# Schema:   https://github.com/temporalio/temporal/tree/main/service/dynamicconfig
+
+# ── Search attribute support without Elasticsearch ──────────
+# The default visibility store is the same Postgres Temporal
+# uses for history; we don't run ES locally so flip this on so
+# search attributes still work in the Web UI.
+system.advancedVisibilityWritingMode:
+  - value: "on"
+    constraints: {}
+
+# ── Bump generous limits for dev so we don't hit them while
+#    iterating on workflow code ────────────────────────────────
+frontend.enableClientVersionCheck:
+  - value: true
+    constraints: {}
+
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
+
+# Place to add overrides later (e.g. higher activity timeouts,
+# per-namespace rate caps). Leave empty otherwise.

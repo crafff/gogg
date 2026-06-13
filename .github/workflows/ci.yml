@@ -1,0 +1,143 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - "refactor/**"
+      - ui
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+  NODE_VERSION: "20"
+
+jobs:
+  # ── Go: vet + lint + test ──────────────────────────────────
+  go:
+    name: go (vet, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # Read the exact Go version + toolchain from go.work so
+          # local dev, lefthook, and CI all use the same compiler.
+          # Falls back to env.GO_VERSION if go.work isn't present
+          # (e.g. before Phase A merges into main).
+          go-version-file: go.work
+          check-latest: true
+          cache: true
+
+      # Note: a `go mod tidy` drift check is intentionally deferred
+      # until Phase B pins the full toolchain (Go + tidy version)
+      # across local and CI. Until then, transient cache/version
+      # differences between runner and dev machines produce
+      # false positives.
+
+      - name: go vet
+        run: go vet ./...
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          # install-mode: goinstall compiles golangci-lint from
+          # source using the Go version setup-go installed above.
+          # The prebuilt v1.62.0 binary is built with Go 1.23 and
+          # refuses to lint code targeting Go 1.26.1+ ("Go language
+          # version used to build golangci-lint is lower than the
+          # targeted Go version"). Building from source sidesteps
+          # the lockstep requirement.
+          install-mode: goinstall
+          args: --timeout=5m
+
+      - name: go test
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: coverage.out
+          retention-days: 7
+
+  # ── Web: type-check + lint + test + build ──────────────────
+  web:
+    name: web (type-check, lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: type-check
+        run: npm run type-check
+
+      - name: lint
+        run: npm run lint --if-present
+
+      - name: test
+        run: npm run test --if-present -- --run
+
+      - name: build
+        run: npm run build
+
+  # ── SQL: migrations consistency between old and new path ───
+  migrations-parity:
+    name: migrations parity (legacy ↔ packages/sqlc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: diff migration trees
+        run: |
+          if [ -d internal/storage/migrations ] && [ -d packages/sqlc/migrations ]; then
+            if ! diff -rq internal/storage/migrations packages/sqlc/migrations; then
+              echo "::error::migration drift between internal/storage/migrations and packages/sqlc/migrations — keep them byte-identical until Phase B removes the legacy path"
+              exit 1
+            fi
+          fi
+
+  # ── Docker: build images on every push (no publish in CI) ──
+  docker-build:
+    name: docker build
+    runs-on: ubuntu-latest
+    needs: [go, web]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build gogg-api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/api.Dockerfile
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+          build-args: |
+            CMD_PATH=./main.go
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+      # worker + web image builds enabled once apps/worker and
+      # apps/web contain real entry points (Phase B / D).

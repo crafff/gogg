@@ -1,52 +1,67 @@
-# GOGG (Go + React)
+# GOGG
 
-This project now includes:
+League of Legends champion stats and summoner search website.
+**This repo is mid-refactor** from a hobby MVP into a production
+service; see the [refactoring plan](/home/zrt/.claude/plans/radiant-wobbling-pizza.md)
+and the [architecture decisions](./docs/architecture/adr/) for
+context.
 
-- Go backend server (port `8080` by default)
-- React frontend (`web/`) for champion rankings
-- PostgreSQL-backed ranking API using:
-	`postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable`
+## What's in here
 
-## Run Backend
+- `apps/api/` — `gogg-api` GraphQL BFF + REST compat (Go,
+  populated in Phase B)
+- `apps/worker/` — `gogg-worker` Temporal worker hosting the
+  crawler workflows (Phase C)
+- `apps/web/` — React 18 + Vite + TS frontend (Phase D)
+- `packages/sqlc/`, `packages/domain/`, `packages/riotapi/` —
+  shared Go packages
+- `deploy/` — Docker, Compose, Kubernetes, Terraform,
+  observability, SOPS secrets
+- `docs/` — ADRs, runbooks, API docs, contributor guide
+- `internal/`, `cmd/`, top-level `main.go`, `web/` — the
+  **legacy stack**, kept running until the rewrite catches up;
+  do not delete
+
+## Quick start (legacy stack — still the path that actually serves traffic)
 
 ```bash
-go mod tidy
-go build .
-./gogg
-```
+# 1. Start postgres
+docker compose -f docker-compose.yml up -d
 
-Environment variables:
+# 2. Build and run the API + crawler binary
+go build -o gogg .
+./gogg serve                       # HTTP API on :8080
+./gogg crawl run --profile daily_kr # crawler
 
-- `PORT` (default: `8080`)
-- `DATABASE_DSN` (default: `postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable`)
-- `WEB_DIST_DIR` (default: `web/dist`)
-
-## Run Frontend (Dev)
-
-```bash
+# 3. Run the frontend
 cd web
 npm install
-npm run dev
+npm run dev   # http://localhost:5173, proxies /api to :8080
 ```
 
-Dev frontend uses Vite proxy to backend `/api`.
-
-## Build Frontend for Go Static Serving
+## Quick start (refactored stack — bring up the new monorepo dev env)
 
 ```bash
-cd web
-npm run build
+make dev          # postgres + redis + temporal + mailhog
+make migrate-up   # apply DB migrations
+# apps/api and apps/worker are populated in Phase B/C; Phase A
+# only sets up the scaffolding.
 ```
 
-After build, backend serves frontend at `/` from `web/dist`.
+See [`docs/contributing.md`](./docs/contributing.md) for the
+full developer workflow, commit conventions, and PR checklist.
 
-## API
+## Top-level make targets
 
-`GET /api/rankings/champions`
+```
+make dev / dev-down / dev-reset   — local stack lifecycle
+make lint / test / ci             — quality gates
+make gen / gen-sqlc / gen-gql     — code generation
+make migrate-up / migrate-new     — database migrations
+make build / build-api / build-worker — Go binaries
+make hooks                        — install pre-commit hooks
+```
 
-Query params:
+## License
 
-- `limit` (default `20`, range `1-200`)
-- `minGames` (default `20`)
-- `position` (`TOP`, `JUNGLE`, `MIDDLE`, `BOTTOM`, `UTILITY`)
-- `queueId` (default `420`)
+UNLICENSED — private project. Do not redistribute.

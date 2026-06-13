@@ -1,0 +1,89 @@
+name: security-scan
+
+on:
+  push:
+    branches:
+      - main
+      - "refactor/**"
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Weekly Monday 03:00 UTC catches new CVEs even when no
+    # changes land.
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ── Find committed secrets ─────────────────────────────────
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Go vulnerability scan ──────────────────────────────────
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          check-latest: true
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+
+  # ── Node dependency advisories ─────────────────────────────
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      # Only fail on high+ severity so noisy transitive moderate
+      # CVEs in build tooling don't block PRs; weekly schedule
+      # still surfaces them.
+      - run: npm audit --audit-level=high --omit=dev
+
+  # ── Static analysis ────────────────────────────────────────
+  semgrep:
+    name: semgrep
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      # `semgrep scan` runs locally with explicit rulesets and
+      # does NOT require a SEMGREP_APP_TOKEN. `semgrep ci` would
+      # require a token from semgrep.dev. --error flips the exit
+      # code on findings so PRs fail; --severity=ERROR keeps the
+      # signal-to-noise high during the refactor.
+      - run: |
+          semgrep scan \
+            --config=p/default \
+            --config=p/golang \
+            --config=p/javascript \
+            --config=p/typescript \
+            --config=p/react \
+            --config=p/owasp-top-ten \
+            --config=p/secrets \
+            --severity=ERROR \
+            --error

@@ -1,3 +1,5 @@
+//go:build integration
+
 package phase3_test
 
 import (
@@ -57,19 +59,19 @@ func TestRun_insertsParticipants(t *testing.T) {
 					Deaths:        2,
 					Assists:       5,
 					// Fields that were missing from VALUES ($115–$127):
-					EnemyMissingPings:          3,
-					GetBackPings:               1,
-					HoldPings:                  2,
-					OnMyWayPings:               4,
-					NeedVisionPings:            5,
-					PushPings:                  6,
-					RetreatPings:               7,
-					EnemyVisionPings:           8,
-					VisionClearedPings:         9,
-					GameEndedInEarlySurrender:  false,
-					GameEndedInSurrender:       true,
-					TeamEarlySurrendered:       false,
-					TimePlayed:                 1800,
+					EnemyMissingPings:         3,
+					GetBackPings:              1,
+					HoldPings:                 2,
+					OnMyWayPings:              4,
+					NeedVisionPings:           5,
+					PushPings:                 6,
+					RetreatPings:              7,
+					EnemyVisionPings:          8,
+					VisionClearedPings:        9,
+					GameEndedInEarlySurrender: false,
+					GameEndedInSurrender:      true,
+					TeamEarlySurrendered:      false,
+					TimePlayed:                1800,
 				},
 			},
 		},
@@ -83,12 +85,12 @@ func TestRun_insertsParticipants(t *testing.T) {
 
 	// Verify core fields and the previously-missing ping fields.
 	var (
-		championID                int
-		kills                     int
-		enemyMissingPings         int
-		retreatPings              int
-		gameEndedInSurrender      bool
-		timePlayed                int
+		championID           int
+		kills                int
+		enemyMissingPings    int
+		retreatPings         int
+		gameEndedInSurrender bool
+		timePlayed           int
 	)
 	err := store.Pool.QueryRow(ctx, `
 		SELECT champion_id, kills, enemy_missing_pings, retreat_pings,
