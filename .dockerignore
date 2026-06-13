@@ -1,0 +1,49 @@
+# Build outputs
+bin/
+dist/
+web/dist/
+apps/web/dist/
+
+# Dependencies
+node_modules/
+web/node_modules/
+apps/web/node_modules/
+
+# Logs / runtime
+*.log
+logs/
+.pids
+tmp/
+.docker-data/
+
+# Env / secrets — never bake into images
+.env
+.env.local
+.env.*.local
+config.yaml
+secrets.json
+*.key
+*.pem
+deploy/secrets/*.enc.yaml
+deploy/secrets/*.dev.yaml
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Tests / coverage
+coverage.out
+coverage.html
+.nyc_output/
+
+# Git / CI
+.git/
+.github/
+.gitignore
+
+# Docs (not needed in runtime images)
+docs/
+*.md
