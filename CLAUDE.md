@@ -1,70 +1,126 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when
+working with code in this repository.
 
-## Project Overview
+## Project overview
 
-**GOGG** is a League of Legends champion rankings app. It consists of:
-- **Go backend** — REST API serving champion ranking stats from PostgreSQL
-- **React frontend** — TypeScript/Vite UI for browsing and filtering rankings
-- **Crawler** (`playground/crawler-test/`) — standalone tool that fetches match data from the Riot API and populates the database
+**GOGG** is a League of Legends champion stats / summoner search
+website, mid-refactor from a hobby MVP into a production
+service. The plan is captured in `/home/zrt/.claude/plans/radiant-wobbling-pizza.md` and
+the load-bearing decisions live under `docs/architecture/adr/`.
+
+V1 scope: rankings, champion detail, summoner search, user
+system (Discord/Google OAuth + Riot RSO when approved).
+Two regions: KR and NA1. Bilingual UI (zh-CN + en-US).
+Cloud-agnostic deploy (AWS or domestic Chinese cloud).
+
+## Repository layout
+
+```
+apps/
+  api/        — gogg-api binary (chi + gqlgen GraphQL BFF + REST compat + auth)
+  worker/     — gogg-worker binary (Temporal worker hosting crawl/enrich workflows)
+  web/        — React 18 + Vite + TS, feature-grouped UI
+packages/
+  domain/     — shared Go enums (Champion, Tier, Region) and error codes
+  sqlc/       — SQL migrations + queries + generated bindings
+  riotapi/    — Riot API client lifted from internal/riotapi
+  proto/      — reserved for future gRPC contracts
+deploy/
+  docker/     — Dockerfiles + nginx.conf
+  compose/    — local dev stack (docker-compose.dev.yml)
+  k8s/        — Kustomize base + dev/staging/prod overlays
+  terraform/  — cloud-agnostic IaC (modules/aws, modules/aliyun)
+  observability/ — Prometheus + Grafana + Alertmanager
+  secrets/    — SOPS-encrypted env files
+docs/
+  architecture/ — C4 + ADRs
+  runbooks/   — on-call procedures
+  api/        — GraphQL schema docs + OpenAPI for the REST compat layer
+```
+
+The legacy code (`internal/server/`, `internal/crawler/`,
+`internal/storage/`, top-level `main.go`, `cmd/crawl/`) is still
+present and serving traffic. Phase B replaces it; Phase C
+migrates the crawler to Temporal. Do not delete legacy paths
+until the replacement is wired in and a release has switched
+over.
+
+## Phases
+
+- **A · Foundation** — monorepo scaffold, Docker, CI, SOPS,
+  ADRs (this branch, in progress)
+- **B · Backend rewrite** — sqlc + service layer + GraphQL BFF +
+  auth + REST compat
+- **C · Crawler → Temporal** — Phase 0–5.5 become Activities
+- **D · Frontend rewrite** — Tailwind + TanStack Query + i18n
+- **E · New features** — champion detail, summoner search, user system
+- **F · Production hardening** — k8s manifests, Terraform, observability, runbooks
 
 ## Commands
 
-### Backend
+### Local dev stack
 ```bash
-go build .          # Build the binary
-./gogg              # Run the server (needs DATABASE_DSN and optionally PORT, WEB_DIST_DIR)
-go test ./...       # Run tests
+make dev          # postgres + redis + temporal + mailhog
+make dev-down     # stop
+make dev-reset    # stop + drop volumes (data loss)
 ```
 
-### Frontend
+### Legacy backend (still functional during Phase A–B)
+```bash
+go build .                          # build the legacy ./gogg binary
+./gogg serve                        # HTTP API on :8080
+./gogg crawl run --profile daily_kr # crawler with the existing config.yaml
+go test ./...
+```
+
+### Legacy frontend
 ```bash
 cd web
 npm install
-npm run dev         # Dev server with Vite proxy to localhost:8080/api
-npm run build       # TypeScript check + Vite build → web/dist/
-npm run type-check  # Type-check only
+npm run dev         # Vite proxy → localhost:8080/api
+npm run build       # type-check + build → web/dist/
+npm run type-check
 ```
 
-### Crawler
+### New monorepo targets (skeleton — fully populated as Phase B+ lands)
 ```bash
-cd playground/crawler-test
-go run ./cmd/crawler   # Run crawler (reads config.yaml)
+make build-api    # apps/api/cmd/api → bin/gogg-api
+make build-worker # apps/worker/cmd/worker → bin/gogg-worker
+make lint         # golangci-lint + web lint
+make test         # go test + web test
+make ci           # vet + lint + test (CI parity)
+make gen          # sqlc + gqlgen + graphql-codegen
+make migrate-up   # apply migrations from packages/sqlc/migrations/
+make migrate-new name=add_user_favorites
 ```
 
-### Database (Docker)
-The default DSN is `postgres://gogg:goggpass@localhost:55433/gogg`. The crawler's `internal/storage/schema.go` defines and creates all tables on startup.
+## Architectural rules (enforced by review)
 
-## Architecture
+1. **Service layer owns business logic.** Transports
+   (`apps/api/internal/transport/graphql`,
+   `apps/api/internal/transport/rest`) call into the same
+   `internal/service/*` packages. No SQL in resolvers, no
+   HTTP-aware code in services.
+2. **Data access goes through sqlc.** Hand-written `pgx`
+   queries are allowed only for the truly-dynamic case (e.g.
+   filter-built WHERE clauses); when you write one, leave a
+   `// sqlc-skip: <reason>` comment.
+3. **Secrets never land in git.** Use `deploy/secrets/*.enc.yaml`
+   via SOPS. CI verifies via gitleaks.
+4. **Migrations are forward-only in spirit.** Every migration
+   ships with a corresponding `.down.sql`, but down migrations
+   are for local dev only; production rolls forward.
+5. **The legacy stack is sacred until its replacement ships.**
+   Modifying `internal/server/` or `internal/crawler/` during
+   the refactor is only OK if the change is being mirrored into
+   the new module, or it's an outright bug fix that can't wait.
 
-### Backend (`internal/server/`)
+## Where to look next
 
-- **app.go** — `App` struct wires together the HTTP server, PostgreSQL pool (`pgxpool`), and repositories (`RankingStore`, `VersionStore`). Handles graceful shutdown.
-- **config.go** — Reads `PORT`, `DATABASE_DSN`, `WEB_DIST_DIR` from environment.
-- **router.go** — `http.ServeMux` routing + CORS middleware. Key routes: `GET /api/rankings/champions`, `/healthz`, `/readyz`, static file serving for the built frontend.
-- **rankings.go** — `RankingStore` with two query paths:
-  - `GetOverallRankings` — CTE-based query that aggregates champions across all positions; supports a `PositionThreshold` (e.g. 5%) for multi-position heroes and returns positions as a PostgreSQL array.
-  - `GetRankingsByPosition` — simpler single-position aggregation.
-  - `ChampionRankingQuery` carries all filter params: `QueueID` (default 420), `GameVersion` ("latest" resolves via `VersionStore`), `Position`, `MinGames`, `Limit`, `PositionThreshold`.
-- **versions.go** — `VersionStore.GetLatestVersion()` queries the `game_versions` table.
-
-### Frontend (`web/src/`)
-
-Routing is handled by React Router DOM; the app currently renders a single `<Rankings>` page.
-
-- **types/index.ts** — Shared types (`Position`, `RankingsFilters`, `RankingsResponse`, `ChampionRankingItem`).
-- **services/api.ts** — `fetchChampionRankings(filters)` calls `/api/rankings/champions` with `URLSearchParams`.
-- **hooks/useRankings.ts** — Fetching hook that manages `loading`/`error`/`items` state and request cancellation.
-- **pages/Rankings/Rankings.tsx** — Complex component: infinite scroll via `IntersectionObserver`, position filter switching with fade animations (180 ms out / 220 ms in), viewport-height locking during transitions. Constants: `PAGE_SIZE=40`, `FIXED_MIN_GAMES=20`.
-- **components/UI/** — `FiltersPanel`, `RankingsTable`, `StateMessages` (loading/error/empty).
-
-### Crawler (`playground/crawler-test/`)
-
-Task-queue + worker-pool architecture:
-
-- **internal/riot/** — Riot API HTTP client with rate limiting (`golang.org/x/time`). Separate `api_*.go` files per endpoint (account, league, match, match_detail, version).
-- **internal/crawler/** — `TaskHandler` registry (`router.go`). Task types: `AccountByRiotID`, `ChallengeLeaguesByQueue`, `Version`, `MatchByPUUID`, `MatchDetailByMatchID`. Workers consume from a buffered channel.
-- **internal/process/** — Result processors that transform API responses into DB writes.
-- **internal/storage/** — Repository pattern over `pgxpool`. `schema.go` creates tables on startup: `players`, `player_rank_current`, `game_versions`, `player_match_sync_state`, `matches`, `match_participants`, `bans`.
-- **config.yaml** — Riot API key, database DSN, `worker_count` (default 5), `queue_size` (default 100).
+- The refactoring plan: `/home/zrt/.claude/plans/radiant-wobbling-pizza.md`
+- Why these decisions: `docs/architecture/adr/000{1,2,3}-*.md`
+- How to contribute: `docs/contributing.md`
+- Local secrets workflow: `deploy/secrets/README.md`
+- Dev stack details: `deploy/compose/docker-compose.dev.yml`
