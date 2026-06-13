@@ -25,10 +25,11 @@ type CatalogService interface {
 }
 
 // Routes returns the chi sub-router mounted at /api/v1.
-func Routes(catalog CatalogService) chi.Router {
+func Routes(catalog CatalogService, rkn RankingsService) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/versions", versionsHandler(catalog))
 	r.Get("/regions", regionsHandler(catalog))
+	r.Get("/rankings/champions", rankingsHandler(rkn))
 	return r
 }
 

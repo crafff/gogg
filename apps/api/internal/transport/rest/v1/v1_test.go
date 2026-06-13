@@ -24,7 +24,7 @@ func (f fakeCatalog) ListRegionsWithData(_ context.Context) ([]string, error) {
 }
 
 func TestVersions_happyPath(t *testing.T) {
-	r := Routes(fakeCatalog{versions: []string{"15.1.1", "15.1"}})
+	r := Routes(fakeCatalog{versions: []string{"15.1.1", "15.1"}}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/versions", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -51,7 +51,7 @@ func TestVersions_happyPath(t *testing.T) {
 }
 
 func TestVersions_emptyIsArrayNotNull(t *testing.T) {
-	r := Routes(fakeCatalog{versions: nil})
+	r := Routes(fakeCatalog{versions: nil}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/versions", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -64,7 +64,7 @@ func TestVersions_emptyIsArrayNotNull(t *testing.T) {
 }
 
 func TestVersions_errorIsSanitized(t *testing.T) {
-	r := Routes(fakeCatalog{err: errors.New("sensitive db detail")})
+	r := Routes(fakeCatalog{err: errors.New("sensitive db detail")}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/versions", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -78,7 +78,7 @@ func TestVersions_errorIsSanitized(t *testing.T) {
 }
 
 func TestRegions_happyPath(t *testing.T) {
-	r := Routes(fakeCatalog{regions: []string{"KR", "NA1"}})
+	r := Routes(fakeCatalog{regions: []string{"KR", "NA1"}}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/regions", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)

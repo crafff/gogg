@@ -26,6 +26,7 @@ import (
 
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
+	"github.com/crafff/gogg/apps/api/internal/service/rankings"
 	"github.com/crafff/gogg/apps/api/internal/transport/middleware"
 	"github.com/crafff/gogg/apps/api/internal/transport/rest"
 	v1 "github.com/crafff/gogg/apps/api/internal/transport/rest/v1"
@@ -132,7 +133,8 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) htt
 	// when Phase D's new web app cuts over per ADR-0003.
 	queries := sqlcgen.New(pool)
 	catalogSvc := catalog.New(queries)
-	r.Mount("/api/v1", v1.Routes(catalogSvc))
+	rankingsSvc := rankings.New(queries, versionResolverAdapter{queries: queries})
+	r.Mount("/api/v1", v1.Routes(catalogSvc, rankingsSvc))
 
 	// /graphql, /oauth/callback/* land in later Phase B steps.
 	return r
@@ -161,6 +163,22 @@ func connectDB(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, e
 		return nil, fmt.Errorf("ping: %w", err)
 	}
 	return pool, nil
+}
+
+// versionResolverAdapter bridges sqlcgen.Queries.GetLatestGameVersion
+// (which returns a row struct) to the simpler string contract the
+// rankings service wants. Inlined here in main.go because it's pure
+// glue — no business logic, nothing to test in isolation.
+type versionResolverAdapter struct {
+	queries *sqlcgen.Queries
+}
+
+func (a versionResolverAdapter) GetLatestVersion(ctx context.Context) (string, error) {
+	row, err := a.queries.GetLatestGameVersion(ctx)
+	if err != nil {
+		return "", err
+	}
+	return row.Version, nil
 }
 
 func newLogger(cfg config.LoggingConfig) *slog.Logger {

@@ -58,11 +58,33 @@ until it is reconciled.
 |---|---|---|
 | `GET /api/versions` | `GET /api/v1/versions` | ✅ Phase B chunk 2 |
 | `GET /api/regions` | `GET /api/v1/regions` | ✅ Phase B chunk 2 |
-| `GET /api/rankings/champions` | `GET /api/v1/rankings/champions` | ⏳ Phase B chunk 3 (rankings) |
+| `GET /api/rankings/champions` | `GET /api/v1/rankings/champions` | ✅ Phase B chunk 3 (rankings) |
 | `GET /healthz` | `GET /healthz` | ✅ Phase B chunk 1 |
 | `GET /readyz` | `GET /readyz` | ✅ Phase B chunk 1 (extends to add DB ping) |
 
 Update this table in the same PR that adds each new endpoint.
+
+## Rankings parity matrix (Phase B chunk 3)
+
+The rankings endpoint runs against 11 representative URL combos
+during local verification; the script lives in
+`scripts/parity-rankings.sh` (added with this chunk). 10/11 are
+byte-equal; the 11th is the intentional `err.Error()`-vs-sanitized
+divergence ADR-0003 allows for. Test combos:
+
+```
+?limit=5                                                — default everything
+?limit=5&minGames=20                                   — min-games clamp
+?limit=5&queueId=420                                   — explicit queue
+?limit=5&region=KR                                     — region filter
+?limit=5&tier=master_plus                              — tier expansion
+?limit=5&position=MIDDLE                               — by-position branch
+?limit=5&position=MIDDLE&tier=challenger              — combined
+?limit=5&positionThreshold=10                         — threshold knob
+?limit=5&version=15.1.1                                — explicit version
+?limit=5&version=latest                                — resolves via catalog
+?limit=200&minGames=1&position=TOP&tier=master&region=KR  — every knob
+```
 
 ## When parity legitimately diverges
 
