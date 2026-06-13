@@ -25,8 +25,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/crafff/gogg/apps/api/internal/config"
+	"github.com/crafff/gogg/apps/api/internal/service/catalog"
 	"github.com/crafff/gogg/apps/api/internal/transport/middleware"
 	"github.com/crafff/gogg/apps/api/internal/transport/rest"
+	v1 "github.com/crafff/gogg/apps/api/internal/transport/rest/v1"
+	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 )
 
 // Build metadata injected via -ldflags at compile time; defaults make
@@ -125,7 +128,13 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) htt
 		rest.NamedPinger{Name: "db", Pinger: rest.PoolPinger{Pool: pool}},
 	))
 
-	// /api/v1, /graphql, /oauth/callback/* land in later Phase B steps.
+	// /api/v1 is the legacy-shape REST compatibility layer; deleted
+	// when Phase D's new web app cuts over per ADR-0003.
+	queries := sqlcgen.New(pool)
+	catalogSvc := catalog.New(queries)
+	r.Mount("/api/v1", v1.Routes(catalogSvc))
+
+	// /graphql, /oauth/callback/* land in later Phase B steps.
 	return r
 }
 
