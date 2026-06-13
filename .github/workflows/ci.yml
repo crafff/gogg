@@ -50,7 +50,15 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.62.0
+          version: latest
+          # install-mode: goinstall compiles golangci-lint from
+          # source using the Go version setup-go installed above.
+          # The prebuilt v1.62.0 binary is built with Go 1.23 and
+          # refuses to lint code targeting Go 1.26.1+ ("Go language
+          # version used to build golangci-lint is lower than the
+          # targeted Go version"). Building from source sidesteps
+          # the lockstep requirement.
+          install-mode: goinstall
           args: --timeout=5m
 
       - name: go test
