@@ -1,6 +1,6 @@
 go 1.26.1
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 // During the refactor we use a Go Workspace to stitch together
 // the legacy single-module root (./) and the new per-app /
