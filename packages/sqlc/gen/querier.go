@@ -12,6 +12,28 @@ type Querier interface {
 	// Queries on game_versions + the versions column of matches.
 	GetLatestGameVersion(ctx context.Context) (GetLatestGameVersionRow, error)
 	ListGameVersions(ctx context.Context, limit int32) ([]ListGameVersionsRow, error)
+	// Champion rankings: overall (aggregated across all positions) and
+	// by-position. Mirrors legacy internal/server/rankings.go verbatim so
+	// /api/v1/rankings/champions stays byte-equal with /api/rankings/champions
+	// through the Phase D cutover.
+	//
+	// The filtered_matches CTE is duplicated between the two queries
+	// because sqlc emits one Go function per query and has no cross-query
+	// CTE sharing. Folding it into a postgres view is a future optimisation
+	// (was already a code smell in legacy per ADR-0002); doing it during
+	// Phase B is out of scope — we ship parity first, refactor later.
+	//
+	// Parameter semantics:
+	//   queue_id            : exact match on matches.queue_id (e.g. 420 for ranked solo)
+	//   version_filter      : exact match on matches.version; '' means all
+	//   region_filter       : exact match on matches.region;  '' means all
+	//   avg_tiers           : whitelist of matches.avg_tier; empty slice means all
+	//   position_threshold  : minimum % of a champion's games to keep that position
+	//   position_filter     : ONLY for by-position; '' for overall (unused)
+	//   min_games           : drop champions with fewer than N games
+	//   row_limit           : -1 means unlimited (becomes LIMIT NULL via NULLIF)
+	ListOverallRankings(ctx context.Context, arg ListOverallRankingsParams) ([]ListOverallRankingsRow, error)
+	ListRankingsByPosition(ctx context.Context, arg ListRankingsByPositionParams) ([]ListRankingsByPositionRow, error)
 	// Queries on the region column of matches.
 	// Distinct regions that have completed matches. Mirrors legacy
 	// RankingStore.GetRegionsWithData exactly so /api/v1/regions stays
