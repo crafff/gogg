@@ -6,7 +6,11 @@ import (
 	"os"
 
 	"github.com/crafff/gogg/cmd/crawl"
-	"github.com/crafff/gogg/internal/server"
+	// The legacy server package is marked Deprecated as of Phase B
+	// chunk 4. This legacy entry point is allowed to keep importing
+	// it until apps/api/cmd/api takes over in production; new code
+	// should use that path instead.
+	server "github.com/crafff/gogg/internal/server" //nolint:staticcheck // legacy entry point
 	"github.com/spf13/cobra"
 )
 

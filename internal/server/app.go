@@ -1,3 +1,16 @@
+// Package server is the LEGACY HTTP server. It still serves traffic
+// today and stays here until the new gogg-api binary at
+// apps/api/cmd/api takes over in production.
+//
+// Deprecated: as of Phase B chunk 4 (rankings + metrics + cache), the
+// new stack has reached feature parity with this package across the
+// /api/* surface. Do not add features here. Bug fixes for security
+// or correctness only; mirror any change into apps/api/internal/* in
+// the same PR.
+//
+// Removal lands in Phase C alongside the crawler migration (the
+// rankings flow still imports internal/storage transitively). Until
+// then, keep the package compiling but tag it on every PR review.
 package server
 
 import (
@@ -20,10 +33,10 @@ type Repos struct {
 
 // App contains the HTTP server runtime.
 type App struct {
-	httpServer   *http.Server
-	pool         *pgxpool.Pool
-	repos        *Repos
-	webDistDir   string
+	httpServer *http.Server
+	pool       *pgxpool.Pool
+	repos      *Repos
+	webDistDir string
 }
 
 func NewApp(ctx context.Context, cfg Config) (*App, error) {
@@ -38,12 +51,12 @@ func NewApp(ctx context.Context, cfg Config) (*App, error) {
 	}
 
 	app := &App{
-		pool:         pool,
-		repos:        repos,
-		webDistDir:   cfg.WebDistDir,
+		pool:       pool,
+		repos:      repos,
+		webDistDir: cfg.WebDistDir,
 	}
 
-	// Addr 
+	// Addr
 	app.httpServer = &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.Port),
 		Handler:           NewRouter(app),

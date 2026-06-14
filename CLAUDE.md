@@ -49,14 +49,22 @@ over.
 
 ## Phases
 
-- **A · Foundation** — monorepo scaffold, Docker, CI, SOPS,
-  ADRs (this branch, in progress)
-- **B · Backend rewrite** — sqlc + service layer + GraphQL BFF +
-  auth + REST compat
+- ✅ **A · Foundation** — monorepo scaffold, Docker, CI, SOPS, ADRs
+- 🚧 **B · Backend rewrite** — in progress on `refactor/phase-b-backend`
+  - ✅ chunk 1: api skeleton, config, middleware (Recover/RequestID/Logger/CORS), healthz/readyz
+  - ✅ chunk 2: catalog service + `/api/v1/{versions,regions}` parity
+  - ✅ chunk 3: rankings service + `/api/v1/rankings/champions` parity (10/11 byte-equal, 1 ADR-0003 divergence)
+  - ✅ chunk 4: Prometheus `/metrics` + Redis cache wrapping rankings + `/readyz` includes Redis
+  - ⏳ chunk 5: gqlgen + first GraphQL resolver
+  - ⏳ chunk 6: JWT + Discord/Google OAuth providers
 - **C · Crawler → Temporal** — Phase 0–5.5 become Activities
 - **D · Frontend rewrite** — Tailwind + TanStack Query + i18n
 - **E · New features** — champion detail, summoner search, user system
 - **F · Production hardening** — k8s manifests, Terraform, observability, runbooks
+
+The legacy `internal/server/` package is `Deprecated` as of chunk 4;
+do not add features there. Bug fixes for security/correctness only,
+and mirror them into `apps/api/internal/*` in the same PR.
 
 ## Commands
 
