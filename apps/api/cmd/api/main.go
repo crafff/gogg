@@ -23,7 +23,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/crafff/gogg/apps/api/internal/cache"
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
@@ -76,7 +79,26 @@ func run() error {
 	defer pool.Close()
 	logger.Info("db_connected", "max_open_conns", cfg.Database.MaxOpenConns)
 
-	handler := buildRouter(cfg, logger, pool)
+	// Redis is optional: if the URL is unset, run without a cache.
+	// Useful for local debugging when you want every request to go
+	// straight to PG. Production always has it configured.
+	var redisClient *cache.Redis
+	if cfg.Redis.URL != "" {
+		redisClient, err = cache.NewRedis(cfg.Redis.URL)
+		if err != nil {
+			return fmt.Errorf("init redis: %w", err)
+		}
+		defer func() { _ = redisClient.Close() }()
+		pingCtx, pingCancel := context.WithTimeout(rootCtx, 3*time.Second)
+		if err := redisClient.Ping(pingCtx); err != nil {
+			pingCancel()
+			return fmt.Errorf("ping redis: %w", err)
+		}
+		pingCancel()
+		logger.Info("redis_connected")
+	}
+
+	handler := buildRouter(cfg, logger, pool, redisClient)
 	srv := &http.Server{
 		Addr:              ":" + strconv.Itoa(cfg.API.Port),
 		Handler:           handler,
@@ -112,28 +134,56 @@ func run() error {
 	return nil
 }
 
-func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) http.Handler {
+func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, redisClient *cache.Redis) http.Handler {
 	r := chi.NewRouter()
+
+	// Prometheus registry: process collectors + our HTTP histograms.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	metrics := middleware.NewMetrics(reg)
 
 	// Order matters: Recover sits outermost so it catches panics from
 	// every other middleware AND every handler. Then RequestID, so
 	// the recover log carries a request_id. Then Logger to attach the
-	// request-scoped slogger. Then CORS.
+	// request-scoped slogger. Metrics goes before CORS so OPTIONS
+	// preflight counts as traffic (helpful for spotting CORS abuse).
 	r.Use(middleware.Recover)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
+	r.Use(metrics.Middleware)
 	r.Use(middleware.CORS(cfg.API.AllowedOrigins))
 
 	r.Get("/healthz", rest.LivenessHandler())
-	r.Get("/readyz", rest.ReadinessHandler(
-		rest.NamedPinger{Name: "db", Pinger: rest.PoolPinger{Pool: pool}},
-	))
+
+	pingers := []rest.NamedPinger{
+		{Name: "db", Pinger: rest.PoolPinger{Pool: pool}},
+	}
+	if redisClient != nil {
+		pingers = append(pingers, rest.NamedPinger{Name: "redis", Pinger: redisClient})
+	}
+	r.Get("/readyz", rest.ReadinessHandler(pingers...))
+
+	r.Method(http.MethodGet, "/metrics", rest.MetricsHandler(reg))
 
 	// /api/v1 is the legacy-shape REST compatibility layer; deleted
 	// when Phase D's new web app cuts over per ADR-0003.
 	queries := sqlcgen.New(pool)
 	catalogSvc := catalog.New(queries)
-	rankingsSvc := rankings.New(queries, versionResolverAdapter{queries: queries})
+	baseRankings := rankings.New(queries, versionResolverAdapter{queries: queries})
+
+	// Wrap rankings in the cache decorator when Redis is configured.
+	// Service layer doesn't know whether it's cached; transport
+	// layer doesn't know either. Only main.go has the wiring view.
+	var rankingsSvc v1.RankingsService = baseRankings
+	if redisClient != nil {
+		const rankingsTTL = 5 * time.Minute
+		rankingsSvc = rankings.NewCached(baseRankings, redisClient, rankingsTTL)
+		logger.Info("rankings_cache_enabled", "ttl", rankingsTTL)
+	}
+
 	r.Mount("/api/v1", v1.Routes(catalogSvc, rankingsSvc))
 
 	// /graphql, /oauth/callback/* land in later Phase B steps.
