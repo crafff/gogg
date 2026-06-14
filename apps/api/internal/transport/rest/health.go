@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/crafff/gogg/apps/api/internal/transport/middleware"
 )
@@ -89,4 +91,15 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// MetricsHandler returns the promhttp scraper bound to the registry
+// the middleware writes into. Lives here next to the other ops
+// endpoints because it has the same "out of band, k8s-facing" role
+// as /healthz and /readyz.
+func MetricsHandler(reg *prometheus.Registry) http.Handler {
+	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+		Registry:          reg,
+	})
 }
