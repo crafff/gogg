@@ -9,7 +9,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const testSecret = "0123456789abcdef0123456789abcdef" // 32 bytes
+// testSecret is intentionally low-entropy English so gitleaks's
+// generic-api-key heuristic doesn't flag it. NewIssuer only checks
+// the byte length, not the contents.
+const testSecret = "not-a-real-secret-for-tests-only!" //gitleaks:allow
 
 func TestNewIssuer_RejectsShortSecret(t *testing.T) {
 	if _, err := NewIssuer("short", time.Minute, time.Hour, "test"); err == nil {
