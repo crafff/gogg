@@ -28,6 +28,8 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
+	Auth     AuthConfig     `mapstructure:"auth"`
+	OAuth    OAuthConfig    `mapstructure:"oauth"`
 }
 
 // APIConfig controls the HTTP server.
@@ -62,6 +64,38 @@ type LoggingConfig struct {
 	Format string `mapstructure:"format"` // json | text
 }
 
+// AuthConfig controls JWT issuance + the cookie surface. JWTSecret is
+// the HS256 signing key (Phase F upgrades to RS256). Issuer is the
+// JWT `iss` claim — clients pin per-env. CookieSecure must be true in
+// any deployment served over https; dev / compose runs leave it false.
+type AuthConfig struct {
+	JWTSecret    string        `mapstructure:"jwt_secret"`
+	Issuer       string        `mapstructure:"issuer"`
+	AccessTTL    time.Duration `mapstructure:"access_ttl"`
+	RefreshTTL   time.Duration `mapstructure:"refresh_ttl"`
+	CookieDomain string        `mapstructure:"cookie_domain"`
+	CookieSecure bool          `mapstructure:"cookie_secure"`
+}
+
+// OAuthConfig wires the supported providers. Empty client_id means
+// "do not register this provider"; the callback at
+// /oauth/start/{provider} returns 404 for any unregistered name.
+// Riot RSO lands in this struct under a build tag once approval lands.
+type OAuthConfig struct {
+	Discord OAuthProviderConfig `mapstructure:"discord"`
+	Google  OAuthProviderConfig `mapstructure:"google"`
+}
+
+// OAuthProviderConfig is the per-provider tuple. RedirectURL must be
+// the absolute URL of the callback (e.g.
+// "https://api.gogg.gg/oauth/callback/discord") — it has to match the
+// value registered in the provider's developer console exactly.
+type OAuthProviderConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
 // Default returns a Config populated with safe defaults for local dev.
 // Production values are expected to come from config.yaml + env vars.
 func Default() Config {
@@ -87,6 +121,13 @@ func Default() Config {
 		Logging: LoggingConfig{
 			Level:  "info",
 			Format: "json",
+		},
+		Auth: AuthConfig{
+			Issuer:       "gogg.local",
+			AccessTTL:    15 * time.Minute,
+			RefreshTTL:   30 * 24 * time.Hour,
+			CookieDomain: "",
+			CookieSecure: false,
 		},
 	}
 }
@@ -190,5 +231,20 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("redis.url", def.Redis.URL)
 	v.SetDefault("logging.level", def.Logging.Level)
 	v.SetDefault("logging.format", def.Logging.Format)
+	v.SetDefault("auth.jwt_secret", "")
+	v.SetDefault("auth.issuer", def.Auth.Issuer)
+	v.SetDefault("auth.access_ttl", def.Auth.AccessTTL)
+	v.SetDefault("auth.refresh_ttl", def.Auth.RefreshTTL)
+	v.SetDefault("auth.cookie_domain", def.Auth.CookieDomain)
+	v.SetDefault("auth.cookie_secure", def.Auth.CookieSecure)
+	// SetDefault seeds the keyspace so AutomaticEnv finds them. We
+	// don't ship default credentials — all values are blank, and the
+	// caller / sops file fills them in.
+	v.SetDefault("oauth.discord.client_id", "")
+	v.SetDefault("oauth.discord.client_secret", "")
+	v.SetDefault("oauth.discord.redirect_url", "")
+	v.SetDefault("oauth.google.client_id", "")
+	v.SetDefault("oauth.google.client_secret", "")
+	v.SetDefault("oauth.google.redirect_url", "")
 	return nil
 }

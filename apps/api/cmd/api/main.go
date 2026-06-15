@@ -26,14 +26,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/crafff/gogg/apps/api/internal/auth"
+	"github.com/crafff/gogg/apps/api/internal/auth/provider"
 	"github.com/crafff/gogg/apps/api/internal/cache"
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	usersvc "github.com/crafff/gogg/apps/api/internal/service/user"
 	gqlserver "github.com/crafff/gogg/apps/api/internal/transport/graphql"
 	"github.com/crafff/gogg/apps/api/internal/transport/graphql/resolver"
 	"github.com/crafff/gogg/apps/api/internal/transport/middleware"
 	"github.com/crafff/gogg/apps/api/internal/transport/rest"
+	restauth "github.com/crafff/gogg/apps/api/internal/transport/rest/auth"
 	v1 "github.com/crafff/gogg/apps/api/internal/transport/rest/v1"
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 )
@@ -139,6 +143,27 @@ func run() error {
 func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, redisClient *cache.Redis) http.Handler {
 	r := chi.NewRouter()
 
+	// Auth is optional in V1: if no jwt secret is set, the API runs
+	// without /oauth, /auth, or claims middleware — useful for local
+	// debugging of the public-read endpoints. Production configs
+	// always supply a secret.
+	var issuer *auth.Issuer
+	if cfg.Auth.JWTSecret != "" {
+		var err error
+		issuer, err = auth.NewIssuer(cfg.Auth.JWTSecret, cfg.Auth.AccessTTL, cfg.Auth.RefreshTTL, cfg.Auth.Issuer)
+		if err != nil {
+			// Misconfigured secret at startup is fatal — log loudly and
+			// return a router that 503s everything so the failure is
+			// visible to k8s readiness probes (which Page on consistent
+			// 5xx).
+			logger.Error("auth_issuer_init_failed", "err", err)
+			return errorRouter(err)
+		}
+		logger.Info("auth_enabled", "issuer", cfg.Auth.Issuer, "access_ttl", cfg.Auth.AccessTTL, "refresh_ttl", cfg.Auth.RefreshTTL)
+	} else {
+		logger.Warn("auth_disabled_no_jwt_secret")
+	}
+
 	// Prometheus registry: process collectors + our HTTP histograms.
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
@@ -152,11 +177,17 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	// the recover log carries a request_id. Then Logger to attach the
 	// request-scoped slogger. Metrics goes before CORS so OPTIONS
 	// preflight counts as traffic (helpful for spotting CORS abuse).
+	// Auth is last so it can use the request-scoped logger; it's
+	// optional (doesn't 401), so endpoints that need claims check
+	// middleware.ClaimsFromContext themselves.
 	r.Use(middleware.Recover)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
 	r.Use(metrics.Middleware)
 	r.Use(middleware.CORS(cfg.API.AllowedOrigins))
+	if issuer != nil {
+		r.Use(middleware.Auth(issuer))
+	}
 
 	r.Get("/healthz", rest.LivenessHandler())
 
@@ -199,8 +230,55 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 		logger.Info("graphql_playground_enabled", "path", "/graphql/playground")
 	}
 
-	// /oauth/callback/*, /auth/* land in Phase B chunk 6.
+	// OAuth + /auth endpoints land only when a jwt secret is configured.
+	if issuer != nil {
+		providers := configuredProviders(cfg.OAuth, logger)
+		userService := usersvc.New(queries, issuer, providers...)
+		authCfg := restauth.Config{
+			CookieDomain: cfg.Auth.CookieDomain,
+			CookieSecure: cfg.Auth.CookieSecure,
+		}
+		r.Mount("/", restauth.Routes(userService, authCfg))
+		names := make([]string, 0, len(providers))
+		for _, p := range providers {
+			names = append(names, p.Name())
+		}
+		logger.Info("oauth_providers_registered", "providers", names)
+	}
 	return r
+}
+
+// configuredProviders returns only the providers that have a non-empty
+// client_id + client_secret + redirect_url. Skipping unconfigured
+// providers means /oauth/start/{provider} cleanly 404s in environments
+// where only one provider is wired up.
+func configuredProviders(cfg config.OAuthConfig, logger *slog.Logger) []provider.Provider {
+	var out []provider.Provider
+	if isProviderConfigured(cfg.Discord) {
+		out = append(out, provider.NewDiscord(cfg.Discord.ClientID, cfg.Discord.ClientSecret, cfg.Discord.RedirectURL))
+	} else {
+		logger.Debug("oauth_provider_skipped", "name", "discord", "reason", "incomplete config")
+	}
+	if isProviderConfigured(cfg.Google) {
+		out = append(out, provider.NewGoogle(cfg.Google.ClientID, cfg.Google.ClientSecret, cfg.Google.RedirectURL))
+	} else {
+		logger.Debug("oauth_provider_skipped", "name", "google", "reason", "incomplete config")
+	}
+	return out
+}
+
+func isProviderConfigured(p config.OAuthProviderConfig) bool {
+	return p.ClientID != "" && p.ClientSecret != "" && p.RedirectURL != ""
+}
+
+// errorRouter is the "init failed" placeholder that keeps the binary
+// alive but unhealthy. /readyz returns 503 so k8s won't route traffic
+// here; every other path returns 503 with the same message so the
+// failure is observable from the outside.
+func errorRouter(initErr error) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "service unavailable: "+initErr.Error(), http.StatusServiceUnavailable)
+	})
 }
 
 func connectDB(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {

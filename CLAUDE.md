@@ -50,13 +50,13 @@ over.
 ## Phases
 
 - ✅ **A · Foundation** — monorepo scaffold, Docker, CI, SOPS, ADRs
-- 🚧 **B · Backend rewrite** — in progress on `refactor/phase-b-backend`
+- ✅ **B · Backend rewrite** — `refactor/phase-b-backend`, ready to merge
   - ✅ chunk 1: api skeleton, config, middleware (Recover/RequestID/Logger/CORS), healthz/readyz
   - ✅ chunk 2: catalog service + `/api/v1/{versions,regions}` parity
   - ✅ chunk 3: rankings service + `/api/v1/rankings/champions` parity (10/11 byte-equal, 1 ADR-0003 divergence)
   - ✅ chunk 4: Prometheus `/metrics` + Redis cache wrapping rankings + `/readyz` includes Redis
   - ✅ chunk 5: gqlgen schema + resolvers for `versions` / `regions` / `championRankings`; sanitizing error presenter (ADR-0003); `/graphql` + `/graphql/playground`
-  - ⏳ chunk 6: JWT + Discord/Google OAuth providers
+  - ✅ chunk 6: HS256 JWT issuer + Discord/Google OAuth providers + `/oauth/start/{p}` + `/oauth/callback/{p}` + `/auth/refresh` + `/auth/logout` + optional Bearer middleware
 - **C · Crawler → Temporal** — Phase 0–5.5 become Activities
 - **D · Frontend rewrite** — Tailwind + TanStack Query + i18n
 - **E · New features** — champion detail, summoner search, user system

@@ -6,11 +6,35 @@ package sqlcgen
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	// token_hash is the sha-256 of the opaque refresh token; the cleartext
+	// never lands in the DB. expires_at is computed by the auth package
+	// (created_at + refresh ttl) so this query stays generic.
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (UserRefreshToken, error)
+	// Queries on users + user_oauth_identities + user_refresh_tokens.
+	// These power the OAuth callback flow, token refresh, and the
+	// /me resolver that lands in Phase E.
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// House-keeping. Run from a cron Activity once Phase C wires Temporal;
+	// for now the manual `gogg admin gc-refresh-tokens` (not built yet)
+	// can call it. Returns rowcount so the caller can log it.
+	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 	// Queries on game_versions + the versions column of matches.
 	GetLatestGameVersion(ctx context.Context) (GetLatestGameVersionRow, error)
+	// Look up a refresh token by its hash. Caller is responsible for
+	// checking revoked_at and expires_at; we keep both so audit queries
+	// can see rotation history.
+	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (UserRefreshToken, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// Find the gogg user bound to an external identity. Used on every
+	// OAuth callback: if the (provider, provider_user_id) tuple is known,
+	// log the existing user in; otherwise fall through to CreateUser +
+	// LinkOAuthIdentity.
+	GetUserByOAuthIdentity(ctx context.Context, provider string, providerUserID string) (User, error)
 	ListGameVersions(ctx context.Context, limit int32) ([]ListGameVersionsRow, error)
 	// Champion rankings: overall (aggregated across all positions) and
 	// by-position. Mirrors legacy internal/server/rankings.go verbatim so
@@ -43,6 +67,17 @@ type Querier interface {
 	// the fetch pipeline. Mirrors legacy VersionStore.GetVersionsWithData
 	// exactly so /api/v1/versions stays byte-equal with /api/versions.
 	ListVersionsWithData(ctx context.Context) ([]string, error)
+	// Hard logout: invalidate every active refresh token for the user.
+	// Called from /auth/logout?everywhere=1 and from /me on password /
+	// profile-change paths once those land.
+	RevokeAllRefreshTokensForUser(ctx context.Context, userID pgtype.UUID) error
+	RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error
+	TouchUserLastLogin(ctx context.Context, id pgtype.UUID) error
+	// Bind an external identity to a user. Re-runs of the OAuth flow
+	// refresh the cached label fields (email, username, avatar) without
+	// changing the user_id binding. ON CONFLICT key matches the migration's
+	// UNIQUE (provider, provider_user_id).
+	UpsertOAuthIdentity(ctx context.Context, arg UpsertOAuthIdentityParams) (UserOauthIdentity, error)
 }
 
 var _ Querier = (*Queries)(nil)
