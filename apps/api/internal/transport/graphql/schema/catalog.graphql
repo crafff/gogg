@@ -1,0 +1,15 @@
+# Catalog: the small read-only surface that powers filter dropdowns.
+
+extend type Query {
+  """
+  Game versions for which we have ingested match data, newest first.
+  Use this to populate the version filter in the rankings UI.
+  """
+  versions: [String!]!
+
+  """
+  Regions for which we have ingested match data, alphabetically.
+  V1 returns KR and NA1; more regions land as the crawler grows.
+  """
+  regions: [String!]!
+}

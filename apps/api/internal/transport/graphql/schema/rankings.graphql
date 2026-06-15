@@ -1,0 +1,71 @@
+# Rankings: per-champion aggregate stats for a region/version/tier slice.
+
+"""
+Per-champion ranking row. Mirrors the legacy REST shape so the new
+GraphQL surface and /api/v1/rankings/champions stay byte-comparable
+for a given filter, per ADR-0003.
+"""
+type ChampionRanking {
+  championId: Int!
+  championName: String!
+  """Positions the champion played for at least positionThreshold % of
+  their games. For per-position queries this is a single-element list."""
+  teamPosition: [String!]!
+  games: Int!
+  wins: Int!
+  losses: Int!
+  winRate: Float!
+  pickRate: Float!
+  banRate: Float!
+  kda: Float!
+}
+
+"""
+Bundle returned by the championRankings query. totalMatches is the
+cross-row denominator used to compute pick/ban rates; clients display
+it as the dataset size badge.
+"""
+type RankingsResult {
+  items: [ChampionRanking!]!
+  totalMatches: Int!
+  """When the caller passed version="latest", this echoes the version
+  that was resolved (e.g. "14.23.1"). Null otherwise."""
+  resolvedVersion: String
+}
+
+"""
+Filter for championRankings. Every field is optional with sensible
+defaults; clients pass only what differs from the defaults. Mirrors
+the legacy REST query params 1:1.
+"""
+input ChampionRankingsFilter {
+  """Queue ID. 420 = Ranked Solo/Duo, 440 = Ranked Flex."""
+  queueId: Int = 420
+  """Exact game version (e.g. "14.23.1") or "latest". Empty = all."""
+  version: String = "latest"
+  """Region code (KR, NA1). Empty = all."""
+  region: String = ""
+  """Rank bucket. ALL = no tier filter."""
+  tierGroup: TierGroup = ALL
+  """Drop champions with fewer games than this. 0 = no floor."""
+  minGames: Int = 0
+  """Cap the result rows. -1 = unlimited."""
+  limit: Int = -1
+  """Minimum share of games per position to list the position in
+  teamPosition. 0.5 = position is "primary" if played in ≥50% of
+  games. Ignored when `position` is set."""
+  positionThreshold: Float = 0.5
+  """Restrict to a single team position (TOP, JUNGLE, MIDDLE, BOTTOM,
+  UTILITY). When set the resolver calls the per-position path and
+  every result row's teamPosition is exactly [position]."""
+  position: String = ""
+}
+
+extend type Query {
+  """
+  Champion rankings for the given filter. Returns either an overall
+  ranking (filter.position empty) or a per-position ranking (filter.
+  position set).
+  """
+  championRankings(filter: ChampionRankingsFilter): RankingsResult!
+}

@@ -30,6 +30,8 @@ import (
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	gqlserver "github.com/crafff/gogg/apps/api/internal/transport/graphql"
+	"github.com/crafff/gogg/apps/api/internal/transport/graphql/resolver"
 	"github.com/crafff/gogg/apps/api/internal/transport/middleware"
 	"github.com/crafff/gogg/apps/api/internal/transport/rest"
 	v1 "github.com/crafff/gogg/apps/api/internal/transport/rest/v1"
@@ -186,7 +188,18 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 
 	r.Mount("/api/v1", v1.Routes(catalogSvc, rankingsSvc))
 
-	// /graphql, /oauth/callback/* land in later Phase B steps.
+	// GraphQL is the long-term query surface (per ADR-0003). /api/v1
+	// stays mounted until the Phase D frontend cuts over. Resolvers
+	// reuse the same service instances — caching applies to /graphql
+	// requests for free.
+	gqlRoot := &resolver.Resolver{Catalog: catalogSvc, Rankings: rankingsSvc}
+	r.Handle("/graphql", gqlserver.NewHandler(gqlRoot))
+	if cfg.API.GraphQLPlayground {
+		r.Handle("/graphql/playground", gqlserver.NewPlaygroundHandler("/graphql"))
+		logger.Info("graphql_playground_enabled", "path", "/graphql/playground")
+	}
+
+	// /oauth/callback/*, /auth/* land in Phase B chunk 6.
 	return r
 }
 

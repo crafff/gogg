@@ -32,12 +32,13 @@ type Config struct {
 
 // APIConfig controls the HTTP server.
 type APIConfig struct {
-	Port           int           `mapstructure:"port"`
-	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
-	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
-	ShutdownGrace  time.Duration `mapstructure:"shutdown_grace"`
-	AllowedOrigins []string      `mapstructure:"allowed_origins"`
+	Port              int           `mapstructure:"port"`
+	ReadTimeout       time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout      time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout       time.Duration `mapstructure:"idle_timeout"`
+	ShutdownGrace     time.Duration `mapstructure:"shutdown_grace"`
+	AllowedOrigins    []string      `mapstructure:"allowed_origins"`
+	GraphQLPlayground bool          `mapstructure:"graphql_playground"`
 }
 
 // DatabaseConfig wires pgxpool.
@@ -66,12 +67,13 @@ type LoggingConfig struct {
 func Default() Config {
 	return Config{
 		API: APIConfig{
-			Port:           8080,
-			ReadTimeout:    10 * time.Second,
-			WriteTimeout:   15 * time.Second,
-			IdleTimeout:    60 * time.Second,
-			ShutdownGrace:  15 * time.Second,
-			AllowedOrigins: []string{"http://localhost:5173", "http://localhost:3000"},
+			Port:              8080,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      15 * time.Second,
+			IdleTimeout:       60 * time.Second,
+			ShutdownGrace:     15 * time.Second,
+			AllowedOrigins:    []string{"http://localhost:5173", "http://localhost:3000"},
+			GraphQLPlayground: true,
 		},
 		Database: DatabaseConfig{
 			DSN:                    "postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable",
@@ -180,6 +182,7 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("api.idle_timeout", def.API.IdleTimeout)
 	v.SetDefault("api.shutdown_grace", def.API.ShutdownGrace)
 	v.SetDefault("api.allowed_origins", def.API.AllowedOrigins)
+	v.SetDefault("api.graphql_playground", def.API.GraphQLPlayground)
 	v.SetDefault("database.dsn", def.Database.DSN)
 	v.SetDefault("database.max_open_conns", def.Database.MaxOpenConns)
 	v.SetDefault("database.min_idle_conns", def.Database.MinIdleConns)

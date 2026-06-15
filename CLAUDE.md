@@ -55,7 +55,7 @@ over.
   - ✅ chunk 2: catalog service + `/api/v1/{versions,regions}` parity
   - ✅ chunk 3: rankings service + `/api/v1/rankings/champions` parity (10/11 byte-equal, 1 ADR-0003 divergence)
   - ✅ chunk 4: Prometheus `/metrics` + Redis cache wrapping rankings + `/readyz` includes Redis
-  - ⏳ chunk 5: gqlgen + first GraphQL resolver
+  - ✅ chunk 5: gqlgen schema + resolvers for `versions` / `regions` / `championRankings`; sanitizing error presenter (ADR-0003); `/graphql` + `/graphql/playground`
   - ⏳ chunk 6: JWT + Discord/Google OAuth providers
 - **C · Crawler → Temporal** — Phase 0–5.5 become Activities
 - **D · Frontend rewrite** — Tailwind + TanStack Query + i18n
