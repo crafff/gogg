@@ -66,6 +66,14 @@ test: ## Run all tests
 test-int: ## Run integration tests (requires `make dev` running)
 	GOGG_INTTEST=1 go test ./... -tags=integration -count=1
 
+.PHONY: test-e2e
+test-e2e: ## Run Playwright e2e tests against apps/web (requires browser deps)
+	@cd apps/web && npm run test:e2e
+
+.PHONY: test-e2e-install
+test-e2e-install: ## Install Playwright browser binaries (one-time)
+	@cd apps/web && npm run test:e2e:install
+
 .PHONY: vet
 vet:
 	go vet ./...

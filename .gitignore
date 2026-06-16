@@ -39,6 +39,9 @@ node_modules/
 web/dist/
 web/.vite/
 web/coverage/
+apps/web/dist/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # ── Editor / OS ────────────────────────────────────────────
 .vscode/
