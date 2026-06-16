@@ -1,0 +1,9 @@
+# graphql-codegen output. The plugin's emitted formatting is consistent
+# enough across versions that re-prettifying it on every codegen run
+# would only churn the lockfile-equivalent diff. Mirrored in
+# eslint.config.js so both gates stay aligned.
+src/**/generated/**
+
+# Build artifacts.
+dist
+node_modules

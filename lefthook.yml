@@ -34,15 +34,24 @@ pre-commit:
     # ── Web ───────────────────────────────────────────────────
     prettier:
       glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx,json,css,md}"
+      # cd into the web package so prettier picks up its local config,
+      # but {staged_files} is repo-relative — strip the base prefix
+      # before handing the paths to prettier.
       run: |
-        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
-        npx prettier --check {staged_files}
+        base=$(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1)
+        rel=$(echo {staged_files} | tr ' ' '\n' | sed "s|^${base}/||" | tr '\n' ' ')
+        cd ${base} && npx prettier --check $rel
 
     eslint:
       glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx}"
+      # --no-warn-ignored silences the v9 warning that fires when an
+      # explicitly-passed file matches the ignore list (e.g. codegen
+      # output under src/**/generated/**). The file is still skipped,
+      # just without --max-warnings=0 tripping over the notice.
       run: |
-        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
-        npx eslint --max-warnings 0 {staged_files}
+        base=$(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1)
+        rel=$(echo {staged_files} | tr ' ' '\n' | sed "s|^${base}/||" | tr '\n' ' ')
+        cd ${base} && npx eslint --max-warnings 0 --no-warn-ignored $rel
 
     # ── Security ──────────────────────────────────────────────
     # Skip gracefully if gitleaks isn't installed locally; the CI
@@ -59,8 +68,13 @@ pre-commit:
     # ── Generic ───────────────────────────────────────────────
     no-trailing-whitespace:
       glob: "*.{go,ts,tsx,js,jsx,yaml,yml,md,sql,Dockerfile,sh}"
+      # Skip codegen output — graphql-codegen / sqlc / gqlgen emit
+      # trailing whitespace inside template gaps, and re-running codegen
+      # would re-introduce it. Hand-written code still gets the check.
       run: |
-        if grep -nE ' +$' {staged_files}; then
+        files=$(echo {staged_files} | tr ' ' '\n' | grep -vE '(^|/)(generated/|gen/)' | tr '\n' ' ')
+        [ -z "$files" ] && exit 0
+        if grep -nE ' +$' $files; then
           echo "trailing whitespace; run 'make fmt'"
           exit 1
         fi

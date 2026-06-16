@@ -66,6 +66,14 @@ test: ## Run all tests
 test-int: ## Run integration tests (requires `make dev` running)
 	GOGG_INTTEST=1 go test ./... -tags=integration -count=1
 
+.PHONY: test-e2e
+test-e2e: ## Run Playwright e2e tests against apps/web (requires browser deps)
+	@cd apps/web && npm run test:e2e
+
+.PHONY: test-e2e-install
+test-e2e-install: ## Install Playwright browser binaries (one-time)
+	@cd apps/web && npm run test:e2e:install
+
 .PHONY: vet
 vet:
 	go vet ./...
@@ -139,6 +147,28 @@ run-api: ## Run gogg-api locally with dev config from deploy/secrets
 		APP_CONFIG_PATH=$$tmp go run ./apps/api/cmd/api; \
 	else \
 		go run ./apps/api/cmd/api; \
+	fi
+
+.PHONY: run-web
+run-web: ## Run the apps/web vite dev server (proxies /api + /graphql to :8080)
+	@cd apps/web && npm run dev
+
+.PHONY: build-web
+build-web: ## Type-check + production build of apps/web → apps/web/dist
+	@cd apps/web && npm run build
+
+.PHONY: run-worker
+run-worker: ## Run gogg-worker locally against the dev Temporal in compose
+	@# Worker only needs Temporal + logging in Phase C chunk 1, so the
+	@# sops payload is optional — the defaults in apps/worker/internal/config
+	@# already target the compose stack on localhost:7233.
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-worker.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/worker; \
+	else \
+		go run ./apps/worker/cmd/worker; \
 	fi
 
 # ── Hooks ───────────────────────────────────────────────────

@@ -1,0 +1,39 @@
+{
+  "brand": "GOGG",
+  "tagline": "League of Legends data lookup",
+  "language": {
+    "label": "Language",
+    "zh-CN": "简体中文",
+    "en-US": "English"
+  },
+  "nav": {
+    "rankings": "Rankings",
+    "champion": "Champion",
+    "summoner": "Summoner",
+    "login": "Sign in",
+    "me": "Profile"
+  },
+  "state": {
+    "loading": "Loading…",
+    "refreshing": "Refreshing rankings…",
+    "empty": "No data",
+    "error": "Failed to load",
+    "retry": "Retry",
+    "loadMore": "Scroll for more",
+    "loadingMore": "Loading more…",
+    "endOfList": "End of list"
+  },
+  "action": {
+    "search": "Search",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "placeholder": {
+    "comingSoon": "Coming soon",
+    "championDetail": "Champion detail ships in Phase E — for now, check the rankings.",
+    "summoner": "Summoner search ships in Phase E.",
+    "login": "OAuth sign-in ships in Phase E.",
+    "me": "Profile ships in Phase E.",
+    "notFound": "Page not found"
+  }
+}

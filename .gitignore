@@ -22,8 +22,12 @@ dist/
 /gogg
 /gogg-api
 /gogg-worker
+/worker             # `go build ./apps/worker/cmd/worker` from repo root
 playground/crawler-test/crawler
 cmd/*/main          # any accidentally-built binaries
+
+# ── Personal notes / claude-conv transcripts ───────────────
+docs/claude-conv/
 
 # ── Logs ───────────────────────────────────────────────────
 *.log
@@ -35,6 +39,9 @@ node_modules/
 web/dist/
 web/.vite/
 web/coverage/
+apps/web/dist/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # ── Editor / OS ────────────────────────────────────────────
 .vscode/

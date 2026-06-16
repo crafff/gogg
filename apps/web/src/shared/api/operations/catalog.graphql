@@ -1,0 +1,12 @@
+# Catalog operations power the rankings filter dropdowns (version /
+# region). Both are listed-most-recent-first and cached aggressively
+# (5min staleTime, 1h gcTime) since the underlying data only changes
+# when the crawler completes a patch ingestion.
+
+query Versions {
+  versions
+}
+
+query Regions {
+  regions
+}

@@ -16,7 +16,12 @@ import (
 func newDaemonCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "daemon",
-		Short: "Run the crawler as a daemon using schedule from config.yaml",
+		Short: "Run the crawler as a daemon using schedule from config.yaml [DEPRECATED]",
+		Long: "DEPRECATED as of Phase C chunk 4 (2026-06-15). The replacement is " +
+			"Temporal Schedules upserted by gogg-worker at startup from the same " +
+			"config.yaml `schedule:` entries; see apps/worker/internal/schedule. " +
+			"This command is kept for one release cycle as the rollback escape " +
+			"hatch and will be removed in the version after Phase C ships.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cleanup := setupLogger("daemon")
 			defer cleanup()
