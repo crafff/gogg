@@ -141,6 +141,14 @@ run-api: ## Run gogg-api locally with dev config from deploy/secrets
 		go run ./apps/api/cmd/api; \
 	fi
 
+.PHONY: run-web
+run-web: ## Run the apps/web vite dev server (proxies /api + /graphql to :8080)
+	@cd apps/web && npm run dev
+
+.PHONY: build-web
+build-web: ## Type-check + production build of apps/web → apps/web/dist
+	@cd apps/web && npm run build
+
 .PHONY: run-worker
 run-worker: ## Run gogg-worker locally against the dev Temporal in compose
 	@# Worker only needs Temporal + logging in Phase C chunk 1, so the

@@ -34,15 +34,20 @@ pre-commit:
     # ── Web ───────────────────────────────────────────────────
     prettier:
       glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx,json,css,md}"
+      # cd into the web package so prettier picks up its local config,
+      # but {staged_files} is repo-relative — strip the base prefix
+      # before handing the paths to prettier.
       run: |
-        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
-        npx prettier --check {staged_files}
+        base=$(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1)
+        rel=$(echo {staged_files} | tr ' ' '\n' | sed "s|^${base}/||" | tr '\n' ' ')
+        cd ${base} && npx prettier --check $rel
 
     eslint:
       glob: "{apps/web,web}/**/*.{ts,tsx,js,jsx}"
       run: |
-        cd $(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1) && \
-        npx eslint --max-warnings 0 {staged_files}
+        base=$(echo {staged_files} | awk '{print $1}' | grep -oE '^(apps/web|web)' | head -1)
+        rel=$(echo {staged_files} | tr ' ' '\n' | sed "s|^${base}/||" | tr '\n' ' ')
+        cd ${base} && npx eslint --max-warnings 0 $rel
 
     # ── Security ──────────────────────────────────────────────
     # Skip gracefully if gitleaks isn't installed locally; the CI
