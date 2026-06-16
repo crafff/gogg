@@ -15,6 +15,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	github.com/stretchr/testify v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.34
 	go.temporal.io/sdk v1.44.1
 	golang.org/x/oauth2 v0.36.0
@@ -63,7 +64,6 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.temporal.io/api v1.62.12 // indirect
