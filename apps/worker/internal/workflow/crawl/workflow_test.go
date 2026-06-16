@@ -2,6 +2,7 @@ package crawl
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,9 +36,12 @@ func TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier(t *testing.T) {
 	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).Return(
 		crawlact.Phase1Output{TierCounts: map[string]int{"CHALLENGER": 1}}, nil)
 
-	phase2Calls := 0
+	// Pipeline mode fans out one goroutine per tier — concurrent
+	// writes need atomic. A plain int++ here trips -race even though
+	// the workflow contract is correctness, not performance.
+	var phase2Calls atomic.Int64
 	env.OnActivity(acts.Phase2MatchIDCollection, mockAny, mockAny).Run(func(args mock.Arguments) {
-		phase2Calls++
+		phase2Calls.Add(1)
 	}).Return(crawlact.Phase2Output{}, nil)
 
 	env.OnActivity(acts.Phase3MatchDetails, mockAny, mockAny).Return(
@@ -65,7 +69,7 @@ func TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted(), "workflow should complete")
 	require.NoError(t, env.GetWorkflowError(), "workflow should not error")
-	require.Equal(t, 3, phase2Calls,
+	require.Equal(t, int64(3), phase2Calls.Load(),
 		"pipeline mode must schedule one Phase2 per TargetTier")
 
 	var out CrawlRegionOutput
@@ -91,9 +95,13 @@ func TestCrawlRegionWorkflow_Sequential_OneBulkPhase2(t *testing.T) {
 	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).Return(
 		crawlact.Phase1Output{}, nil)
 
-	phase2Calls := 0
+	// Sequential mode dispatches one Phase2 call so there's no
+	// concurrent writer here, but the testsuite still runs activity
+	// callbacks on a worker goroutine — keep this atomic for
+	// consistency with the pipeline test and to stay -race clean.
+	var phase2Calls atomic.Int64
 	env.OnActivity(acts.Phase2MatchIDCollection, mockAny, mockAny).Run(func(args mock.Arguments) {
-		phase2Calls++
+		phase2Calls.Add(1)
 	}).Return(crawlact.Phase2Output{}, nil)
 
 	env.OnActivity(acts.Phase3MatchDetails, mockAny, mockAny).Return(crawlact.Phase3Output{}, nil)
@@ -116,7 +124,7 @@ func TestCrawlRegionWorkflow_Sequential_OneBulkPhase2(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
-	require.Equal(t, 1, phase2Calls,
+	require.Equal(t, int64(1), phase2Calls.Load(),
 		"sequential mode must dispatch one Phase2 with all tiers inline")
 }
 
@@ -209,9 +217,9 @@ func TestCrawlRegionWorkflow_FailRunOnPhaseError(t *testing.T) {
 	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).
 		Return(crawlact.Phase1Output{}, errors.New("phase1 boom"))
 
-	failCalls := 0
+	var failCalls atomic.Int64
 	env.OnActivity(acts.FailRun, mockAny, mockAny).Run(func(args mock.Arguments) {
-		failCalls++
+		failCalls.Add(1)
 	}).Return(nil)
 
 	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{
@@ -227,7 +235,8 @@ func TestCrawlRegionWorkflow_FailRunOnPhaseError(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError(), "phase1 boom must propagate")
-	require.GreaterOrEqual(t, failCalls, 1, "FailRun must fire on workflow failure")
+	require.GreaterOrEqual(t, failCalls.Load(), int64(1),
+		"FailRun must fire on workflow failure")
 }
 
 // mockAny is the testify/mock wildcard matcher used in every
