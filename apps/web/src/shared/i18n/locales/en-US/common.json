@@ -27,5 +27,13 @@
     "search": "Search",
     "cancel": "Cancel",
     "confirm": "Confirm"
+  },
+  "placeholder": {
+    "comingSoon": "Coming soon",
+    "championDetail": "Champion detail ships in Phase E — for now, check the rankings.",
+    "summoner": "Summoner search ships in Phase E.",
+    "login": "OAuth sign-in ships in Phase E.",
+    "me": "Profile ships in Phase E.",
+    "notFound": "Page not found"
   }
 }

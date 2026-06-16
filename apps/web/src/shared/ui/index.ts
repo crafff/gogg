@@ -18,3 +18,6 @@ export {
   SelectContent,
   SelectItem,
 } from "./Select";
+
+export { PlaceholderPage } from "./PlaceholderPage";
+export type { PlaceholderPageProps } from "./PlaceholderPage";

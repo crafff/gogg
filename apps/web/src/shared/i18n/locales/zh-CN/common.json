@@ -27,5 +27,13 @@
     "search": "搜索",
     "cancel": "取消",
     "confirm": "确定"
+  },
+  "placeholder": {
+    "comingSoon": "敬请期待",
+    "championDetail": "英雄详情页将在 Phase E 上线，目前先看排行。",
+    "summoner": "召唤师查询将在 Phase E 上线。",
+    "login": "OAuth 登录入口将在 Phase E 上线。",
+    "me": "个人主页将在 Phase E 上线。",
+    "notFound": "页面未找到"
   }
 }
