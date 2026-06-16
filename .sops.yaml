@@ -9,14 +9,12 @@
 creation_rules:
   - path_regex: deploy/secrets/dev\.enc\.yaml$
     age: >-
-      # paste dev age public key here, e.g.
-      # age1qz9p3...
-      REPLACE_WITH_DEV_AGE_PUBLIC_KEY
+      age1uu94t94nwza8jen4prn428m6p42qx2tn5fl805xagsfl2a07z97s8zcezw
 
   - path_regex: deploy/secrets/staging\.enc\.yaml$
     age: >-
-      REPLACE_WITH_STAGING_AGE_PUBLIC_KEY
+      age1uu94t94nwza8jen4prn428m6p42qx2tn5fl805xagsfl2a07z97s8zcezw
 
   - path_regex: deploy/secrets/prod\.enc\.yaml$
     age: >-
-      REPLACE_WITH_PROD_AGE_PUBLIC_KEY
+      age1uu94t94nwza8jen4prn428m6p42qx2tn5fl805xagsfl2a07z97s8zcezw
