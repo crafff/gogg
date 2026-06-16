@@ -141,6 +141,20 @@ run-api: ## Run gogg-api locally with dev config from deploy/secrets
 		go run ./apps/api/cmd/api; \
 	fi
 
+.PHONY: run-worker
+run-worker: ## Run gogg-worker locally against the dev Temporal in compose
+	@# Worker only needs Temporal + logging in Phase C chunk 1, so the
+	@# sops payload is optional — the defaults in apps/worker/internal/config
+	@# already target the compose stack on localhost:7233.
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-worker.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/worker; \
+	else \
+		go run ./apps/worker/cmd/worker; \
+	fi
+
 # ── Hooks ───────────────────────────────────────────────────
 .PHONY: hooks
 hooks: ## Install pre-commit hooks via lefthook

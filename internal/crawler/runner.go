@@ -1,3 +1,11 @@
+// Package crawler is Deprecated as of Phase C chunk 4 (2026-06-15).
+// The replacement is apps/worker/internal/workflow/crawl —
+// CrawlRegionWorkflow + the Activities under apps/worker/internal/activity/crawl
+// reuse every phase's business logic via synthetic RunState. The
+// legacy Runner + ExecutionStrategy here remain wired into
+// `gogg crawl run/daemon` for one release cycle as the escape hatch
+// (plan §3 Phase C rollback). New features must land in the Temporal
+// workflow, not here.
 package crawler
 
 import (

@@ -22,7 +22,13 @@ func newRunCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Start or resume a crawler run",
+		Short: "Start or resume a crawler run [DEPRECATED]",
+		Long: "DEPRECATED as of Phase C chunk 4 (2026-06-15). The new entry point " +
+			"is a CrawlRegionWorkflow execution on gogg-worker — see " +
+			"docs/runbooks/crawler-stuck.md or `temporal workflow start " +
+			"--task-queue crawl-<region> --type CrawlRegionWorkflow ...`. " +
+			"This command is kept for one release cycle as the rollback " +
+			"escape hatch and will be removed in the version after Phase C ships.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := context.Background()
 
