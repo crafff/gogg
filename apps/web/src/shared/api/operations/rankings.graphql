@@ -1,0 +1,23 @@
+# Champion rankings: the bread-and-butter query of the rankings page.
+# All filter fields are optional and the backend applies the same
+# defaults as the legacy REST endpoint (queueId=420, version=latest,
+# tierGroup=ALL, positionThreshold=0.5).
+
+query ChampionRankings($filter: ChampionRankingsFilter) {
+  championRankings(filter: $filter) {
+    items {
+      championId
+      championName
+      teamPosition
+      games
+      wins
+      losses
+      winRate
+      pickRate
+      banRate
+      kda
+    }
+    totalMatches
+    resolvedVersion
+  }
+}
