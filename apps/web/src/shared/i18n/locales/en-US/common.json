@@ -15,9 +15,13 @@
   },
   "state": {
     "loading": "Loading…",
+    "refreshing": "Refreshing rankings…",
     "empty": "No data",
     "error": "Failed to load",
-    "retry": "Retry"
+    "retry": "Retry",
+    "loadMore": "Scroll for more",
+    "loadingMore": "Loading more…",
+    "endOfList": "End of list"
   },
   "action": {
     "search": "Search",

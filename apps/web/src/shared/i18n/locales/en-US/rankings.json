@@ -1,11 +1,14 @@
 {
   "title": "Champion rankings",
+  "subtitle": "Based on <strong>{{count}}</strong> matches",
   "filter": {
+    "all": "All",
     "region": "Region",
     "version": "Patch",
     "position": "Position",
     "tier": "Tier",
-    "queue": "Queue"
+    "queue": "Queue",
+    "latest": "Latest"
   },
   "position": {
     "TOP": "Top",
@@ -27,6 +30,7 @@
     "winrate": "Win rate",
     "pickrate": "Pick rate",
     "banrate": "Ban rate",
-    "games": "Games"
+    "games": "Games",
+    "kda": "KDA"
   }
 }

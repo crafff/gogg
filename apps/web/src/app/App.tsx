@@ -3,66 +3,31 @@ import { useTranslation } from "react-i18next";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { queryClient } from "@shared/api";
+import { RankingsPage } from "@features/rankings";
 import "@shared/i18n";
 import { LanguageSwitcher } from "@shared/i18n/LanguageSwitcher";
-import { Button, Skeleton, Tag } from "@shared/ui";
 
-// Chunk 2 App shell: still a single screen, but now demonstrates the
-// design tokens (semantic surface/fg/border + tier gradient), the
-// i18n round-trip (language switcher + namespaced keys), and the
-// four base components. Router + QueryClient providers arrive in
-// chunk 5.
+// Chunk 4 App shell: now hosts the rewritten rankings page directly.
+// The router skeleton in chunk 5 turns this into the rankings route
+// proper and pushes language switcher into a global header.
 function AppInner() {
   const { t } = useTranslation("common");
 
   return (
-    <main className="min-h-screen bg-surface p-8 text-fg">
-      <header className="mx-auto flex max-w-3xl items-center justify-between pb-8">
+    <main className="min-h-screen bg-surface text-fg">
+      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-accent">
+          <p className="text-xs uppercase tracking-wider text-fg-subtle">
             {t("brand")}
-          </h1>
+          </p>
           <p className="text-sm text-fg-muted">{t("tagline")}</p>
         </div>
         <LanguageSwitcher />
       </header>
 
-      <section className="mx-auto max-w-3xl space-y-6">
-        <div
-          className="rounded-lg border border-border bg-surface-raised p-6 shadow-card"
-          data-testid="smoke"
-        >
-          <h2 className="text-lg font-semibold">Phase D chunk 2 smoke</h2>
-          <p className="mt-1 text-sm text-fg-muted">
-            i18n + design tokens + base components online.
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button variant="primary">{t("action.confirm")}</Button>
-            <Button variant="secondary">{t("action.cancel")}</Button>
-            <Button variant="ghost" size="sm">
-              {t("action.search")}
-            </Button>
-            <Button variant="subtle" size="sm">
-              {t("state.retry")}
-            </Button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Tag tone="challenger">Challenger</Tag>
-            <Tag tone="grandmaster">Grandmaster</Tag>
-            <Tag tone="master">Master</Tag>
-            <Tag tone="accent">14.20</Tag>
-            <Tag>KR</Tag>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-        </div>
-      </section>
+      <div className="mx-auto max-w-5xl px-6 pb-12">
+        <RankingsPage />
+      </div>
     </main>
   );
 }

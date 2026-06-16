@@ -15,9 +15,13 @@
   },
   "state": {
     "loading": "加载中…",
+    "refreshing": "正在刷新榜单…",
     "empty": "暂无数据",
     "error": "加载失败",
-    "retry": "重试"
+    "retry": "重试",
+    "loadMore": "向下滑加载更多数据",
+    "loadingMore": "正在加载更多数据…",
+    "endOfList": "已加载全部数据"
   },
   "action": {
     "search": "搜索",
