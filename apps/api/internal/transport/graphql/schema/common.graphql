@@ -1,0 +1,34 @@
+# Common GraphQL definitions shared by every domain in the schema.
+# gqlgen merges every .graphql file in this directory at codegen time,
+# so domain-specific files use `extend type Query` to plug into the
+# root.
+
+"""
+Top-level query root. Domain schemas extend this with their own fields
+so each module's surface stays in its own .graphql file.
+"""
+type Query {
+  """Schema health probe. Always true; used by clients to detect a
+  working GraphQL endpoint before issuing real queries."""
+  _ok: Boolean!
+}
+
+"""
+Coarse rank bucket used to filter rankings. Matches the legacy REST
+tier_group query param 1:1 so /api/v1 and /graphql return the same
+aggregations for any given filter combination.
+"""
+enum TierGroup {
+  """All tiers (no filter)."""
+  ALL
+  """MASTER only."""
+  MASTER
+  """MASTER + GRANDMASTER + CHALLENGER."""
+  MASTER_PLUS
+  """GRANDMASTER only."""
+  GRANDMASTER
+  """GRANDMASTER + CHALLENGER."""
+  GRANDMASTER_PLUS
+  """CHALLENGER only."""
+  CHALLENGER
+}

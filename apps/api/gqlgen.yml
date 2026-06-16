@@ -1,0 +1,44 @@
+# gqlgen config for the gogg-api binary. Run from this directory:
+#   cd apps/api && go run github.com/99designs/gqlgen generate
+# or use the top-level `make gen-gql` target.
+#
+# Schema files merge from internal/transport/graphql/schema/*.graphql.
+# Generated code lands in internal/transport/graphql/generated/* and
+# resolver stubs in internal/transport/graphql/resolver/. The Resolver
+# struct in resolver/resolver.go is hand-edited to carry service
+# dependencies (catalog, rankings) — gqlgen never regenerates it once
+# it exists.
+
+schema:
+  - internal/transport/graphql/schema/*.graphql
+
+exec:
+  filename: internal/transport/graphql/generated/generated.go
+  package: gqlgenerated
+
+model:
+  filename: internal/transport/graphql/generated/models_gen.go
+  package: gqlgenerated
+
+resolver:
+  layout: follow-schema
+  dir: internal/transport/graphql/resolver
+  package: resolver
+  filename_template: "{name}.resolvers.go"
+
+# JSON tag matches our REST shape so codegen on the frontend side
+# (graphql-codegen → TanStack Query) can share the same camelCase.
+struct_tag: json
+
+# Don't emit complexity stubs (we use a static query depth limit at
+# the transport layer instead).
+omit_complexity: false
+
+# GraphQL Int is 32-bit by spec; bind to Go int so service-layer
+# int fields (ChampionID, Games, etc.) drop in without conversion.
+models:
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int32
+      - github.com/99designs/gqlgen/graphql.Int64

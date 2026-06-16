@@ -1,0 +1,16 @@
+# gitleaks finding allowlist.
+#
+# Format: one fingerprint per line. Fingerprint == commit:path:rule:line
+# from the gitleaks report. Lines starting with `#` are comments.
+#
+# Each entry should justify *why* the finding is a false positive — if
+# a real secret ever lands here, the explanation makes the diff
+# obvious.
+
+# Phase B chunk 6 (commit 31af68d) initially used a 32-byte
+# high-entropy literal in jwt_test.go. Follow-up commit a65fee0
+# swapped it for a low-entropy phrase + a //gitleaks:allow inline
+# annotation. HEAD is clean; history is not. The literal was only
+# ever a test fixture (no production reach), so we allowlist the
+# historical fingerprint rather than rewrite published refs.
+31af68da5756702e571f8172a50d5e257d8d3483:apps/api/internal/auth/jwt_test.go:generic-api-key:12
