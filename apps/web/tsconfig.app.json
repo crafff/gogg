@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "noEmit": true,
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
 
     /* Strictness — feature-first frontend with no legacy compatibility */
     "strict": true,

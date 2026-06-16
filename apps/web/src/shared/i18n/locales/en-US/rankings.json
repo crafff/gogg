@@ -1,0 +1,32 @@
+{
+  "title": "Champion rankings",
+  "filter": {
+    "region": "Region",
+    "version": "Patch",
+    "position": "Position",
+    "tier": "Tier",
+    "queue": "Queue"
+  },
+  "position": {
+    "TOP": "Top",
+    "JUNGLE": "Jungle",
+    "MIDDLE": "Mid",
+    "BOTTOM": "Bottom",
+    "UTILITY": "Support"
+  },
+  "tier": {
+    "challenger": "Challenger",
+    "grandmaster_plus": "Grandmaster+",
+    "grandmaster": "Grandmaster",
+    "master_plus": "Master+",
+    "master": "Master"
+  },
+  "column": {
+    "rank": "Rank",
+    "champion": "Champion",
+    "winrate": "Win rate",
+    "pickrate": "Pick rate",
+    "banrate": "Ban rate",
+    "games": "Games"
+  }
+}

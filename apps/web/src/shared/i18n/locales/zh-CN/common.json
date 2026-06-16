@@ -1,0 +1,27 @@
+{
+  "brand": "GOGG",
+  "tagline": "英雄联盟数据查询",
+  "language": {
+    "label": "语言",
+    "zh-CN": "简体中文",
+    "en-US": "English"
+  },
+  "nav": {
+    "rankings": "英雄排行",
+    "champion": "英雄详情",
+    "summoner": "召唤师查询",
+    "login": "登录",
+    "me": "我的"
+  },
+  "state": {
+    "loading": "加载中…",
+    "empty": "暂无数据",
+    "error": "加载失败",
+    "retry": "重试"
+  },
+  "action": {
+    "search": "搜索",
+    "cancel": "取消",
+    "confirm": "确定"
+  }
+}

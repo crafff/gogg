@@ -1,0 +1,32 @@
+{
+  "title": "英雄排行榜",
+  "filter": {
+    "region": "区服",
+    "version": "版本",
+    "position": "位置",
+    "tier": "段位",
+    "queue": "对局类型"
+  },
+  "position": {
+    "TOP": "上单",
+    "JUNGLE": "打野",
+    "MIDDLE": "中路",
+    "BOTTOM": "下路",
+    "UTILITY": "辅助"
+  },
+  "tier": {
+    "challenger": "王者",
+    "grandmaster_plus": "宗师+",
+    "grandmaster": "宗师",
+    "master_plus": "大师+",
+    "master": "大师"
+  },
+  "column": {
+    "rank": "排名",
+    "champion": "英雄",
+    "winrate": "胜率",
+    "pickrate": "登场率",
+    "banrate": "禁用率",
+    "games": "场次"
+  }
+}
