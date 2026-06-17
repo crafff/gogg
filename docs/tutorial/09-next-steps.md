@@ -13,6 +13,13 @@ If you've read straight through, you now have:
 - A full end-to-end trace ([Chapter 07](./07-end-to-end.md))
 - Auth + secrets ([Chapter 08](./08-auth-secrets.md))
 
+If you also worked through Part II:
+
+- Idiomatic Go for any backend project ([Chapter 10](./10-go-essentials.md))
+- TypeScript + React + modern web essentials ([Chapter 11](./11-frontend-essentials.md))
+- A repeatable playbook for learning unfamiliar codebases ([Chapter 12](./12-reading-codebases.md))
+- Six worked examples of the patterns this codebase uses ([Chapter 13](./13-annotated-tour.md))
+
 This chapter is shorter — it's a map to "where next."
 
 ## Read these to go deeper

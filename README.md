@@ -137,10 +137,17 @@ test suites you should run end-to-end.
 ## Learning the codebase
 
 If you're new to the repo, work through
-[`docs/tutorial/`](./docs/tutorial/README.md) in order. It's a 9-chapter
-hand-held walkthrough that assumes no Go / React / GraphQL / Temporal
-knowledge and ends with you able to trace a single value from Riot's
-API into a row in the browser.
+[`docs/tutorial/`](./docs/tutorial/README.md) in order. It's a 13-chapter
+hand-held walkthrough split into three parts:
+
+- **Part I — Understanding GOGG** (chapters 01–08): from "what is this?"
+  to "I can trace a single `winRate` value from Riot's API into a row in
+  the browser." Assumes no Go / React / GraphQL / Temporal background.
+- **Part II — Transferable knowledge** (chapters 10–13): Go essentials
+  + React/TypeScript essentials + a meta-skill chapter on reading any
+  unfamiliar codebase + six annotated line-by-line code tours.
+- **Part III — Going further** (chapter 09): Phase E + F roadmap, ADR
+  pointers, contribution workflow.
 
 ## Legacy stack (rollback path)
 

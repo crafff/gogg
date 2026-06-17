@@ -249,4 +249,6 @@ The `gitleaks (secret scan)` job runs on every PR. It scans the diff for high-en
 
 ## Up next
 
-[Chapter 09 — Next steps](./09-next-steps.md) wraps the tutorial: where to read next, how to start Phase E, where the ADRs and plan live.
+You've finished **Part I** — you understand GOGG end-to-end.
+
+**Part II** generalizes the patterns. If you want broader Go / React / how-to-read-codebases knowledge, continue with [Chapter 10 — Go essentials](./10-go-essentials.md). If you'd rather see what's next on the roadmap, jump to [Chapter 09 — Next steps](./09-next-steps.md).
