@@ -134,6 +134,14 @@ covers the smoke checks for each binary, the GraphQL + REST surface,
 the worker's Temporal workflows, and the apps/web UI flows, plus the
 test suites you should run end-to-end.
 
+## Learning the codebase
+
+If you're new to the repo, work through
+[`docs/tutorial/`](./docs/tutorial/README.md) in order. It's a 9-chapter
+hand-held walkthrough that assumes no Go / React / GraphQL / Temporal
+knowledge and ends with you able to trace a single value from Riot's
+API into a row in the browser.
+
 ## Legacy stack (rollback path)
 
 ```bash
@@ -158,6 +166,7 @@ same PR.
 ## Documentation
 
 - [`CLAUDE.md`](./CLAUDE.md) — load-bearing project context (read first)
+- [`docs/tutorial/`](./docs/tutorial/README.md) — 9-chapter hand-held codebase walkthrough
 - [`docs/manual-verification.md`](./docs/manual-verification.md) — step-by-step manual smoke + test guide
 - [`docs/contributing.md`](./docs/contributing.md) — developer workflow + PR checklist
 - [`docs/architecture/adr/`](./docs/architecture/adr/) — architectural decision records
