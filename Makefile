@@ -12,6 +12,7 @@ LEFTHOOK_VERSION      ?= v1.10.0
 DEV_PG_DSN  ?= postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
 DEV_REDIS   ?= redis://localhost:6379/0
 DEV_TEMPORAL ?= localhost:7233
+GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
 
 # ── Compose ─────────────────────────────────────────────────
 COMPOSE_FILE ?= deploy/compose/docker-compose.dev.yml
@@ -38,33 +39,31 @@ dev-reset: ## Tear down AND drop all volumes (data loss!)
 	docker compose -f $(COMPOSE_FILE) down -v
 
 # ── Quality gates ───────────────────────────────────────────
-# `npm run <script> --if-present` exits 0 when the script is
-# missing from package.json. The legacy web/ package.json doesn't
-# define lint/test/format scripts yet (Phase D adds them when
-# the new web app lands); --if-present lets the same Makefile
-# work today and a year from now.
-
 .PHONY: lint
 lint: ## Run all linters (go + web)
-	golangci-lint run ./...
-	@if [ -f web/package.json ]; then cd web && npm run lint --if-present; fi
+	golangci-lint run $(GO_PACKAGES)
 	@if [ -f apps/web/package.json ]; then cd apps/web && npm run lint --if-present; fi
 
 .PHONY: fmt
 fmt: ## Format all code
 	gofmt -w -s .
-	@if [ -f web/package.json ]; then cd web && npm run format --if-present; fi
 	@if [ -f apps/web/package.json ]; then cd apps/web && npm run format --if-present; fi
 
 .PHONY: test
 test: ## Run all tests
-	go test ./...
-	@if [ -f web/package.json ]; then cd web && npm run test --if-present --silent; fi
+	go test $(GO_PACKAGES)
 	@if [ -f apps/web/package.json ]; then cd apps/web && npm run test --if-present --silent; fi
+
+.PHONY: check-no-legacy
+check-no-legacy: ## Ensure new apps/packages do not import legacy code
+	@if rg -n 'github.com/crafff/gogg/internal/(server|crawler|storage|riotapi|config)|github.com/crafff/gogg/cmd/crawl' apps packages; then \
+		echo "legacy imports found in apps/packages"; \
+		exit 1; \
+	fi
 
 .PHONY: test-int
 test-int: ## Run integration tests (requires `make dev` running)
-	GOGG_INTTEST=1 go test ./... -tags=integration -count=1
+	GOGG_INTTEST=1 go test $(GO_PACKAGES) -tags=integration -count=1
 
 .PHONY: test-e2e
 test-e2e: ## Run Playwright e2e tests against apps/web (requires browser deps)
@@ -76,7 +75,7 @@ test-e2e-install: ## Install Playwright browser binaries (one-time)
 
 .PHONY: vet
 vet:
-	go vet ./...
+	go vet $(GO_PACKAGES)
 
 .PHONY: ci
 ci: vet lint test ## Same gates that CI runs
@@ -136,17 +135,17 @@ build-worker:
 	else echo "apps/worker/cmd/worker/main.go not present yet"; fi
 
 .PHONY: run-api
-run-api: ## Run gogg-api locally with dev config from deploy/secrets
-	@# When a sops-encrypted dev secrets file exists, decrypt it into a
-	@# temp file and point APP_CONFIG_PATH at it. Otherwise fall back to
-	@# the legacy ./config.yaml or env-only config.
+run-api: ## Run gogg-api locally with SOPS or config/dev.yaml
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-api.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \
 		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
 		APP_CONFIG_PATH=$$tmp go run ./apps/api/cmd/api; \
+	elif [ -f config/dev.yaml ]; then \
+		APP_CONFIG_PATH=config/dev.yaml go run ./apps/api/cmd/api; \
 	else \
-		go run ./apps/api/cmd/api; \
+		echo "missing config/dev.yaml; copy config/dev.example.yaml and fill local secrets"; \
+		exit 1; \
 	fi
 
 .PHONY: run-web
@@ -158,17 +157,17 @@ build-web: ## Type-check + production build of apps/web → apps/web/dist
 	@cd apps/web && npm run build
 
 .PHONY: run-worker
-run-worker: ## Run gogg-worker locally against the dev Temporal in compose
-	@# Worker only needs Temporal + logging in Phase C chunk 1, so the
-	@# sops payload is optional — the defaults in apps/worker/internal/config
-	@# already target the compose stack on localhost:7233.
+run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-worker.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \
 		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
 		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/worker; \
+	elif [ -f config/dev.yaml ]; then \
+		APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/worker; \
 	else \
-		go run ./apps/worker/cmd/worker; \
+		echo "missing config/dev.yaml; copy config/dev.example.yaml and fill riot.api_key"; \
+		exit 1; \
 	fi
 
 # ── Hooks ───────────────────────────────────────────────────

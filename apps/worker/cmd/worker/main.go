@@ -1,11 +1,6 @@
 // gogg-worker hosts the Temporal Workflows + Activities that drive the
-// asynchronous side of the platform. Phase C migrates the legacy
-// in-process crawler runner (internal/crawler/runner.go) into this
-// binary; subsequent async work (email, cache prewarm, summoner
-// enrichment) lands here too.
-//
-// Chunk 1 ships only the PingWorkflow under the "smoke" task queue so
-// the SDK ↔ server wiring is verified before any real Activity exists.
+// asynchronous side of the platform. Crawl workflows, email, cache
+// prewarm, and summoner enrichment belong here.
 package main
 
 import (
@@ -63,12 +58,12 @@ func run() error {
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	rt, err := runtime.Build(rootCtx, cfg.Crawler.ConfigPath)
+	rt, err := runtime.Build(rootCtx, cfg)
 	if err != nil {
 		return fmt.Errorf("build runtime: %w", err)
 	}
 	defer rt.Close()
-	logger.Info("runtime_built", "config_path", cfg.Crawler.ConfigPath, "regions", regionKeys(rt))
+	logger.Info("runtime_built", "regions", regionKeys(rt))
 
 	crawlActs := crawlact.New(rt)
 
@@ -103,7 +98,7 @@ func run() error {
 		logger.Info("worker_listening", "task_queue", tq)
 	}
 
-	// Upsert schedules from legacy cfg.Schedule. Idempotent so repeated
+	// Upsert schedules from cfg.Schedule. Idempotent so repeated
 	// worker restarts don't churn — and if an entry was removed from
 	// YAML, the corresponding Temporal Schedule is intentionally left
 	// in place; deletion is a manual `temporal schedule delete` step

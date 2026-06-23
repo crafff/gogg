@@ -1,1 +1,0 @@
-export { useRankings } from "./useRankings";

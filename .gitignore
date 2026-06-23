@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 config.yaml
+config/*.yaml
+!config/*.example.yaml
 secrets.json
 *.key
 *.pem
@@ -18,16 +20,13 @@ secrets.json
 bin/
 dist/
 
-# Top-level binaries built from `go build .` historically
+# Top-level binaries built from local go build commands
 /gogg
+/api
 /gogg-api
 /gogg-worker
 /worker             # `go build ./apps/worker/cmd/worker` from repo root
-playground/crawler-test/crawler
 cmd/*/main          # any accidentally-built binaries
-
-# ── Personal notes / claude-conv transcripts ───────────────
-docs/claude-conv/
 
 # ── Logs ───────────────────────────────────────────────────
 *.log
@@ -36,10 +35,8 @@ logs/
 
 # ── Node / web ─────────────────────────────────────────────
 node_modules/
-web/dist/
-web/.vite/
-web/coverage/
 apps/web/dist/
+apps/web/.vite/
 apps/web/playwright-report/
 apps/web/test-results/
 

@@ -13,12 +13,12 @@ lives at [`docs/architecture/adr/`](./docs/architecture/adr/).
 | B · Backend rewrite (chi + gqlgen + sqlc + JWT/OAuth) | ✅ shipped | — |
 | C · Crawler → Temporal | ✅ shipped | — |
 | D · Frontend rewrite (Tailwind + TanStack + Router) | ✅ shipped | — |
-| E · New features (champion detail, summoner, user system) | 🚧 in progress | `refactor/phase-e-features` |
+| E · New features (champion detail, summoner, user system) | 🚧 in progress | — |
 | F · Production hardening (k8s, Terraform, runbooks) | ⏳ next | — |
 
-The legacy binary (`./gogg`) and legacy frontend (`web/`) are still
-present as the rollback path; they will be removed one release cycle
-after Phase E ships.
+The previous single-binary MVP has been archived outside the project
+tree at `/home/zrt/apps/gogg-legacy-archive-2026-06-23.tar.gz`. The
+repository now keeps only the `apps/` + `packages/` architecture.
 
 ## Repository layout
 
@@ -43,7 +43,8 @@ docs/
   architecture/  C4 diagrams + ADRs
   runbooks/      on-call procedures
   api/           GraphQL schema docs + OpenAPI for REST compat
-internal/, cmd/, main.go, web/   the legacy stack — kept until E ships
+config/
+  *.example.yaml tracked example configs; local *.yaml files are gitignored
 ```
 
 ## Prerequisites
@@ -64,16 +65,20 @@ make dev
 # 2. Apply database migrations
 make migrate-up
 
-# 3. Run the three binaries in three terminals
+# 3. Create local plaintext config if you are not using SOPS
+cp config/dev.example.yaml config/dev.yaml
+# edit config/dev.yaml and set riot.api_key before starting the worker
+
+# 4. Run the three processes in three terminals
 make run-api      # apps/api — http://localhost:8080
 make run-worker   # apps/worker — Temporal worker on the crawl-{region} task queues
 make run-web      # apps/web — http://localhost:5173 (proxies /api + /graphql to :8080)
 ```
 
 `make run-api` and `make run-worker` decrypt `deploy/secrets/dev.enc.yaml`
-via sops if the file exists; otherwise they fall back to env-only
-config. The vite dev server in `make run-web` proxies `/api` and
-`/graphql` to `:8080`, so no CORS gymnastics in development.
+via sops if the file exists; otherwise they use `config/dev.yaml`. The
+vite dev server in `make run-web` proxies `/api` and `/graphql` to
+`:8080`, so no CORS gymnastics in development.
 
 Open `http://localhost:5173` for the rankings page. Other routes
 (`/champion/:id`, `/summoner/:region/:name`, `/login`, `/me`) are
@@ -148,27 +153,6 @@ hand-held walkthrough split into three parts:
   unfamiliar codebase + six annotated line-by-line code tours.
 - **Part III — Going further** (chapter 09): Phase E + F roadmap, ADR
   pointers, contribution workflow.
-
-## Legacy stack (rollback path)
-
-```bash
-# Build the legacy single binary (everything in main.go + internal/server)
-go build .
-
-# Run the API
-./gogg serve                          # HTTP API on :8080
-
-# Run the crawler (cobra subcommand, marked [DEPRECATED] but functional)
-./gogg crawl run --profile daily_kr
-
-# Legacy frontend (web/) — separate Vite dev server, proxies to ./gogg serve
-cd web && npm install && npm run dev
-```
-
-The legacy stack reads the unencrypted `config.yaml` (gitignored).
-Don't add features here — bug fixes only, and only if they need to
-ship before Phase E lands. Mirror any change into `apps/api/` in the
-same PR.
 
 ## Documentation
 

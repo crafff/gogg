@@ -20,8 +20,8 @@ type RankingsService interface {
 
 // rankingsHandler returns GET /api/v1/rankings/champions.
 //
-// Defaults and clamps mirror legacy intQuery / floatQuery exactly so
-// the response is byte-equal for any URL the old frontend issues:
+// Defaults and clamps keep the REST contract stable for existing
+// clients:
 //
 //	limit              default -1   range [-1, 500]
 //	minGames           default 20   range [1, 20000]

@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/crawler/phase2"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phase2"
 )
 
 // Phase2Input drives the legacy phase2.Phase.Run. Tiers is the slice

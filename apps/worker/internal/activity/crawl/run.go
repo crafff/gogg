@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/storage"
+	"github.com/crafff/gogg/apps/worker/internal/storage"
 )
 
 // CreateRunInput is the Workflow's bookkeeping seed for a CrawlRegion

@@ -3,9 +3,9 @@ package crawl
 import (
 	"time"
 
-	"github.com/crafff/gogg/internal/config"
-	"github.com/crafff/gogg/internal/crawler"
-	"github.com/crafff/gogg/internal/storage"
+	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawlerconfig"
+	"github.com/crafff/gogg/apps/worker/internal/storage"
 )
 
 // synthState builds a synthetic *crawler.RunState that the legacy

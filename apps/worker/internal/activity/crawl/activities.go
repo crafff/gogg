@@ -1,9 +1,8 @@
-// Package crawl wraps the legacy crawler phase logic into Temporal
-// Activities. The algorithm is preserved 1:1 with internal/crawler/*:
+// Package crawl wraps crawler phase logic into Temporal Activities.
+// The algorithm is preserved from the previous in-process runner:
 // same Riot API calls, same SQL inserts, same iteration order. The
-// only difference is the orchestration shell — Temporal Workflows
-// replace the legacy Runner + RunState checkpoint mechanism, with
-// retries / heartbeats / cancellation arriving for free.
+// orchestration shell is Temporal Workflows, with retries, heartbeats,
+// and cancellation handled by the SDK.
 //
 // Activities are registered as methods on Activities so the Runtime
 // dependencies (DB pool, Riot clients) are shared across invocations

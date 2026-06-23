@@ -15,11 +15,11 @@ Riot's HTTP API has two flavors of endpoint:
 
 Both are HTTPS, both require an API key in the `X-Riot-Token` header. Both rate-limit aggressively — a development key gets ~100 requests / 2 minutes.
 
-GOGG only deploys to KR + NA1 in V1. The `packages/riotapi/` client knows the regional ↔ platform mapping; the worker activities just say "I want the matches for player X in region KR" and the client picks the right host.
+GOGG only deploys to KR + NA1 in V1. The `packages/riotapi/` client owns the HTTP DTOs, rate limiter, and platform/regional Riot calls. The worker builds one client per configured platform region and passes the matching client into each activity.
 
 ## What the 8 phases do
 
-A "crawl run" is one execution of `CrawlRegionWorkflow` for one region. It's labeled with a `profile` from the legacy `config.yaml` (`daily_kr`, `daily_na1`, etc.), and walks through 8 phases in order:
+A "crawl run" is one execution of `CrawlRegionWorkflow` for one region. It's labeled with a profile from the crawler config (`daily_kr`, `daily_na1`, etc.), and walks through 8 phases in order:
 
 | # | Name | What it asks Riot | What it writes |
 |---|---|---|---|
@@ -32,11 +32,13 @@ A "crawl run" is one execution of `CrawlRegionWorkflow` for one region. It's lab
 | 5 | Timeline | "give me the per-minute timeline for these matches" | `match_timelines` |
 | 5.5 | ItemClassify | (DB-only) classify each item event from the timeline (boots, starter items) | `match_boots`, `match_starter_items` |
 
-Phases 5 and 5.5 are off by default (`config.yaml` controls which phases each profile runs). The Phase E "champion detail" feature flips them on.
+Phases 5 and 5.5 are controlled by the unified worker config
+(`config/dev.yaml` locally or `deploy/secrets/dev.enc.yaml` through
+SOPS). The Phase E "champion detail" feature flips them on.
 
 ## Why Temporal?
 
-The legacy stack ran all 8 phases as a single Go `pipeline.Run()` function. If the worker crashed mid-phase, the run was lost; if a phase failed, recovery meant manually reading a `runs` table and figuring out which match IDs were already in `matches`. Retry logic was bespoke per phase.
+The old stack ran all 8 phases as a single Go `pipeline.Run()` function. If the process crashed mid-phase, the run was lost; if a phase failed, recovery meant manually reading a `runs` table and figuring out which match IDs were already in `matches`. Retry logic was bespoke per phase.
 
 Temporal hands you these for free:
 
@@ -58,6 +60,32 @@ You need exactly four concepts:
 | **Activity** | A Go function that *does* I/O. Idempotent-ish. Called by workflows. | `apps/worker/internal/activity/` |
 | **Task queue** | A named channel where workflow / activity tasks land for workers to poll. We use `crawl-{region}` so KR vs NA1 can scale independently. | code constants |
 | **Schedule** | A cron expression + workflow start request. Temporal's replacement for `cron` + `at`. | `apps/worker/internal/schedule/` |
+
+## Current code map
+
+The crawler code is now owned by the worker stack under `apps/worker`.
+Shared Riot API code lives under `packages/riotapi`; `apps/` and
+`packages/` must not import archived top-level legacy packages.
+
+| Package | Role |
+|---|---|
+| `apps/worker/cmd/worker` | process entry point; loads worker config, builds runtime, registers Temporal workers |
+| `apps/worker/internal/config` | the single worker config model: Temporal, logging, Riot regions, database DSN, schedules, run profiles |
+| `apps/worker/internal/crawlerconfig` | shared crawler schema types used by the unified config and `RunState` adapter |
+| `packages/riotapi` | Riot/CDragon HTTP client, DTOs, rate limiting |
+| `apps/worker/internal/storage` | worker-owned DB repository used by crawl phases and run bookkeeping |
+| `apps/worker/internal/crawler` | copied phase algorithms and `RunState` helpers used by activities |
+| `apps/worker/internal/activity/crawl` | Temporal Activity wrappers and phase-specific inputs/outputs |
+| `apps/worker/internal/workflow/crawl` | deterministic `CrawlRegionWorkflow` orchestration |
+| `apps/worker/internal/schedule` | converts crawler config schedules into Temporal Schedules |
+
+The no-legacy-import guard is:
+
+```bash
+make check-no-legacy
+```
+
+It fails if any code under `apps/` or `packages/` imports the old `internal/crawler`, `internal/storage`, `internal/config`, `internal/riotapi`, `internal/server`, or `cmd/crawl` packages.
 
 The mental model:
 
@@ -91,14 +119,14 @@ cat apps/worker/cmd/worker/main.go | head -80
 
 1. Load config (viper).
 2. Build a structured logger.
-3. Build the `Runtime` (loads the legacy config + storage layer + Riot clients per region).
+3. Build the `Runtime` from that same config (worker storage + Riot clients per region).
 4. Dial the Temporal server.
 5. For each region, register a worker on `crawl-{region}`.
 6. Register `CrawlRegionWorkflow` + all activities.
 7. Build the schedule plan from config and upsert into Temporal.
 8. Wait for `SIGINT`, then graceful shutdown.
 
-`Runtime` is the dependency-injection bag — services that activities need (DB pool, Riot clients).
+`Runtime` is the dependency-injection bag: parsed config, worker storage, and per-region Riot clients.
 
 ### 4b · One activity, end-to-end
 
@@ -161,10 +189,10 @@ If any step returns an error, the workflow runs `FailRun` (via a disconnected co
 
 🛠️ **Exercise**: find the `runPhase2` dispatcher and read it. There are two modes:
 
-- `execution: "sequential"` — one activity call with all tiers inline (legacy parity).
+- `execution: "sequential"` — one activity call with all tiers inline.
 - `execution: "pipeline"` — fan out one activity per tier via `workflow.Future` + barrier-wait.
 
-The pipeline mode is the per-tier parallelism gain over the legacy "PipelineStrategy" (which was actually per-tier serial).
+The pipeline mode is the per-tier parallelism gain over the previous in-process strategy, which was effectively per-tier serial.
 
 ### 4d · The schedule registration
 
@@ -172,7 +200,7 @@ The pipeline mode is the per-tier parallelism gain over the legacy "PipelineStra
 cat apps/worker/internal/schedule/schedule.go | head -60
 ```
 
-`BuildPlan(cfg)` reads the legacy `cfg.Schedule[]` array, resolves each profile name to its region, and constructs a `Plan` per cron entry. `Upsert(ctx, c, plans)` calls `sc.Create` per plan; if the schedule already exists, the SDK returns `temporal.ErrScheduleAlreadyRunning`, and we fall through to `h.Update(...)` so the cron expression / start payload can be edited in `config.yaml` without manual cleanup.
+`BuildPlan(cfg)` reads the unified config's `Schedule[]` array, resolves each profile name to its region, and constructs a `Plan` per cron entry. `Upsert(ctx, c, plans)` calls `sc.Create` per plan; if the schedule already exists, the SDK returns `temporal.ErrScheduleAlreadyRunning`, and we fall through to `h.Update(...)` so the cron expression / start payload can be edited in the worker config without manual cleanup.
 
 The schedule ID convention: `gogg-crawl-{profile}`. That's the string you'll see in the Temporal UI.
 
@@ -232,7 +260,7 @@ You should see the new run + several hundred rank snapshots.
 
 That single observation — the workflow keeping going through retries without you writing a single line of `time.Sleep` or `if err { retry }` — is why Temporal exists.
 
-## The "synthetic RunState" trick
+## The synthetic RunState adapter
 
 Open `apps/worker/internal/activity/crawl/synthstate.go`:
 
@@ -240,9 +268,9 @@ Open `apps/worker/internal/activity/crawl/synthstate.go`:
 cat apps/worker/internal/activity/crawl/synthstate.go
 ```
 
-The trick: the legacy phase code (`internal/crawler/phaseN/phase.go`) was written as methods on a giant `*crawler.RunState` struct. We didn't want to rewrite that business logic; we just wanted to call it from Temporal activities. So `synthState()` constructs a `*crawler.RunState` on the fly from the activity's inputs, calls the legacy phase function, and discards the synthetic state.
+The copied phase algorithms in `apps/worker/internal/crawler/phaseN/phase.go` still expect a `*crawler.RunState`. The workflow owns run lifecycle now, so activities do not use the old runner. Instead, `synthState()` constructs a small `*crawler.RunState` on the fly from the activity inputs, calls the phase algorithm, and discards the synthetic state.
 
-This is the "wrapper-not-rewrite" pattern. It let Phase C ship the Temporal migration without touching the proven algorithm code. ADR-0001's "ship-now, refactor-later" rule in practice.
+This is an adapter pattern: the worker owns the code and dependencies, but it preserves the proven phase algorithms while Temporal owns orchestration, retries, and cancellation.
 
 ## Determinism gotchas
 

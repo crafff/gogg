@@ -1,0 +1,59 @@
+temporal:
+  host_port: localhost:7233
+  namespace: default
+  task_queues:
+    - crawl-kr
+    - crawl-na1
+
+logging:
+  level: info
+  format: json
+
+database:
+  dsn: postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
+  max_open_conns: 10
+  max_idle_conns: 2
+  conn_max_lifetime_seconds: 300
+
+riot:
+  api_key: YOUR_API_KEY
+  base_url: https://kr.api.riotgames.com
+
+regions:
+  - name: KR
+    base_url: https://kr.api.riotgames.com
+  - name: NA1
+    base_url: https://na1.api.riotgames.com
+
+run_profiles:
+  daily_kr:
+    region: KR
+    mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+  daily_na:
+    region: NA1
+    mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+  diamond_weekly_kr:
+    region: KR
+    mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND, EMERALD]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+schedule:
+  - cron: "0 4 * * *"
+    profile: daily_kr
+  - cron: "0 4 * * *"
+    profile: daily_na
+  - cron: "0 3 * * 1"
+    profile: diamond_weekly_kr

@@ -19,7 +19,7 @@ permissions:
 
 env:
   GO_VERSION: "1.26"
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   # ── Go: vet + lint + test ──────────────────────────────────
@@ -44,6 +44,9 @@ jobs:
       # across local and CI. Until then, transient cache/version
       # differences between runner and dev machines produce
       # false positives.
+
+      - name: no legacy imports
+        run: make check-no-legacy
 
       - name: go vet
         run: go vet ./...
@@ -78,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
 
@@ -86,7 +89,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - run: npm ci --no-audit --no-fund
 
@@ -97,25 +100,10 @@ jobs:
         run: npm run lint --if-present
 
       - name: test
-        run: npm run test --if-present -- --run
+        run: npm run test --if-present
 
       - name: build
         run: npm run build
-
-  # ── SQL: migrations consistency between old and new path ───
-  migrations-parity:
-    name: migrations parity (legacy ↔ packages/sqlc)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: diff migration trees
-        run: |
-          if [ -d internal/storage/migrations ] && [ -d packages/sqlc/migrations ]; then
-            if ! diff -rq internal/storage/migrations packages/sqlc/migrations; then
-              echo "::error::migration drift between internal/storage/migrations and packages/sqlc/migrations — keep them byte-identical until Phase B removes the legacy path"
-              exit 1
-            fi
-          fi
 
   # ── Docker: build images on every push (no publish in CI) ──
   docker-build:
@@ -135,9 +123,29 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
           build-args: |
-            CMD_PATH=./main.go
+            CMD_PATH=./apps/api/cmd/api
             VERSION=${{ github.sha }}
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
-      # worker + web image builds enabled once apps/worker and
-      # apps/web contain real entry points (Phase B / D).
+      - name: build gogg-worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/worker.Dockerfile
+          push: false
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,scope=worker,mode=max
+          build-args: |
+            CMD_PATH=./apps/worker/cmd/worker
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+
+      - name: build gogg-web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/web.Dockerfile
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max

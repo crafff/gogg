@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/crawler/phase3"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phase3"
 )
 
 // Phase3Input drives the legacy phase3.Phase.Run. Global to the run

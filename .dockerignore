@@ -1,12 +1,10 @@
 # Build outputs
 bin/
 dist/
-web/dist/
 apps/web/dist/
 
 # Dependencies
 node_modules/
-web/node_modules/
 apps/web/node_modules/
 
 # Logs / runtime

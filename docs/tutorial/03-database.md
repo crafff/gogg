@@ -6,7 +6,7 @@ This chapter assumes you have the dev stack from Chapter 02 running (`make dev` 
 
 ## Why PostgreSQL?
 
-The legacy stack already used Postgres. Phase B kept it. Reasons:
+The original MVP used Postgres, and the refactor kept it. Reasons:
 
 - Strong consistency — the rankings page reading the same data the crawler just wrote without race conditions.
 - `text[]` array columns for things like `target_tiers` on a crawler run.
@@ -75,14 +75,14 @@ CREATE TABLE IF NOT EXISTS players (
 ### Try this
 
 ```bash
-# Look at the legacy 001 migration to see what tables existed at MVP time
+# Look at the 001 migration to see what tables existed at MVP time
 head -100 packages/sqlc/migrations/001_init.up.sql
 
 # Compare with the 013_users migration that Phase B added
 cat packages/sqlc/migrations/013_users.up.sql
 ```
 
-`013_users` is the only Phase-introduced migration so far — the user system tables. Everything 001–012 was inherited from the legacy stack.
+`013_users` is the only Phase-introduced migration so far — the user system tables. Everything 001–012 came from the MVP schema.
 
 🛠️ **Exercise**: `cat` the matching `.down.sql` for `013_users`. Notice it's a `DROP TABLE` plus index drops. The down migration is the inverse of the up; both must be kept in sync.
 
@@ -266,18 +266,9 @@ make gen-sqlc
 
 That regenerates `packages/sqlc/gen/`. **Commit the generated files** — treat them like protobuf output: read-only, regenerated on change.
 
-If you forget, CI will fail because the rankings parity scripts diff the legacy schema against `packages/sqlc/migrations/` and the generated code against what's checked in.
-
-### What about the migration vs the legacy migration tree?
-
-The legacy stack stored migrations under `internal/storage/migrations/`. The new monorepo moved them to `packages/sqlc/migrations/`. They're **mirrored** — anything added to the new path is also copied into the legacy path so the legacy `./gogg serve` rollback path still works. The "migrations parity (legacy ↔ packages/sqlc)" CI job enforces this:
-
-```bash
-# What that CI job runs locally
-diff packages/sqlc/migrations/ internal/storage/migrations/
-```
-
-This goes away when the legacy stack is deleted post-Phase-E.
+If you forget, CI will fail because generated code will differ from
+what is checked in. `packages/sqlc/migrations/` is the only migration
+tree; do not mirror migrations anywhere else.
 
 ## Exercises before moving on
 

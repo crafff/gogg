@@ -3,7 +3,7 @@
 // Layering, highest precedence last:
 //
 //  1. Defaults baked into Default().
-//  2. YAML file pointed at by APP_CONFIG_PATH (default: ./config.yaml).
+//  2. YAML file pointed at by APP_CONFIG_PATH (default: ./config/dev.yaml).
 //  3. Environment variables prefixed with GOGG_ (e.g. GOGG_API_PORT,
 //     GOGG_DATABASE_DSN).
 //
@@ -97,7 +97,7 @@ type OAuthProviderConfig struct {
 }
 
 // Default returns a Config populated with safe defaults for local dev.
-// Production values are expected to come from config.yaml + env vars.
+// Production values are expected to come from decrypted config + env vars.
 func Default() Config {
 	return Config{
 		API: APIConfig{
@@ -144,11 +144,11 @@ func Load() (Config, error) {
 	}
 
 	// YAML file is optional. If APP_CONFIG_PATH is set we require it
-	// to exist; the default ./config.yaml is read on a best-effort basis.
+	// to exist; the default ./config/dev.yaml is read best-effort.
 	path := os.Getenv("APP_CONFIG_PATH")
 	required := path != ""
 	if path == "" {
-		path = "config.yaml"
+		path = "config/dev.yaml"
 	}
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {

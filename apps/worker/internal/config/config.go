@@ -1,15 +1,13 @@
 // Package config loads and validates the gogg-worker configuration.
 //
-// The worker hosts Temporal workflows + activities. Phase C ships
-// chunk-by-chunk: chunk 1 only needs Temporal + logging — chunks 2+
-// will extend this struct with Database + RiotAPI as those Activities
-// land. Keeping the surface small at chunk 1 makes the smoke test
-// boundary obvious.
+// The worker hosts Temporal workflows + activities. A single config
+// document owns both process settings (Temporal/logging) and crawler
+// settings (Riot regions, database, schedules, run profiles).
 //
 // Layering, highest precedence last:
 //
 //  1. Defaults baked into Default().
-//  2. YAML file pointed at by APP_CONFIG_PATH (default: ./config.yaml).
+//  2. YAML file pointed at by APP_CONFIG_PATH (default: ./config/dev.yaml).
 //  3. Environment variables prefixed with GOGG_ (e.g.
 //     GOGG_TEMPORAL_HOST_PORT, GOGG_TEMPORAL_NAMESPACE).
 package config
@@ -20,6 +18,7 @@ import (
 	"os"
 	"strings"
 
+	crawlercfg "github.com/crafff/gogg/apps/worker/internal/crawlerconfig"
 	"github.com/spf13/viper"
 )
 
@@ -27,8 +26,30 @@ import (
 type Config struct {
 	Temporal TemporalConfig `mapstructure:"temporal"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
-	Crawler  CrawlerConfig  `mapstructure:"crawler"`
+
+	Riot     RiotConfig            `mapstructure:"riot"`
+	Regions  []RegionConfig        `mapstructure:"regions"`
+	Database DatabaseConfig        `mapstructure:"database"`
+	Crawler  CrawlerConfig         `mapstructure:"crawler"`
+	Schedule []ScheduleEntry       `mapstructure:"schedule"`
+	Profiles map[string]RunProfile `mapstructure:"run_profiles"`
 }
+
+type RiotConfig = crawlercfg.RiotConfig
+type RegionConfig = crawlercfg.RegionConfig
+type DatabaseConfig = crawlercfg.DatabaseConfig
+type CrawlerConfig = crawlercfg.CrawlerConfig
+type ScheduleEntry = crawlercfg.ScheduleEntry
+type RunProfile = crawlercfg.RunProfile
+type Mode = crawlercfg.Mode
+type Execution = crawlercfg.Execution
+
+const (
+	ModeIncremental     = crawlercfg.ModeIncremental
+	ModeHistorical      = crawlercfg.ModeHistorical
+	ExecutionPipeline   = crawlercfg.ExecutionPipeline
+	ExecutionSequential = crawlercfg.ExecutionSequential
+)
 
 // TemporalConfig wires the SDK client + the task queues this worker
 // process subscribes to. Multiple queues let one process serve both
@@ -65,19 +86,7 @@ func Default() Config {
 			Level:  "info",
 			Format: "json",
 		},
-		Crawler: CrawlerConfig{
-			ConfigPath: "config.yaml",
-		},
 	}
-}
-
-// CrawlerConfig points at the legacy YAML (internal/config schema) that
-// holds riot.api_key, regions[], database.dsn, run_profiles. Worker
-// loads it via internal/config.Load at startup. Keeping the legacy
-// loader avoids re-deriving the per-region routing URL + the profile
-// validation already proven in production.
-type CrawlerConfig struct {
-	ConfigPath string `mapstructure:"config_path"`
 }
 
 // Load reads the config from disk + env and returns a validated Config.
@@ -92,7 +101,7 @@ func Load() (Config, error) {
 	path := os.Getenv("APP_CONFIG_PATH")
 	required := path != ""
 	if path == "" {
-		path = "config.yaml"
+		path = "config/dev.yaml"
 	}
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
@@ -148,10 +157,53 @@ func (c Config) Validate() error {
 	default:
 		errs = append(errs, fmt.Errorf("logging.format %q: want json|text", c.Logging.Format))
 	}
-	if strings.TrimSpace(c.Crawler.ConfigPath) == "" {
-		errs = append(errs, fmt.Errorf("crawler.config_path is required"))
+
+	for _, r := range c.ResolvedRegions() {
+		if r.APIKey == "" || r.APIKey == "YOUR_API_KEY" {
+			errs = append(errs, fmt.Errorf("api_key for region %q is not configured", r.Name))
+		}
+		if strings.TrimSpace(r.BaseURL) == "" {
+			errs = append(errs, fmt.Errorf("base_url for region %q is required", r.Name))
+		}
+	}
+	if strings.TrimSpace(c.Database.DSN) == "" {
+		errs = append(errs, fmt.Errorf("database.dsn is required"))
 	}
 	return errors.Join(errs...)
+}
+
+// ResolvedRegions returns the effective region list. Empty per-region
+// API keys inherit the global Riot API key, and a single KR region is
+// synthesized for older single-region config files.
+func (c Config) ResolvedRegions() []RegionConfig {
+	if len(c.Regions) > 0 {
+		out := make([]RegionConfig, len(c.Regions))
+		for i, r := range c.Regions {
+			if r.APIKey == "" {
+				r.APIKey = c.Riot.APIKey
+			}
+			out[i] = r
+		}
+		return out
+	}
+	return []RegionConfig{{
+		Name:    "KR",
+		APIKey:  c.Riot.APIKey,
+		BaseURL: c.Riot.BaseURL,
+	}}
+}
+
+// Profile returns the named crawler run profile.
+func (c Config) Profile(name string) (*RunProfile, error) {
+	p, ok := c.Profiles[name]
+	if !ok {
+		keys := make([]string, 0, len(c.Profiles))
+		for k := range c.Profiles {
+			keys = append(keys, k)
+		}
+		return nil, fmt.Errorf("profile %q not found (available: %s)", name, strings.Join(keys, ", "))
+	}
+	return &p, nil
 }
 
 func bindDefaults(v *viper.Viper, def Config) error {
@@ -160,6 +212,9 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("temporal.task_queues", def.Temporal.TaskQueues)
 	v.SetDefault("logging.level", def.Logging.Level)
 	v.SetDefault("logging.format", def.Logging.Format)
-	v.SetDefault("crawler.config_path", def.Crawler.ConfigPath)
+	v.SetDefault("riot.base_url", "https://kr.api.riotgames.com")
+	v.SetDefault("database.max_open_conns", 10)
+	v.SetDefault("database.max_idle_conns", 2)
+	v.SetDefault("database.conn_max_lifetime_seconds", 300)
 	return nil
 }

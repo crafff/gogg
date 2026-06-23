@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/crawler/phase35"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phase35"
 )
 
 // Phase35Input drives the legacy phase35.Phase.Run. Queue must match

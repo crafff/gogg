@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Build stage ─────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /workspace/apps/web
 
@@ -29,10 +29,8 @@ LABEL org.opencontainers.image.title="gogg-web" \
       org.opencontainers.image.licenses="UNLICENSED"
 
 # Replace the default config with one that does SPA fallback and
-# caches hashed assets aggressively. The config file lands in
-# deploy/docker/nginx.conf in Phase D when the new frontend is
-# wired up.
-COPY deploy/docker/nginx.conf /etc/nginx/conf.d/default.conf 2>/dev/null || true
+# caches hashed assets aggressively.
+COPY deploy/docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /workspace/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80

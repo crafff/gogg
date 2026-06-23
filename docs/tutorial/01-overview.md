@@ -65,24 +65,11 @@ GOGG runs three long-lived processes:
 **Read this slowly:**
 
 - `apps/web` is a static React app. In dev, vite serves it on port `5173`. In prod, Nginx serves the built files.
-- `apps/api` is **the** server. It owns the HTTP surface: GraphQL for the frontend, REST `/api/v1` for backwards compat (old web) + scripts, OAuth + JWT for auth, Prometheus metrics. It reads from Postgres + Redis. It never talks to Riot.
+- `apps/api` is **the** server. It owns the HTTP surface: GraphQL for the frontend, REST `/api/v1` compatibility for scripts, OAuth + JWT for auth, Prometheus metrics. It reads from Postgres + Redis. It never talks to Riot.
 - `apps/worker` is the **crawler**. It runs in the background, periodically asking Riot "give me the top players in KR, then give me their matches, then process those matches." It writes everything into the same Postgres that `apps/api` reads from. It uses Temporal as its scheduler + state machine.
 - Postgres is the source of truth for everything: ranks, matches, players, users.
 - Redis is for caching (the rankings query, computed once per crawl run, served thousands of times) and for sessions/refresh tokens.
 - Temporal is "Kubernetes for workflows" — it owns the *state* of the crawler (which phase are we in? did Phase 2 finish for the CHALLENGER tier? when's the next scheduled run?), even across worker restarts.
-
-## What about the legacy stack?
-
-If you grep around, you'll see:
-
-- `main.go` at the repo root
-- `internal/server/`, `internal/crawler/`, `internal/storage/`, `internal/riotapi/`, `internal/config/`
-- `cmd/crawl/`
-- `web/` (a separate React app, not under `apps/`)
-
-That's the **original** single-binary MVP. One process did everything: HTTP server + crawler + DB layer + Riot client. The refactor split it into the three binaries above. The legacy code stays in the tree **as a rollback path** — if anything blows up in production, ops can `./gogg serve` and roll back to the old behavior.
-
-The legacy paths are marked `Deprecated` in their package docs and `[DEPRECATED]` in their CLI help. **Do not add features there**. Bug fixes only, mirrored into `apps/*` in the same PR. The legacy stack will be deleted one release cycle after Phase E ships.
 
 ## A worked example: where does "Lux 53.2% win rate" come from?
 
@@ -107,32 +94,29 @@ If you remember exactly one paragraph from this chapter, make it that 12-step li
 
 ```
 gogg/
-├── apps/                    NEW: post-refactor monolith pieces
+├── apps/                    application entry points
 │   ├── api/                 the HTTP server (gogg-api)
 │   ├── worker/              the Temporal worker (gogg-worker)
 │   └── web/                 the React SPA
-├── packages/                NEW: shared Go libraries
+├── packages/                shared Go libraries
 │   ├── domain/              champion/tier/region enums + error codes
 │   ├── sqlc/                migrations + queries + generated bindings
 │   ├── riotapi/             Riot API client (with rate limiter)
 │   └── proto/               reserved for future gRPC
-├── deploy/                  NEW: infra-as-code
+├── config/                  example configs; local *.yaml ignored
+├── deploy/                  infra-as-code
 │   ├── docker/              Dockerfiles
 │   ├── compose/             local dev stack (docker-compose.dev.yml)
 │   ├── k8s/                 Kubernetes manifests (Phase F)
 │   ├── terraform/           AWS + Aliyun modules (Phase F)
 │   ├── observability/       Prometheus + Grafana (Phase F)
 │   └── secrets/             SOPS-encrypted env files
-├── docs/                    NEW: ADRs + runbooks + this tutorial
+├── docs/                    ADRs + runbooks + this tutorial
 │   ├── architecture/adr/    architectural decision records
 │   ├── runbooks/            on-call procedures
 │   ├── tutorial/            ← you are here
 │   ├── manual-verification.md
 │   └── contributing.md
-├── internal/                LEGACY: do not edit
-├── cmd/                     LEGACY
-├── main.go                  LEGACY entry point
-├── web/                     LEGACY frontend
 ├── go.mod / go.work         Go workspace + module
 ├── Makefile                 every dev workflow
 └── CLAUDE.md                load-bearing project context (read first)
@@ -144,21 +128,20 @@ Each was a deliberate choice:
 
 | Choice | ADR |
 |---|---|
-| Modular monolith over microservices | [`docs/architecture/adr/0001-modular-monolith.md`](../architecture/adr/0001-modular-monolith.md) |
+| Modular monolith over microservices | [`docs/architecture/adr/0001-modular-monolith-over-microservices.md`](../architecture/adr/0001-modular-monolith-over-microservices.md) |
 | sqlc instead of an ORM | [`docs/architecture/adr/0002-sqlc-over-ent.md`](../architecture/adr/0002-sqlc-over-ent.md) |
-| GraphQL + REST dual surface | [`docs/architecture/adr/0003-graphql-plus-rest.md`](../architecture/adr/0003-graphql-plus-rest.md) |
+| GraphQL + REST dual surface | [`docs/architecture/adr/0003-graphql-plus-rest-coexistence.md`](../architecture/adr/0003-graphql-plus-rest-coexistence.md) |
 
 You don't have to read those now — they're rationale records, denser than this tutorial. You'll see them referenced in later chapters when the relevant tradeoff comes up.
 
 ## Try this
 
 ```bash
-# Get a count of every Go file in apps/ vs the legacy internal/
+# Get a count of Go files in the application trees
 find apps/ -name '*.go' -not -path '*/generated/*' | wc -l
-find internal/ -name '*.go' | wc -l
 ```
 
-The new monolith is roughly the same size as the legacy code. The split isn't about line count — it's about layered responsibilities (we'll see how in Chapter 05).
+The split is about layered responsibilities, not line count (we'll see how in Chapter 05).
 
 ```bash
 # Peek at the three Makefile entry points you'll use most

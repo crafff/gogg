@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/riotapi"
+	"github.com/crafff/gogg/packages/riotapi"
 )
 
 // Phase0Input is the workflow → Activity payload. Region picks the

@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/crawler/phase55"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phase55"
 )
 
 // Phase55Input drives the legacy phase55.Phase.Run. CDragon catalog

@@ -120,7 +120,7 @@ up in code review and must be justified.
 Reviewers will check:
 
 - [ ] Conventional commit subject; body explains the **why**
-- [ ] No secrets, no `.env` / `config.yaml` content
+- [ ] No secrets, no `.env` / local `config/*.yaml` content
 - [ ] `make ci` is green locally
 - [ ] New behaviour has tests (unit and/or integration)
 - [ ] Public API change is reflected in GraphQL SDL + OpenAPI
@@ -172,10 +172,8 @@ go run ./apps/worker/cmd/worker
 cd apps/web && npm run dev
 ```
 
-While Phase A is in progress, replace steps 4–6 with the
-legacy equivalents (`go run .` for the old server,
-`cd web && npm run dev` for the old frontend) — see
-`CLAUDE.md`.
+For local config, use `deploy/secrets/dev.enc.yaml` through SOPS or copy
+`config/dev.example.yaml` to the ignored `config/dev.yaml`.
 
 ## Reporting bugs / proposing features
 

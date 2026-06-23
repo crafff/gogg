@@ -1,4 +1,4 @@
-# Local development stack for the refactor.
+# Local development stack.
 #
 # Brings up everything the new `gogg-api` and `gogg-worker` need:
 #   - postgres        : application DB (port 55433 to avoid clash with host pg)
@@ -8,9 +8,8 @@
 #   - temporal-ui     : Temporal Web UI (http://localhost:8233)
 #   - mailhog         : SMTP sink for password-reset / OAuth emails in dev
 #
-# The legacy /docker-compose.yml at the repo root keeps the old
-# stack alive in parallel; it will be deleted when Phase B retires
-# the legacy server. Use the dev stack via `make dev`.
+# Use this stack via `make dev`; application process config lives in
+# config/dev.yaml locally or deploy/secrets/dev.enc.yaml via SOPS.
 
 name: gogg-dev
 

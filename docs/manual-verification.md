@@ -152,7 +152,7 @@ make run-worker
 Expected logs:
 
 - `temporal_client_connected addr=localhost:7233`
-- `schedule_created` or `schedule_updated` (once per profile in `config.yaml`)
+- `schedule_created` or `schedule_updated` (once per profile in the unified worker config)
 - worker pollers registered on `crawl-kr` and `crawl-na1` task queues
 
 Trigger a workflow manually via Temporal CLI from the host:
@@ -227,7 +227,7 @@ These require the compose stack from step 1 to be running:
 GOGG_INTTEST=1 make test-int
 ```
 
-The cleanup helper `cmd/inttest-cleanup` is registered to truncate test data after each run.
+Integration tests are responsible for their own test data setup and cleanup.
 
 ### 6.3 Web unit tests
 
@@ -299,7 +299,8 @@ sops -d deploy/secrets/dev.enc.yaml | head -20
 sops -r -i deploy/secrets/dev.enc.yaml
 ```
 
-After re-encryption, commit the updated `dev.enc.yaml`. The legacy `config.yaml` is gitignored — never check it in.
+After re-encryption, commit the updated `dev.enc.yaml`. Local plaintext
+`config/*.yaml` files are gitignored — never check them in.
 
 ---
 

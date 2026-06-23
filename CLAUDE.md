@@ -6,139 +6,93 @@ working with code in this repository.
 ## Project overview
 
 **GOGG** is a League of Legends champion stats / summoner search
-website, mid-refactor from a hobby MVP into a production
-service. The plan is captured in `/home/zrt/.claude/plans/radiant-wobbling-pizza.md` and
-the load-bearing decisions live under `docs/architecture/adr/`.
+website implemented as a production-oriented modular monolith.
 
-V1 scope: rankings, champion detail, summoner search, user
-system (Discord/Google OAuth + Riot RSO when approved).
-Two regions: KR and NA1. Bilingual UI (zh-CN + en-US).
-Cloud-agnostic deploy (AWS or domestic Chinese cloud).
+V1 scope: rankings, champion detail, summoner search, user system
+(Discord/Google OAuth + Riot RSO when approved). The product targets
+KR and NA1 first, with a bilingual zh-CN + en-US UI and cloud-agnostic
+deployment.
+
+The former single-binary MVP has been archived at
+`/home/zrt/apps/gogg-legacy-archive-2026-06-23.tar.gz` and removed from
+the project tree. Do not recreate dependencies on top-level `internal/`,
+`cmd/crawl`, root `main.go`, or old `web/`.
 
 ## Repository layout
 
 ```
 apps/
-  api/        — gogg-api binary (chi + gqlgen GraphQL BFF + REST compat + auth)
-  worker/     — gogg-worker binary (Temporal worker hosting crawl/enrich workflows)
-  web/        — React 18 + Vite + TS, feature-grouped UI
+  api/        — gogg-api binary: chi + gqlgen GraphQL BFF + REST compat + auth
+  worker/     — gogg-worker binary: Temporal worker for crawl/enrich workflows
+  web/        — React 18 + Vite + TypeScript feature-grouped UI
 packages/
-  domain/     — shared Go enums (Champion, Tier, Region) and error codes
-  sqlc/       — SQL migrations + queries + generated bindings
-  riotapi/    — Riot API client lifted from internal/riotapi
+  domain/     — shared Go enums and error codes
+  sqlc/       — SQL migrations, queries, generated bindings
+  riotapi/    — Riot API client
   proto/      — reserved for future gRPC contracts
+config/
+  *.example.yaml — tracked example configs; local *.yaml files are gitignored
 deploy/
   docker/     — Dockerfiles + nginx.conf
-  compose/    — local dev stack (docker-compose.dev.yml)
-  k8s/        — Kustomize base + dev/staging/prod overlays
-  terraform/  — cloud-agnostic IaC (modules/aws, modules/aliyun)
+  compose/    — local dev stack
+  k8s/        — Kustomize base + overlays
+  terraform/  — cloud-agnostic IaC
   observability/ — Prometheus + Grafana + Alertmanager
-  secrets/    — SOPS-encrypted env files
+  secrets/    — SOPS-encrypted config files
 docs/
   architecture/ — C4 + ADRs
-  runbooks/   — on-call procedures
-  api/        — GraphQL schema docs + OpenAPI for the REST compat layer
+  runbooks/     — on-call procedures
+  tutorial/     — codebase walkthrough
 ```
-
-The legacy code (`internal/server/`, `internal/crawler/`,
-`internal/storage/`, top-level `main.go`, `cmd/crawl/`) is still
-present and serving traffic. Phase B replaces it; Phase C
-migrates the crawler to Temporal. Do not delete legacy paths
-until the replacement is wired in and a release has switched
-over.
-
-## Phases
-
-- ✅ **A · Foundation** — monorepo scaffold, Docker, CI, SOPS, ADRs
-- ✅ **B · Backend rewrite** — `refactor/phase-b-backend`, ready to merge
-  - ✅ chunk 1: api skeleton, config, middleware (Recover/RequestID/Logger/CORS), healthz/readyz
-  - ✅ chunk 2: catalog service + `/api/v1/{versions,regions}` parity
-  - ✅ chunk 3: rankings service + `/api/v1/rankings/champions` parity (10/11 byte-equal, 1 ADR-0003 divergence)
-  - ✅ chunk 4: Prometheus `/metrics` + Redis cache wrapping rankings + `/readyz` includes Redis
-  - ✅ chunk 5: gqlgen schema + resolvers for `versions` / `regions` / `championRankings`; sanitizing error presenter (ADR-0003); `/graphql` + `/graphql/playground`
-  - ✅ chunk 6: HS256 JWT issuer + Discord/Google OAuth providers + `/oauth/start/{p}` + `/oauth/callback/{p}` + `/auth/refresh` + `/auth/logout` + optional Bearer middleware
-- ✅ **C · Crawler → Temporal** — `refactor/phase-c-crawler`, ready to merge
-  - ✅ chunk 1: `apps/worker` skeleton — viper config, slog→Temporal logger adapter, `PingWorkflow`/`PingActivity` on `smoke` task queue; verified end-to-end against compose Temporal (event history complete, result returned)
-  - ✅ chunk 2: `apps/worker/internal/runtime` loads legacy `internal/config` + `internal/storage` + per-region `*riotapi.Client`. Activities `ResolveProfile` / `CreateRun` / `Phase0VersionSync` / `PinRunVersion` / `Phase1RankSnapshot` / `CompleteRun` / `FailRun` registered on `*crawl.Activities`. `CrawlRegionWorkflow{ProfileName | Profile}` orchestrates them with phase-specific RetryPolicy + heartbeat budgets. Verified KR end-to-end: CDragon → 226 game_versions upserted, latest 16.12 pinned on `runs.version`, Phase 1 401 from expired dev Riot key triggered Temporal's exponential retry (5s → 10s → 20s) exactly as `phase1Opts` specifies; cancellation triggered disconnected `FailRun` and `runs.status = 'failed'` stamped correctly
-  - ✅ chunk 3: `Phase2MatchIDCollection` / `Phase3MatchDetails` / `Phase35OnDemandRank` / `Phase4AvgTierCalc` Activities — thin wrappers calling legacy `phase{2,3,35,4}.Phase.Run` with a synthetic `*crawler.RunState` (assembled via `ResumeRunState`). Workflow gained `runPhase2` dispatcher: `execution=sequential` runs one Activity with all `TargetTiers` inline (legacy-parity); `execution=pipeline` fans out one Activity per tier via `workflow.Future` then barriers into sequential Phase 3/3.5/4 (parallelism gain over legacy `PipelineStrategy` which was actually per-tier serial). Phase 2-4 ActivityOptions intentionally drop `HeartbeatTimeout` because the legacy inner loops don't heartbeat per batch yet. Verified via Temporal `testsuite` workflow tests (3/3 pass): pipeline mode schedules N Phase2 calls for N tiers, sequential mode dispatches a single bulk Phase2, and FailRun fires on workflow failure with the configured 5-attempt exponential backoff exactly matching `phase1Opts`.
-  - ✅ chunk 4: `Phase5Timeline` + `Phase55ItemClassify` Activities complete the 8-phase chain. `apps/worker/internal/schedule` reads legacy `cfg.Schedule[]` entries, resolves each profile name to its region, and idempotently upserts a Temporal Schedule per row (`gogg-crawl-{profile}` on `crawl-{region}` task queue). Replaces `robfig/cron` in legacy `gogg crawl daemon` — both `cmd/crawl/{run,daemon}` are marked `[DEPRECATED]` in their cobra help text and `internal/crawler` package doc; they stay one release cycle as the rollback escape hatch per plan §3. Verified end-to-end against compose Temporal: schedules created on first boot (`schedule_created` log), `schedule_updated` on subsequent boots; `temporal schedule list` shows correct `NextRunTime` matching the cron expressions. Workflow test suite extended (5/5 pass) — full-chain sequential walks every Activity in order; schedule pkg tests (4/4 pass) cover profile resolution, queue selection, and rejection of malformed entries.
-- ✅ **D · Frontend rewrite** — `refactor/phase-d-frontend`, ready to merge
-  - ✅ chunk 1: `apps/web` toolchain — vite 5 + react 18 + tailwind 3 + tanstack-query 5 + radix + i18next + zustand + react-router 6; tsconfig (strict + noUncheckedIndexedAccess) with path aliases `@app`/`@features`/`@shared`; smoke App.tsx renders Tailwind classes (`bg-gogg-ink`, `bg-gogg-gold/10`) through custom theme tokens. `npm run dev` + `npm run build` clean (dist: 5.5 kB CSS gzipped 1.7 kB, 143 kB JS gzipped 46 kB). Makefile adds `run-web` + `build-web`. Legacy `web/` stays untouched until D ships.
-  - ✅ chunk 2: vite 5 → vite 8 + vitest 2 → vitest 4 + plugin-react 6 (esbuild 0.28 — `npm audit` clean, no high CVEs); i18n bootstrap with i18next + react-i18next + browser LanguageDetector, namespaces `common` + `rankings`, zh-CN default + en-US, type-safe via `CustomTypeOptions` module augmentation; design tokens layered on tailwind — brand primitives (`gogg-gold`/`gogg-ink`) plus semantic `surface-*` / `fg-*` / `border-*` / `accent-*` plus per-tier `tier-*` palette + 3 tier gradients + `animate-skeleton` keyframe; `cn()` helper (clsx + tailwind-merge); base components `Button`/`Tag`/`Skeleton`/`Select` under `@shared/ui` (cva variants split into `*.variants.ts` so react-refresh boundaries stay clean, Select wraps Radix primitives); `LanguageSwitcher` under `@shared/i18n`; vitest.config.ts (jsdom + setupFiles) + `src/test/setup.ts` (jest-dom matchers + cleanup hook); 4 component test files / 6 cases pass; `npm run dev` + `lint` + `type-check` + `build` clean (dist: 9.83 kB CSS gzipped 2.99 kB, 303 kB JS gzipped 99 kB).
-  - ✅ chunk 3: graphql-codegen 7.x (cli + typescript + typescript-operations + typescript-react-query + add plugin) reads the gqlgen schema directly from `apps/api/internal/transport/graphql/schema/*.graphql`; operations live as `.graphql` files under `apps/web/src/shared/api/operations/` (`Versions`, `Regions`, `ChampionRankings`); two outputs land in `src/shared/api/generated/` — `types.ts` (typescript-operations alone — bundling it with the `typescript` plugin re-emits every input/enum as a TS2300 duplicate in 6.x) and `hooks.ts` (typescript-react-query v5 hooks with native-`fetch` fetcher pointed at relative `/graphql`, `exposeQueryKeys` + `exposeFetcher` enabled). Endpoint wrapped in `'"/graphql"'` so the plugin emits a quoted JS literal; `add` plugin injects `import type * as Operations from "./types"` since typescript-react-query references the namespace without importing it. `npm run codegen` / `codegen:watch` scripts; `src/shared/api/queryClient.ts` exports a tuned `QueryClient` (staleTime 60s, gcTime 1h, retry 2, `refetchOnWindowFocus: false`) wired into `App.tsx` via `QueryClientProvider`. `src/shared/api/index.ts` re-exports everything so feature code never imports from `generated/` directly. 1 new test file / 4 cases assert the generated hooks/documents/query keys + queryClient defaults. `npm run lint` + `type-check` + `test` + `build` clean (10/10 tests; dist 9.83 kB CSS gzipped 2.99 kB + 337.88 kB JS gzipped 109 kB).
-  - ✅ chunk 4: Rankings page rewrite — `apps/web/src/features/rankings/` houses 4 hooks + 3 presenter components + the `RankingsPage` orchestrator. Hooks: `useRankingsFilters` (selected vs committed split with `onBeforeCommit` callback + UI→GraphQL `mapToTierGroup`), `useRankingsQuery` (wraps `useChampionRankingsQuery` with `minGames=20` constant + `placeholderData: keepPreviousData` so pagination doesn't blank), `useFadeTransition` (shown → fading-out → hidden → fading-in state machine with viewport height locking), `useInfiniteScroll` (IntersectionObserver helper, returns `RefObject<T>` so JSX `ref={}` accepts it directly). Components: `RankingsFilters` (segment rows for position/tier + Radix Select wrappers for region/version, with `__all__` sentinel for empty values), `RankingsStatsBar` (i18next `<Trans>` for the interpolated count), `RankingsTable` (dense table, percent + KDA formatting). Page coordinates: filter change → `beginExit` → fade-out → effect on `phase === "hidden"` commits + resets page size → query refetches → effect on `!isFetching` → `beginEnter` → fade-in. App.tsx swapped to render `RankingsPage` directly (router skeleton lands chunk 5). i18n keys expanded: `common.state.{refreshing,loadMore,loadingMore,endOfList}` + `rankings.{subtitle,filter.{all,latest},column.kda}`. 8 test files / 19 cases pass (3 new files for hooks + table render smoke). Build dist 11.71 kB CSS gzipped 3.30 kB + 354.66 kB JS gzipped 114.96 kB.
-  - ✅ chunk 5: React Router 6 skeleton with `createBrowserRouter` + per-route lazy loading. `apps/web/src/app/Layout.tsx` is the global shell — header carries brand + nav + LanguageSwitcher + a CTA-styled login link, body renders `<Outlet/>`. `apps/web/src/app/router.tsx` defines `routes` (also exported for tests so `createMemoryRouter` can re-use them) covering `/` → `/rankings` redirect, `/rankings`, `/champion/:championId`, `/summoner` + `/summoner/:region/:name`, `/login`, `/me`, plus a catch-all `*` → `RouteErrorBoundary`. `RouteErrorBoundary` reads `useRouteError()` + `isRouteErrorResponse()` and offers a localized retry button. `App.tsx` shrinks to `QueryClientProvider` + `RouterProvider` (i18n side-effect import). Lazy chunks split out: vendor ~407 kB gzipped 132 kB, rankings 17.5 kB gzipped 6.4 kB, each placeholder under 1 kB. `PlaceholderPage` lives in `@shared/ui` so the 4 feature pages (`ChampionDetailPage` / `SummonerPage` / `LoginPage` / `MePage`) each weigh under 15 lines — they read URL params via `useParams` and show a "Coming soon" tag + i18n-driven copy. i18n adds `common.placeholder.{comingSoon,championDetail,summoner,login,me,notFound}` in both locales. `router.test.tsx` walks 6 routes via `createMemoryRouter` + `QueryClientProvider` and asserts the placeholder testid + route param echo + 404 error boundary. 9 test files / 25 cases pass; dev server boots clean and all routes return HTTP 200.
-  - ✅ chunk 6: Vitest coverage backfilled — `useInfiniteScroll` (IntersectionObserver stub + sentinel Probe + intersection-callback assertion), `useRankingsQuery` (real `QueryClient` + `fetch` stub asserting the projected `ChampionRankingsFilter` payload matches selected/UI state + minGames=20), `RankingsFilters` (chip click → onPositionChange/onTierChange), `RankingsStatsBar` (Trans interpolation + null render on totalMatches=0). 13 test files / 39 cases. Playwright 1.61 wired up: `playwright.config.ts` runs against vite dev server (`webServer` config auto-boots on port 5173), `tests/e2e/rankings.spec.ts` hits the golden path — visit `/` → redirect to `/rankings`, default slice renders 40 rows, click position chip → second `ChampionRankings` request fires with `position: "TOP"`, scroll sentinel into view → third request with `limit: 80` arrives + row count grows. All network mocked via `page.route("**/graphql")` (operation sniffed from `query Name` token since the codegen fetcher doesn't send `operationName`). `npm run test:e2e` + `test:e2e:install` scripts; `make test-e2e` + `make test-e2e-install` Makefile targets. Local run requires `sudo apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2` (Playwright doc'd browser deps); CI uses `microsoft/playwright` Docker base image so the dep install is one-time and authoritative.
-- **E · New features** — champion detail, summoner search, user system
-- **F · Production hardening** — k8s manifests, Terraform, observability, runbooks
-
-The legacy `internal/server/` package is `Deprecated` as of chunk 4;
-do not add features there. Bug fixes for security/correctness only,
-and mirror them into `apps/api/internal/*` in the same PR.
 
 ## Commands
 
-### Local dev stack
 ```bash
 make dev          # postgres + redis + temporal + mailhog
-make dev-down     # stop
-make dev-reset    # stop + drop volumes (data loss)
-```
+make dev-down     # stop the dev stack
+make dev-reset    # stop + drop volumes
 
-### Legacy backend (still functional during Phase A–B)
-```bash
-go build .                          # build the legacy ./gogg binary
-./gogg serve                        # HTTP API on :8080
-./gogg crawl run --profile daily_kr # crawler with the existing config.yaml
-go test ./...
-```
+make run-api      # uses deploy/secrets/dev.enc.yaml or config/dev.yaml
+make run-worker   # same unified config source as the API
+make run-web      # apps/web vite dev server
 
-### Legacy frontend
-```bash
-cd web
-npm install
-npm run dev         # Vite proxy → localhost:8080/api
-npm run build       # type-check + build → web/dist/
-npm run type-check
-```
-
-### New monorepo targets (skeleton — fully populated as Phase B+ lands)
-```bash
-make build-api    # apps/api/cmd/api → bin/gogg-api
-make build-worker # apps/worker/cmd/worker → bin/gogg-worker
-make lint         # golangci-lint + web lint
-make test         # go test + web test
-make ci           # vet + lint + test (CI parity)
-make gen          # sqlc + gqlgen + graphql-codegen
-make migrate-up   # apply migrations from packages/sqlc/migrations/
+make build-api
+make build-worker
+make build-web
+make lint
+make test
+make ci
+make gen
+make migrate-up
 make migrate-new name=add_user_favorites
+make check-no-legacy
 ```
 
-## Architectural rules (enforced by review)
+Local plaintext config belongs in `config/dev.yaml`, copied from
+`config/dev.example.yaml`. SOPS-managed config belongs in
+`deploy/secrets/dev.enc.yaml`. Worker config is one unified document:
+Temporal, logging, database, Riot regions, schedules, and run profiles.
+
+## Architectural rules
 
 1. **Service layer owns business logic.** Transports
    (`apps/api/internal/transport/graphql`,
-   `apps/api/internal/transport/rest`) call into the same
-   `internal/service/*` packages. No SQL in resolvers, no
-   HTTP-aware code in services.
-2. **Data access goes through sqlc.** Hand-written `pgx`
-   queries are allowed only for the truly-dynamic case (e.g.
-   filter-built WHERE clauses); when you write one, leave a
-   `// sqlc-skip: <reason>` comment.
-3. **Secrets never land in git.** Use `deploy/secrets/*.enc.yaml`
-   via SOPS. CI verifies via gitleaks.
-4. **Migrations are forward-only in spirit.** Every migration
-   ships with a corresponding `.down.sql`, but down migrations
-   are for local dev only; production rolls forward.
-5. **The legacy stack is sacred until its replacement ships.**
-   Modifying `internal/server/` or `internal/crawler/` during
-   the refactor is only OK if the change is being mirrored into
-   the new module, or it's an outright bug fix that can't wait.
+   `apps/api/internal/transport/rest`) call into service packages. No
+   SQL in resolvers, no HTTP-aware code in services.
+2. **Data access goes through sqlc.** Hand-written `pgx` queries are
+   allowed only for truly dynamic cases; leave a `// sqlc-skip: <reason>`
+   comment when doing so.
+3. **Secrets never land in git.** Use `deploy/secrets/*.enc.yaml` via
+   SOPS or local ignored `config/*.yaml`.
+4. **Migrations are forward-only in spirit.** Down migrations are for
+   local dev; production rolls forward.
+5. **No archived-code dependencies.** New code must not import top-level
+   `internal/*` or `cmd/crawl`. Run `make check-no-legacy` before
+   handing off backend or worker changes.
 
 ## Where to look next
 
-- The refactoring plan: `/home/zrt/.claude/plans/radiant-wobbling-pizza.md`
-- Why these decisions: `docs/architecture/adr/000{1,2,3}-*.md`
-- How to contribute: `docs/contributing.md`
+- Architecture decisions: `docs/architecture/adr/000{1,2,3}-*.md`
+- Developer workflow: `docs/contributing.md`
 - Local secrets workflow: `deploy/secrets/README.md`
 - Dev stack details: `deploy/compose/docker-compose.dev.yml`

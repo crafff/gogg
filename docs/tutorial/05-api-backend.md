@@ -212,7 +212,9 @@ func (r *queryResolver) Versions(ctx context.Context) ([]string, error) {
 
 Same one-liner as the REST handler — both delegate to the same service. No duplication.
 
-ADR-0003 explains why we keep both: REST stays as a compat layer so the legacy frontend (`web/`) keeps working through the cutover, and so scripts (curl, k6 load tests) don't need a GraphQL client. The intent: REST goes away one release cycle after `web/` is deleted.
+ADR-0003 explains why we keep both: GraphQL is the primary frontend API,
+while REST stays as a compatibility layer for scripts, smoke checks, and
+clients that do not need a GraphQL client.
 
 🛠️ **Exercise**: open <http://localhost:8080/graphql/playground> and run:
 

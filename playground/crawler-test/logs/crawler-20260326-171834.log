@@ -1,1 +1,0 @@
-{"time":"2026-03-26T17:19:00.931433465-05:00","level":"WARN","msg":"shutdown signal received","service":"crawler-test","env":"development","signal":"interrupt"}

@@ -1,0 +1,41 @@
+api:
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_grace: 15s
+  allowed_origins:
+    - http://localhost:5173
+    - http://localhost:3000
+  graphql_playground: true
+
+database:
+  dsn: postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
+  max_open_conns: 10
+  min_idle_conns: 2
+  conn_max_lifetime: 5m
+
+redis:
+  url: redis://localhost:6379/0
+
+logging:
+  level: info
+  format: json
+
+auth:
+  jwt_secret: change-me-in-dev
+  issuer: gogg.local
+  access_ttl: 15m
+  refresh_ttl: 720h
+  cookie_domain: ""
+  cookie_secure: false
+
+oauth:
+  discord:
+    client_id: ""
+    client_secret: ""
+    redirect_url: ""
+  google:
+    client_id: ""
+    client_secret: ""
+    redirect_url: ""

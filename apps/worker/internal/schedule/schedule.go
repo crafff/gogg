@@ -1,7 +1,6 @@
-// Package schedule turns the legacy YAML `schedule:` entries into
+// Package schedule turns crawler YAML `schedule:` entries into
 // Temporal Schedules. Each entry is upserted idempotently at worker
-// start, replacing the robfig/cron loop the legacy `gogg crawl daemon`
-// command ran.
+// start.
 //
 // The schedule's workflow ID prefix is `gogg-crawl-{profile}`. Temporal
 // appends the trigger timestamp to disambiguate runs, so back-to-back
@@ -24,8 +23,8 @@ import (
 	"go.temporal.io/sdk/temporal"
 
 	crawlact "github.com/crafff/gogg/apps/worker/internal/activity/crawl"
+	"github.com/crafff/gogg/apps/worker/internal/config"
 	crawlwf "github.com/crafff/gogg/apps/worker/internal/workflow/crawl"
-	legacycfg "github.com/crafff/gogg/internal/config"
 )
 
 // Plan is the resolved upsert plan derived from cfg.Schedule. Tested
@@ -43,7 +42,7 @@ type Plan struct {
 // profile names to their region for task queue routing. Pure; takes
 // no I/O, so the rest of the package can unit-test branching without
 // reaching for a fake Temporal server.
-func BuildPlan(cfg *legacycfg.Config) ([]Plan, error) {
+func BuildPlan(cfg *config.Config) ([]Plan, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("nil config")
 	}

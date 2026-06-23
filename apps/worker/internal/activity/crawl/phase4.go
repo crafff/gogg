@@ -7,7 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/crawler/phase4"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phase4"
 )
 
 // Phase4Input drives the legacy phase4.Phase.Run. No Riot client

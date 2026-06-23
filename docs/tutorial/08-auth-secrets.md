@@ -132,7 +132,9 @@ That shows you the claims. Anyone can read them; they're not encrypted. Only the
 
 ### Why SOPS
 
-The legacy stack had a `config.yaml` with the Riot API key in plaintext. That key was reachable via `git log` even after rotation. SOPS fixes this:
+Plaintext local config files are useful for development but should
+never be committed. SOPS gives us the committed equivalent for shared
+environments:
 
 - **Files are encrypted at rest**, including in git.
 - **The encryption key is per-recipient** (via age public keys). Adding a teammate is updating `.sops.yaml` + re-encrypting.

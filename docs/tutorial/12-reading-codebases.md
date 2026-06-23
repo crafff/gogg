@@ -36,7 +36,10 @@ ls -la
 tree -L 2 -d         # or use find: find . -maxdepth 2 -type d
 ```
 
-What directories exist? Are they self-explanatory? In GOGG: `apps/`, `packages/`, `deploy/`, `docs/`, plus the legacy `internal/` and `cmd/`. Already you have the shape — three binaries + shared packages + infra + docs.
+What directories exist? Are they self-explanatory? In GOGG:
+`apps/`, `packages/`, `config/`, `deploy/`, and `docs/`. Already you
+have the shape — three processes + shared packages + config + infra +
+docs.
 
 Map the layout against any "well-known" convention you recognize:
 
@@ -286,7 +289,7 @@ This is also how you learn the team's vocabulary — words like "the runtime," "
 Applying the playbook to GOGG:
 
 1. **Docs**: `README.md`, `CLAUDE.md`, this tutorial's Chapter 01.
-2. **Structure**: `ls apps/ packages/ deploy/ docs/`. Note the legacy `internal/` + `cmd/` + `main.go` + `web/`.
+2. **Structure**: `ls apps/ packages/ config/ deploy/ docs/`.
 3. **Run**: Chapter 02. Bring up the dev stack, render the rankings page.
 4. **Entry points**: `apps/api/cmd/api/main.go`, `apps/worker/cmd/worker/main.go`, `apps/web/src/main.tsx`.
 5. **Trace**: pick `GET /api/v1/versions`. Walk it through chi → service → sqlc. Then re-do for `championRankings` GraphQL.

@@ -1,8 +1,6 @@
-// Package v1 hosts the REST compatibility layer the legacy frontend
-// hits at /api/v1/*. The shape of every response is byte-equal to the
-// pre-refactor /api/* shape so the old web app keeps working through
-// Phase D's cutover. Drop the entire package after the new frontend
-// goes live (per ADR-0003).
+// Package v1 hosts the REST compatibility layer at /api/v1/*. The
+// response shape stays stable for scripts and existing clients that do
+// not need GraphQL.
 package v1
 
 import (

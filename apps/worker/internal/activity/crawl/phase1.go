@@ -6,8 +6,8 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
-	"github.com/crafff/gogg/internal/riotapi"
-	"github.com/crafff/gogg/internal/storage"
+	"github.com/crafff/gogg/apps/worker/internal/storage"
+	"github.com/crafff/gogg/packages/riotapi"
 )
 
 // Phase1Input mirrors the legacy phase1 inputs that come off RunState

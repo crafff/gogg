@@ -29,13 +29,8 @@ make migrate-new name=add_user_favorites
 make gen-sqlc
 ```
 
-## Migration transition note
+## Migration ownership
 
-During the Phase A–B refactor, the migrations also live at
-`internal/storage/migrations/` because the legacy
-`internal/storage/schema.go` embeds them via `//go:embed`. Both
-copies must stay byte-identical until the legacy storage layer
-is deleted in Phase B. **Always create new migrations in
-`packages/sqlc/migrations/` first**, then `cp` to the legacy
-path in the same commit. A CI check enforces this (see
-`.github/workflows/ci.yml`).
+`packages/sqlc/migrations/` is the only migration tree. Add every new
+schema change here, regenerate bindings with `make gen-sqlc`, and let
+application code consume the generated `packages/sqlc/gen` package.

@@ -42,7 +42,7 @@ ls docs/architecture/adr/
 
 - **0001 — modular monolith over microservices**: why we ship as three binaries on one Postgres rather than 8 microservices. The reasoning is "Stripe / Shopify / Basecamp's evolution path" — go modular first, split only when a service genuinely needs independent scale.
 - **0002 — sqlc over ent**: why generated SQL beats an ORM in this domain. Aggregate queries (the rankings CTE chain) would be painful via ORM; SQL-first keeps the query plan visible.
-- **0003 — GraphQL + REST dual surface**: why we run two transports on the same service layer. REST stays for the legacy frontend + scripts; GraphQL for the new frontend. Both go through the same error sanitization layer to prevent SQL leakage.
+- **0003 — GraphQL + REST dual surface**: why we run two transports on the same service layer. GraphQL serves the web app; REST remains as a compatibility layer for scripts and existing clients. Both go through the same error sanitization layer to prevent SQL leakage.
 
 Read them in order. Each is ~3 pages.
 
@@ -57,7 +57,7 @@ The repo's load-bearing context document. It lists:
 - What each phase delivered + its key technical decisions
 - The architectural rules that get enforced in review
 - The commands
-- The deprecation policy for the legacy stack
+- The no-archived-code dependency rule
 
 Re-read it now and again every few weeks. The phase summaries especially are gold for understanding "why is this here?" when you're deep in some file.
 
@@ -103,7 +103,7 @@ Use the same chunk-by-chunk discipline that Phases B–D used:
 7. Commit. Push. Open a PR with a "Test plan" checklist (see PR #4–#7 for the template).
 8. CI must be green before merge.
 
-The CLAUDE.md "Architectural rules" section spells out the must-follow conventions: service layer owns business logic, sqlc for data access, secrets via SOPS, migrations forward-only, legacy stack sacred until replacement ships.
+The CLAUDE.md "Architectural rules" section spells out the must-follow conventions: service layer owns business logic, sqlc for data access, secrets via SOPS, migrations forward-only, and no dependencies on archived legacy code.
 
 ---
 
@@ -130,7 +130,7 @@ That's the last major engineering work before "V1 generally available."
 1. Make sure you're on `refactor/phase-e-features` (or branch off it).
 2. Make changes; commit with [Conventional Commits](https://www.conventionalcommits.org/) format (`feat(api): ...`, `fix(web): ...`, `chore(secrets): ...`, etc.). Lefthook will run gofmt, golangci-lint, prettier, eslint, gitleaks, no-trailing-whitespace.
 3. Push, open PR with the template (`gh pr create` will pre-fill).
-4. CI runs: vet, lint, test (Go + web), build, gitleaks, govulncheck, semgrep, npm audit, migrations parity, docker build.
+4. CI runs: vet, lint, test (Go + web), build, gitleaks, govulncheck, semgrep, npm audit, and docker build.
 5. After merge, the branch can be deleted via the PR page or `git push origin --delete <branch>`.
 
 ### Tooling reminders

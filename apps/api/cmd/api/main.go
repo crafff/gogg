@@ -1,11 +1,6 @@
 // gogg-api is the synchronous HTTP surface: GraphQL BFF + REST compat
 // + auth + OAuth callbacks + health checks. The crawler runs as a
 // separate `gogg-worker` binary (see apps/worker).
-//
-// This binary is the Phase B replacement for the legacy `./gogg serve`
-// subcommand. The legacy binary keeps running side-by-side until the
-// new API reaches feature parity (rankings + versions + regions),
-// per ADR-0001.
 package main
 
 import (
