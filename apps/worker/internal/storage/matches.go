@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // UpsertMatchID inserts a match_id with fetch_status=pending.
@@ -60,6 +62,24 @@ type MatchHeader struct {
 	EndOfGameResult *string
 }
 
+type TeamDetail struct {
+	MatchID         string
+	TeamID          int
+	Win             bool
+	BaronKills      int
+	DragonKills     int
+	TowerKills      int
+	InhibitorKills  int
+	RiftHeraldKills int
+	Feats           []byte
+	Bans            []BanDetail
+}
+
+type BanDetail struct {
+	ChampionID int
+	PickTurn   int
+}
+
 // UpdateMatchDetail writes the header fields and marks fetch_status=done.
 func (s *Store) UpdateMatchDetail(ctx context.Context, h *MatchHeader) error {
 	_, err := s.Pool.Exec(ctx, `
@@ -83,6 +103,71 @@ func (s *Store) UpdateMatchDetail(ctx context.Context, h *MatchHeader) error {
 	return err
 }
 
+// SaveMatchDetail atomically replaces all match detail rows and marks the
+// match detail fetch done only after every dependent row is written.
+func (s *Store) SaveMatchDetail(ctx context.Context, h *MatchHeader, participants []Participant, perks []PerkRow, teams []TeamDetail) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM match_bans WHERE match_id = $1`, h.MatchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_teams WHERE match_id = $1`, h.MatchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_perks WHERE match_id = $1`, h.MatchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_participants WHERE match_id = $1`, h.MatchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE matches SET
+				data_version       = $2,
+				platform_id        = $3,
+				queue_id           = $4,
+				game_version       = $5,
+				game_mode          = $6,
+				game_type          = $7,
+				game_start_ts      = $8,
+				game_end_ts        = $9,
+				game_duration      = $10,
+				end_of_game_result = $11,
+				fetch_status       = 'pending'
+			WHERE match_id = $1`,
+			h.MatchID, h.DataVersion, h.PlatformID, h.QueueID,
+			h.GameVersion, h.GameMode, h.GameType, h.GameStartTS, h.GameEndTS,
+			h.GameDuration, h.EndOfGameResult); err != nil {
+			return err
+		}
+		if err := insertParticipantsTx(ctx, tx, participants); err != nil {
+			return err
+		}
+		if err := insertPerksTx(ctx, tx, perks); err != nil {
+			return err
+		}
+		for _, team := range teams {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO match_teams
+				  (match_id, team_id, win, baron_kills, dragon_kills,
+				   tower_kills, inhibitor_kills, rift_herald_kills, feats)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+				team.MatchID, team.TeamID, team.Win, team.BaronKills, team.DragonKills,
+				team.TowerKills, team.InhibitorKills, team.RiftHeraldKills, team.Feats); err != nil {
+				return err
+			}
+			for _, ban := range team.Bans {
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO match_bans (match_id, team_id, pick_turn, champion_id)
+					VALUES ($1,$2,$3,$4)`,
+					team.MatchID, team.TeamID, ban.PickTurn, ban.ChampionID); err != nil {
+					return err
+				}
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE matches SET fetch_status = 'done' WHERE match_id = $1`, h.MatchID)
+		return err
+	})
+}
+
 const maxMatchRetries = 3
 
 // IncrementMatchRetry bumps retry_count. Status stays 'pending' until
@@ -97,13 +182,16 @@ func (s *Store) IncrementMatchRetry(ctx context.Context, matchID string) error {
 }
 
 // GetMatchesNeedingTierCalc returns match_ids where avg_tier_score is null
-// and fetch_status=done for the given region.
-func (s *Store) GetMatchesNeedingTierCalc(ctx context.Context, region string, limit int) ([]string, error) {
+// and fetch_status=done for the given region and version.
+func (s *Store) GetMatchesNeedingTierCalc(ctx context.Context, region, version string, limit int) ([]string, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT match_id FROM matches
-		WHERE fetch_status = 'done' AND avg_tier_score IS NULL AND region = $1
+		WHERE fetch_status = 'done'
+		  AND avg_tier_score IS NULL
+		  AND region = $1
+		  AND version = $2
 		ORDER BY game_start_ts
-		LIMIT $2`, region, limit)
+		LIMIT $3`, region, version, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +214,16 @@ func (s *Store) UpdateAvgTier(ctx context.Context, matchID, avgTier, avgDivision
 		SET avg_tier_score = $2, tier_coverage = $3, avg_tier = $4, avg_division = $5
 		WHERE match_id = $1`, matchID, avgScore, coverage, avgTier, avgDivision)
 	return err
+}
+
+func (s *Store) SaveAvgTier(ctx context.Context, matchID, avgTier, avgDivision string, avgScore, coverage int) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE matches
+			SET avg_tier_score = $2, tier_coverage = $3, avg_tier = $4, avg_division = $5
+			WHERE match_id = $1`, matchID, avgScore, coverage, avgTier, avgDivision)
+		return err
+	})
 }
 
 // ApexThresholds holds the minimum LP score for Challenger and Grandmaster

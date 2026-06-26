@@ -190,9 +190,9 @@ If any step returns an error, the workflow runs `FailRun` (via a disconnected co
 🛠️ **Exercise**: find the `runPhase2` dispatcher and read it. There are two modes:
 
 - `execution: "sequential"` — one activity call with all tiers inline.
-- `execution: "pipeline"` — fan out one activity per tier via `workflow.Future` + barrier-wait.
+- `execution: "pipeline"` — process each configured target tier in order. For one tier, run Phase 2 through Phase 5.5 before moving to the next tier.
 
-The pipeline mode is the per-tier parallelism gain over the previous in-process strategy, which was effectively per-tier serial.
+Pipeline mode is tier-first, not phase-first: `CHALLENGER` can become usable after its Phase 2→5.5 chain completes, without waiting for `GRANDMASTER` or `MASTER` to finish Phase 2. Later phases still consume pending rows by region + version, so this is practical tier prioritisation rather than strict per-tier match isolation.
 
 ### 4d · The schedule registration
 
@@ -231,14 +231,11 @@ In the logs, look for `schedule_created` or `schedule_updated`. Open the Tempora
 To trigger a workflow immediately (without waiting for the cron to fire), use the Temporal CLI from your host. The host loopback trick is in `docs/manual-verification.md`:
 
 ```bash
-TEMPORAL_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
-    $(docker ps -qf name=temporal | head -1))
-
-temporal --address $TEMPORAL_IP:7233 workflow start \
-    --task-queue crawl-kr \
-    --type CrawlRegionWorkflow \
-    --workflow-id manual-test-$(date +%s) \
-    --input '{"ProfileName":"daily_kr"}'
+docker exec gogg-dev-temporal tctl --address temporal:7233 workflow start \
+    --taskqueue crawl-na1 \
+    --workflow_type CrawlRegionWorkflow \
+    --workflow_id manual-na1-$(date +%s) \
+    --input '{"profile_name":"daily_na"}'
 ```
 
 Switch to the **Workflows** tab in the UI. You'll see your run starting. Click into it. You can:

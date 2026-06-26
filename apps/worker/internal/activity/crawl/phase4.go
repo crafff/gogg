@@ -16,6 +16,7 @@ import (
 type Phase4Input struct {
 	RunID        int       `json:"run_id"`
 	Region       string    `json:"region"`
+	Version      string    `json:"version"`
 	RunStartedAt time.Time `json:"run_started_at"`
 }
 
@@ -30,17 +31,28 @@ func (a *Activities) Phase4AvgTierCalc(ctx context.Context, in Phase4Input) (Pha
 	if in.Region == "" {
 		return Phase4Output{}, fmt.Errorf("phase4: region required")
 	}
+	if in.Version == "" {
+		return Phase4Output{}, fmt.Errorf("phase4: version required")
+	}
 
-	state := a.synthState(in.RunID, in.Region, "", "",
+	state := a.synthState(in.RunID, in.Region, in.Version, "",
 		nil, "", in.RunStartedAt, time.Time{})
 
 	activity.RecordHeartbeat(ctx, "phase4_starting")
-	logger.Info("phase4 starting", "region", in.Region)
+	logger.Info("phase4_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 
 	p := phase4.New(a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase4Output{}, fmt.Errorf("phase4 run: %w", err)
 	}
-	logger.Info("phase4 done")
+	logger.Info("phase4_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 	return Phase4Output{}, nil
 }

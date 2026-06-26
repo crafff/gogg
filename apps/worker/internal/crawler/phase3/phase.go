@@ -4,11 +4,12 @@ package phase3
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"math"
 	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -48,35 +49,23 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("phase3: start", "pending", totalPending)
+	meta := phaselog.Meta{RunID: state.ID, Region: region, Phase: p.Name(), PhaseID: p.ID(), Version: version}
+	phaselog.Step(meta, "pending_loaded", "pending", totalPending)
 
 	processed := 0
 	failed := 0
 	start := time.Now()
 
 	logProgress := func() {
-		elapsed := time.Since(start).Seconds()
-		rate := float64(processed) / elapsed
-		var eta string
-		remaining := totalPending - processed
-		if rate > 0 && remaining > 0 {
-			etaSec := float64(remaining) / rate
-			eta = time.Duration(etaSec * float64(time.Second)).Round(time.Second).String()
-		} else {
-			eta = "?"
-		}
-		pct := 0.0
-		if totalPending > 0 {
-			pct = float64(processed) / float64(totalPending) * 100
-		}
-		slog.Info("phase3: progress",
-			"processed", processed,
-			"total", totalPending,
-			"pct", int(pct),
-			"failed", failed,
-			"rate_per_s", math.Round(rate*10)/10,
-			"eta", eta,
-		)
+		phaselog.Progress(meta, processed, totalPending, failed, start)
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":    state.ID,
+			"region":    region,
+			"version":   version,
+			"processed": processed,
+			"total":     totalPending,
+			"failed":    failed,
+		})
 	}
 
 	for {
@@ -95,13 +84,23 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 				return err
 			}
 			if err := p.processMatch(ctx, region, id); err != nil {
-				slog.Warn("phase3: failed to process match", "match_id", id, "err", err)
+				phaselog.Warn(meta, "match_failed", "match_id", id, "err", err)
 				if err2 := p.store.IncrementMatchRetry(ctx, id); err2 != nil {
 					return err2
 				}
 				failed++
 			}
 			processed++
+			if processed%25 == 0 {
+				heartbeat.Record(ctx, map[string]any{
+					"run_id":    state.ID,
+					"region":    region,
+					"version":   version,
+					"processed": processed,
+					"total":     totalPending,
+					"failed":    failed,
+				})
+			}
 			if processed%logEvery == 0 {
 				logProgress()
 			}
@@ -148,10 +147,6 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 		GameDuration:    &dur,
 		EndOfGameResult: ptr(info.EndOfGameResult),
 	}
-	if err := p.store.UpdateMatchDetail(ctx, h); err != nil {
-		return err
-	}
-
 	// Write participants.
 	participants := make([]storage.Participant, len(info.Participants))
 	for i, dp := range info.Participants {
@@ -170,9 +165,6 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 		}
 		participants[i] = part
 	}
-	if err := p.store.InsertParticipants(ctx, participants); err != nil {
-		return err
-	}
 
 	// Write perks.
 	var perks []storage.PerkRow
@@ -180,31 +172,32 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 		perk := perkRowFromDTO(matchID, dp.Puuid, &dp.Perks)
 		perks = append(perks, perk)
 	}
-	if err := p.store.InsertPerks(ctx, perks); err != nil {
-		return err
-	}
 
 	// Write teams + bans.
+	var teams []storage.TeamDetail
 	for _, team := range info.Teams {
 		featsJSON, _ := json.Marshal(team.Feats)
 
 		obj := team.Objectives
-		if err := p.store.InsertTeam(ctx, matchID, team.TeamID, team.Win,
-			obj.Baron.Kills, obj.Dragon.Kills, obj.Tower.Kills,
-			obj.Inhibitor.Kills, obj.RiftHerald.Kills, featsJSON); err != nil {
-			return err
-		}
-
-		bans := make([]struct{ ChampionID, PickTurn int }, len(team.Bans))
+		bans := make([]storage.BanDetail, len(team.Bans))
 		for i, b := range team.Bans {
-			bans[i] = struct{ ChampionID, PickTurn int }{b.ChampionID, b.PickTurn}
+			bans[i] = storage.BanDetail{ChampionID: b.ChampionID, PickTurn: b.PickTurn}
 		}
-		if err := p.store.InsertBans(ctx, matchID, team.TeamID, bans); err != nil {
-			return err
-		}
+		teams = append(teams, storage.TeamDetail{
+			MatchID:         matchID,
+			TeamID:          team.TeamID,
+			Win:             team.Win,
+			BaronKills:      obj.Baron.Kills,
+			DragonKills:     obj.Dragon.Kills,
+			TowerKills:      obj.Tower.Kills,
+			InhibitorKills:  obj.Inhibitor.Kills,
+			RiftHeraldKills: obj.RiftHerald.Kills,
+			Feats:           featsJSON,
+			Bans:            bans,
+		})
 	}
 
-	return nil
+	return p.store.SaveMatchDetail(ctx, h, participants, perks, teams)
 }
 
 func participantFromDTO(matchID string, dp *riotapi.ParticipantDTO) storage.Participant {

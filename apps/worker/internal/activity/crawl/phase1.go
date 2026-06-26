@@ -19,6 +19,7 @@ type Phase1Input struct {
 	Region            string   `json:"region"`
 	Queue             string   `json:"queue"`
 	RankPrefetchTiers []string `json:"rank_prefetch_tiers"`
+	Division          string   `json:"division,omitempty"`
 }
 
 // Phase1Output reports per-tier counts back to the workflow for log /
@@ -75,7 +76,18 @@ func (a *Activities) Phase1RankSnapshot(ctx context.Context, in Phase1Input) (Ph
 			return Phase1Output{}, fmt.Errorf("sync tier %s: %w", tier, err)
 		}
 		counts[tier] = n
-		logger.Info("synced tier", "tier", tier, "count", n)
+		logDivision := in.Division
+		if logDivision == "" {
+			logDivision = "I"
+		}
+		logger.Info("phase1_tier_completed",
+			"run_id", in.RunID,
+			"region", in.Region,
+			"queue", in.Queue,
+			"tier", tier,
+			"division", logDivision,
+			"count", n,
+		)
 	}
 	return Phase1Output{TierCounts: counts}, nil
 }
@@ -117,11 +129,23 @@ func (a *Activities) syncTopTier(ctx context.Context, riot *riotapi.Client, in P
 
 func (a *Activities) syncDivisionTier(ctx context.Context, riot *riotapi.Client, in Phase1Input, tier string) (int, error) {
 	total := 0
-	for _, div := range divisions {
+	targetDivisions := divisions
+	if in.Division != "" {
+		targetDivisions = []string{in.Division}
+	}
+	for _, div := range targetDivisions {
 		for page := 1; ; page++ {
 			if err := ctx.Err(); err != nil {
 				return total, err
 			}
+			activity.RecordHeartbeat(ctx, map[string]any{
+				"run_id":   in.RunID,
+				"region":   in.Region,
+				"queue":    in.Queue,
+				"tier":     tier,
+				"division": div,
+				"page":     page,
+			})
 			entries, err := riot.GetLeagueEntries(ctx, in.Queue, tier, div, page)
 			if err != nil {
 				return total, err

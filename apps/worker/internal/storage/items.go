@@ -199,6 +199,10 @@ func (s *Store) GetGameVersionForMatch(ctx context.Context, matchID string) (str
 
 // InsertCompletedItems bulk-inserts completed-item records for a match.
 func (s *Store) InsertCompletedItems(ctx context.Context, items []CompletedItem) error {
+	return insertCompletedItemsTx(ctx, s.Pool, items)
+}
+
+func insertCompletedItemsTx(ctx context.Context, sender batchSender, items []CompletedItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -212,11 +216,15 @@ func (s *Store) InsertCompletedItems(ctx context.Context, items []CompletedItem)
 			ci.MatchID, ci.ParticipantID, ci.Slot, ci.ItemID, ci.TimestampMs, ci.IsBoots,
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // InsertStarterItems bulk-inserts starter-item records for a match.
 func (s *Store) InsertStarterItems(ctx context.Context, items []StarterItem) error {
+	return insertStarterItemsTx(ctx, s.Pool, items)
+}
+
+func insertStarterItemsTx(ctx context.Context, sender batchSender, items []StarterItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -228,11 +236,15 @@ func (s *Store) InsertStarterItems(ctx context.Context, items []StarterItem) err
 			si.MatchID, si.ParticipantID, si.ItemID, si.TimestampMs,
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // InsertBoots upserts the boots item for each participant of a match.
 func (s *Store) InsertBoots(ctx context.Context, items []BootsItem) error {
+	return insertBootsTx(ctx, s.Pool, items)
+}
+
+func insertBootsTx(ctx context.Context, sender batchSender, items []BootsItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -246,7 +258,7 @@ func (s *Store) InsertBoots(ctx context.Context, items []BootsItem) error {
 			b.MatchID, b.ParticipantID, b.ItemID, b.TimestampMs,
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // MarkItemsDone sets items_status = 'done' for a match.
@@ -254,6 +266,33 @@ func (s *Store) MarkItemsDone(ctx context.Context, matchID string) error {
 	_, err := s.Pool.Exec(ctx,
 		`UPDATE matches SET items_status = 'done' WHERE match_id = $1`, matchID)
 	return err
+}
+
+// SaveItemClassification atomically replaces item classification rows for a
+// match and marks item classification done only after all rows are written.
+func (s *Store) SaveItemClassification(ctx context.Context, matchID string, completed []CompletedItem, starter []StarterItem, boots []BootsItem) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM match_completed_items WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_starter_items WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_boots WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if err := insertCompletedItemsTx(ctx, tx, completed); err != nil {
+			return err
+		}
+		if err := insertStarterItemsTx(ctx, tx, starter); err != nil {
+			return err
+		}
+		if err := insertBootsTx(ctx, tx, boots); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE matches SET items_status = 'done' WHERE match_id = $1`, matchID)
+		return err
+	})
 }
 
 const maxItemsRetries = 3

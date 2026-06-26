@@ -50,7 +50,10 @@ func (a *Activities) Phase0VersionSync(ctx context.Context, in Phase0Input) (Pha
 	if err != nil {
 		return Phase0Output{}, fmt.Errorf("get all versions: %w", err)
 	}
-	logger.Info("fetched versions from CommunityDragon", "count", len(entries))
+	logger.Info("phase0_versions_fetched",
+		"region", in.Region,
+		"count", len(entries),
+	)
 
 	var latest riotapi.VersionEntry
 	for _, e := range entries {
@@ -95,8 +98,10 @@ func (a *Activities) Phase0VersionSync(ctx context.Context, in Phase0Input) (Pha
 	if resolved == "" {
 		resolved = latest.Version
 	}
-	logger.Info("phase0 done",
-		"latest", latest.Version, "resolved", resolved,
+	logger.Info("phase0_completed",
+		"region", in.Region,
+		"latest_version", latest.Version,
+		"resolved_version", resolved,
 		"upserted_count", len(entries),
 	)
 	return Phase0Output{

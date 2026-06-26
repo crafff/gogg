@@ -95,19 +95,16 @@ If Riot returns HTTP 401 (expired key) at any point, the activity returns an err
 
 ## Step 5 — Phase 2: match IDs
 
-The workflow's `runPhase2` dispatcher picks sequential or pipeline mode based on `profile.Execution`. Say it's pipeline:
+The workflow's post-Phase1 dispatcher picks sequential or pipeline mode based on `profile.Execution`. Say it's pipeline:
 
 ```go
-futures := make([]workflow.Future, 0, len(profile.TargetTiers))
 for _, tier := range profile.TargetTiers {
-    futures = append(futures, workflow.ExecuteActivity(ctx, acts.Phase2MatchIDCollection, p2In(tier)))
-}
-for _, f := range futures {
-    if err := f.Get(ctx, nil); err != nil { ... }
+    runPhase2(ctx, runID, profile, version, startedAt, []string{tier})
+    runLaterPhases(ctx, runID, profile, version, startedAt)
 }
 ```
 
-Three Phase 2 activities run in parallel, one per tier. Each one:
+Pipeline mode is tier-first. `CHALLENGER` runs Phase 2 through Phase 5.5 before `GRANDMASTER` starts Phase 2, so high-rank data becomes usable earlier. The Phase 2 activity for one tier:
 
 ```bash
 cat apps/worker/internal/activity/crawl/phase2.go | head -50
@@ -131,13 +128,13 @@ Returns `Phase2Output{NewMatches: 5237, DuplicateMatches: 1819}`.
 
 ## Step 6 — Phase 3: match details
 
-After Phase 2's barrier, the workflow calls `Phase3MatchDetails` once (not per-tier — it operates across all pending matches):
+In pipeline mode, Phase 3 runs immediately after the current tier's Phase 2. It still operates across pending matches scoped by region + version, because Riot match data cannot be fetched directly by tier:
 
 ```bash
 cat apps/worker/internal/activity/crawl/phase3.go | head -40
 ```
 
-1. Selects matches with `fetch_status='pending' AND region='KR'`.
+1. Selects matches with `fetch_status='pending' AND region='KR' AND version='<resolved version>'`.
 2. For each match: `GET https://asia.api.riotgames.com/lol/match/v5/matches/{match_id}`.
 3. The response is detailed: who picked what, who won, KDA, items, etc.
 4. For each of the 10 participants:

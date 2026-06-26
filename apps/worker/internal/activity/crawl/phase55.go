@@ -40,12 +40,20 @@ func (a *Activities) Phase55ItemClassify(ctx context.Context, in Phase55Input) (
 		nil, "", in.RunStartedAt, time.Time{})
 
 	activity.RecordHeartbeat(ctx, "phase55_starting")
-	logger.Info("phase55 starting", "region", in.Region, "version", in.Version)
+	logger.Info("phase55_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 
 	p := phase55.New(a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase55Output{}, fmt.Errorf("phase55 run: %w", err)
 	}
-	logger.Info("phase55 done")
+	logger.Info("phase55_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 	return Phase55Output{}, nil
 }

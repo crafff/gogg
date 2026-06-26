@@ -3,9 +3,11 @@ package phase35
 
 import (
 	"context"
-	"log/slog"
+	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -33,8 +35,15 @@ func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, erro
 }
 
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
+	meta := phaselog.Meta{RunID: state.ID, Region: state.Region(), Phase: p.Name(), PhaseID: p.ID(), Version: state.Profile.Version, Queue: state.Profile.Queue}
+	pending, err := p.store.CountParticipantsMissingTier(ctx, state.Region())
+	if err != nil {
+		return err
+	}
+	phaselog.Step(meta, "pending_loaded", "pending", pending)
 	queried := make(map[string]bool)
-	total := 0
+	processed, backfilled := 0, 0
+	start := time.Now()
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -49,7 +58,16 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		}
 
 		newPUUIDs := 0
-		for _, puuid := range puuids {
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":           state.ID,
+			"region":           state.Region(),
+			"batch_size":       len(puuids),
+			"processed":        processed,
+			"total":            pending,
+			"backfilled_total": backfilled,
+		})
+
+		for idx, puuid := range puuids {
 			if queried[puuid] {
 				continue
 			}
@@ -62,7 +80,11 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 
 			entries, err := p.riot.GetEntriesByPUUID(ctx, puuid)
 			if err != nil {
-				slog.Warn("phase35: failed to fetch rank", "puuid", puuid[:8], "err", err)
+				phaselog.Warn(meta, "rank_fetch_failed", "puuid_prefix", puuid[:8], "err", err)
+				processed++
+				if processed%100 == 0 {
+					phaselog.Progress(meta, processed, pending, 0, start, "backfilled_total", backfilled)
+				}
 				continue
 			}
 
@@ -91,14 +113,10 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 					HotStreak:    &entry.HotStreak,
 					RankStatus:   "active",
 				}
-				if err := p.store.InsertSnapshot(ctx, snap); err != nil {
+				if err := p.store.SaveRankBackfill(ctx, snap, entry.Tier, entry.Rank, entry.LeaguePoints); err != nil {
 					return err
 				}
-				if err := p.store.UpdateParticipantTierByPUUID(ctx, puuid,
-					entry.Tier, entry.Rank, entry.LeaguePoints); err != nil {
-					return err
-				}
-				total++
+				backfilled++
 				found = true
 				break
 			}
@@ -106,15 +124,33 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 			// No ranked data for this queue: mark as UNRANKED so future runs
 			// skip this puuid instead of querying the API again.
 			if !found {
-				if err := p.store.MarkParticipantUnranked(ctx, puuid); err != nil {
+				if err := p.store.SaveParticipantUnranked(ctx, puuid); err != nil {
 					return err
 				}
 			}
+
+			processed++
+			if processed%100 == 0 {
+				phaselog.Progress(meta, processed, pending, 0, start, "backfilled_total", backfilled)
+			}
+			if (idx+1)%25 == 0 {
+				heartbeat.Record(ctx, map[string]any{
+					"run_id":             state.ID,
+					"region":             state.Region(),
+					"processed_in_batch": idx + 1,
+					"batch_size":         len(puuids),
+					"processed":          processed,
+					"total":              pending,
+					"backfilled_total":   backfilled,
+				})
+			}
 		}
-		slog.Info("phase35: backfilled tier data", "total", total)
 		if newPUUIDs == 0 {
 			break
 		}
+	}
+	if processed%100 != 0 {
+		phaselog.Progress(meta, processed, pending, 0, start, "backfilled_total", backfilled)
 	}
 	return nil
 }

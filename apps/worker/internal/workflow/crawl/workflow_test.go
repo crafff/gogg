@@ -2,6 +2,7 @@ package crawl
 
 import (
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,16 +14,17 @@ import (
 	crawlact "github.com/crafff/gogg/apps/worker/internal/activity/crawl"
 )
 
-// TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier confirms that
-// execution=pipeline schedules one Phase2 Activity per TargetTier.
+// TestCrawlRegionWorkflow_Pipeline_CompletesEachTierBeforeNext confirms
+// that execution=pipeline schedules one complete post-Phase1 chain per
+// TargetTier before moving to the next tier.
 // We mock every activity by name (struct-method registration is the
 // production path; tests use OnActivity by symbol).
 //
 // We don't exercise the legacy phase code itself — chunk 2's live
 // smoke already verified end-to-end against compose Postgres. The
-// test here pins the workflow's *branching* contract: pipeline vs
-// sequential dispatch shape.
-func TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier(t *testing.T) {
+// test here pins the workflow's *branching* contract: pipeline is
+// tier-first, sequential is bulk.
+func TestCrawlRegionWorkflow_Pipeline_CompletesEachTierBeforeNext(t *testing.T) {
 	suite := &testsuite.WorkflowTestSuite{}
 	env := suite.NewTestWorkflowEnvironment()
 
@@ -33,27 +35,46 @@ func TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier(t *testing.T) {
 	env.OnActivity(acts.Phase0VersionSync, mockAny, mockAny).Return(
 		crawlact.Phase0Output{ResolvedVersion: "16.12", LatestVersion: "16.12", UpsertedCount: 1}, nil)
 	env.OnActivity(acts.PinRunVersion, mockAny, mockAny).Return(nil)
+	var phase1Calls atomic.Int64
 	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).Return(
-		crawlact.Phase1Output{TierCounts: map[string]int{"CHALLENGER": 1}}, nil)
+		crawlact.Phase1Output{TierCounts: map[string]int{"CHALLENGER": 1}}, nil).
+		Run(func(args mock.Arguments) { phase1Calls.Add(1) })
 
-	// Pipeline mode fans out one goroutine per tier — concurrent
-	// writes need atomic. A plain int++ here trips -race even though
-	// the workflow contract is correctness, not performance.
+	var orderMu sync.Mutex
+	var order []string
+	record := func(name string) {
+		orderMu.Lock()
+		defer orderMu.Unlock()
+		order = append(order, name)
+	}
+
 	var phase2Calls atomic.Int64
 	env.OnActivity(acts.Phase2MatchIDCollection, mockAny, mockAny).Run(func(args mock.Arguments) {
 		phase2Calls.Add(1)
+		in := args.Get(1).(crawlact.Phase2Input)
+		require.Len(t, in.Tiers, 1)
+		record("phase2:" + in.Tiers[0])
 	}).Return(crawlact.Phase2Output{}, nil)
 
-	env.OnActivity(acts.Phase3MatchDetails, mockAny, mockAny).Return(
-		crawlact.Phase3Output{}, nil)
-	env.OnActivity(acts.Phase35OnDemandRank, mockAny, mockAny).Return(
-		crawlact.Phase35Output{}, nil)
-	env.OnActivity(acts.Phase4AvgTierCalc, mockAny, mockAny).Return(
-		crawlact.Phase4Output{}, nil)
-	env.OnActivity(acts.Phase5Timeline, mockAny, mockAny).Return(
-		crawlact.Phase5Output{}, nil)
-	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).Return(
-		crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.Phase3MatchDetails, mockAny, mockAny).
+		Run(func(args mock.Arguments) { record("phase3") }).
+		Return(crawlact.Phase3Output{}, nil)
+	env.OnActivity(acts.Phase35OnDemandRank, mockAny, mockAny).
+		Run(func(args mock.Arguments) { record("phase35") }).
+		Return(crawlact.Phase35Output{}, nil)
+	env.OnActivity(acts.Phase4AvgTierCalc, mockAny, mockAny).
+		Run(func(args mock.Arguments) {
+			in := args.Get(1).(crawlact.Phase4Input)
+			require.Equal(t, "16.12", in.Version)
+			record("phase4")
+		}).
+		Return(crawlact.Phase4Output{}, nil)
+	env.OnActivity(acts.Phase5Timeline, mockAny, mockAny).
+		Run(func(args mock.Arguments) { record("phase5") }).
+		Return(crawlact.Phase5Output{}, nil)
+	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).
+		Run(func(args mock.Arguments) { record("phase55") }).
+		Return(crawlact.Phase55Output{}, nil)
 	env.OnActivity(acts.CompleteRun, mockAny, mockAny).Return(nil)
 
 	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{
@@ -71,6 +92,13 @@ func TestCrawlRegionWorkflow_Pipeline_FansPhase2PerTier(t *testing.T) {
 	require.NoError(t, env.GetWorkflowError(), "workflow should not error")
 	require.Equal(t, int64(3), phase2Calls.Load(),
 		"pipeline mode must schedule one Phase2 per TargetTier")
+	require.Equal(t, int64(1), phase1Calls.Load(),
+		"Phase1 should schedule one Activity per RankPrefetchTier")
+	require.Equal(t, []string{
+		"phase2:CHALLENGER", "phase3", "phase35", "phase4", "phase5", "phase55",
+		"phase2:GRANDMASTER", "phase3", "phase35", "phase4", "phase5", "phase55",
+		"phase2:MASTER", "phase3", "phase35", "phase4", "phase5", "phase55",
+	}, order)
 
 	var out CrawlRegionOutput
 	require.NoError(t, env.GetWorkflowResult(&out))
@@ -92,8 +120,10 @@ func TestCrawlRegionWorkflow_Sequential_OneBulkPhase2(t *testing.T) {
 	env.OnActivity(acts.Phase0VersionSync, mockAny, mockAny).Return(
 		crawlact.Phase0Output{ResolvedVersion: "16.12", LatestVersion: "16.12"}, nil)
 	env.OnActivity(acts.PinRunVersion, mockAny, mockAny).Return(nil)
+	var phase1Calls atomic.Int64
 	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).Return(
-		crawlact.Phase1Output{}, nil)
+		crawlact.Phase1Output{}, nil).
+		Run(func(args mock.Arguments) { phase1Calls.Add(1) })
 
 	// Sequential mode dispatches one Phase2 call so there's no
 	// concurrent writer here, but the testsuite still runs activity
@@ -126,6 +156,8 @@ func TestCrawlRegionWorkflow_Sequential_OneBulkPhase2(t *testing.T) {
 	require.NoError(t, env.GetWorkflowError())
 	require.Equal(t, int64(1), phase2Calls.Load(),
 		"sequential mode must dispatch one Phase2 with all tiers inline")
+	require.Equal(t, int64(1), phase1Calls.Load(),
+		"Phase1 should schedule one Activity per RankPrefetchTier")
 }
 
 // TestCrawlRegionWorkflow_FullChain_Sequential walks every Activity in
@@ -199,6 +231,63 @@ func TestCrawlRegionWorkflow_FullChain_Sequential(t *testing.T) {
 	require.NoError(t, env.GetWorkflowResult(&out))
 	require.Equal(t, 99, out.RunID)
 	require.Equal(t, "16.12", out.ResolvedVersion)
+}
+
+func TestCrawlRegionWorkflow_Phase1PerTier(t *testing.T) {
+	suite := &testsuite.WorkflowTestSuite{}
+	env := suite.NewTestWorkflowEnvironment()
+
+	var acts *crawlact.Activities
+	env.RegisterWorkflow(CrawlRegionWorkflow)
+	env.OnActivity(acts.CreateRun, mockAny, mockAny).Return(
+		crawlact.CreateRunOutput{RunID: 21, StartedAt: time.Now()}, nil)
+	env.OnActivity(acts.Phase0VersionSync, mockAny, mockAny).Return(
+		crawlact.Phase0Output{ResolvedVersion: "16.12"}, nil)
+	env.OnActivity(acts.PinRunVersion, mockAny, mockAny).Return(nil)
+
+	var phase1Calls atomic.Int64
+	var phase1InputsMu sync.Mutex
+	var phase1Inputs []crawlact.Phase1Input
+	env.OnActivity(acts.Phase1RankSnapshot, mockAny, mockAny).
+		Run(func(args mock.Arguments) {
+			phase1Calls.Add(1)
+			phase1InputsMu.Lock()
+			defer phase1InputsMu.Unlock()
+			phase1Inputs = append(phase1Inputs, args.Get(1).(crawlact.Phase1Input))
+		}).
+		Return(crawlact.Phase1Output{}, nil)
+	env.OnActivity(acts.Phase2MatchIDCollection, mockAny, mockAny).Return(crawlact.Phase2Output{}, nil)
+	env.OnActivity(acts.Phase3MatchDetails, mockAny, mockAny).Return(crawlact.Phase3Output{}, nil)
+	env.OnActivity(acts.Phase35OnDemandRank, mockAny, mockAny).Return(crawlact.Phase35Output{}, nil)
+	env.OnActivity(acts.Phase4AvgTierCalc, mockAny, mockAny).Return(crawlact.Phase4Output{}, nil)
+	env.OnActivity(acts.Phase5Timeline, mockAny, mockAny).Return(crawlact.Phase5Output{}, nil)
+	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).Return(crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.CompleteRun, mockAny, mockAny).Return(nil)
+
+	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{
+		Profile: crawlact.ProfileSnapshot{
+			Region:            "KR",
+			Mode:              "incremental",
+			TargetTiers:       []string{"CHALLENGER"},
+			RankPrefetchTiers: []string{"CHALLENGER", "GRANDMASTER", "MASTER", "DIAMOND"},
+			Queue:             "RANKED_SOLO_5x5",
+			Execution:         "sequential",
+		},
+	})
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	require.Equal(t, int64(7), phase1Calls.Load(),
+		"Phase1 must schedule top tiers once and DIAMOND once per division")
+	require.Equal(t, []crawlact.Phase1Input{
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"CHALLENGER"}},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"GRANDMASTER"}},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"MASTER"}},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"DIAMOND"}, Division: "I"},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"DIAMOND"}, Division: "II"},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"DIAMOND"}, Division: "III"},
+		{RunID: 21, Region: "KR", Queue: "RANKED_SOLO_5x5", RankPrefetchTiers: []string{"DIAMOND"}, Division: "IV"},
+	}, phase1Inputs)
 }
 
 // TestCrawlRegionWorkflow_FailRunOnPhaseError ensures the failure

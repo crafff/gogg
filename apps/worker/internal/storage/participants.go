@@ -6,6 +6,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type batchSender interface {
+	SendBatch(context.Context, *pgx.Batch) pgx.BatchResults
+}
+
 type Participant struct {
 	MatchID       string
 	PUUID         *string
@@ -87,6 +91,10 @@ type Participant struct {
 
 // InsertParticipants bulk-inserts all participants for a match in a single batch.
 func (s *Store) InsertParticipants(ctx context.Context, participants []Participant) error {
+	return insertParticipantsTx(ctx, s.Pool, participants)
+}
+
+func insertParticipantsTx(ctx context.Context, sender batchSender, participants []Participant) error {
 	batch := &pgx.Batch{}
 	for i := range participants {
 		p := &participants[i]
@@ -188,7 +196,7 @@ func (s *Store) InsertParticipants(ctx context.Context, participants []Participa
 			p.TeamEarlySurrendered, p.TimePlayed,
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // UpdateParticipantTier backfills tier info for a single participant.
@@ -226,6 +234,19 @@ func (s *Store) GetParticipantsMissingTier(ctx context.Context, region string, l
 	return puuids, rows.Err()
 }
 
+// CountParticipantsMissingTier returns the number of distinct puuids that have
+// at least one participant row still missing tier data in the given region.
+func (s *Store) CountParticipantsMissingTier(ctx context.Context, region string) (int, error) {
+	var count int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT COUNT(DISTINCT mp.puuid)
+		FROM match_participants mp
+		JOIN matches m ON m.match_id = mp.match_id
+		WHERE mp.tier_at_match IS NULL AND mp.puuid IS NOT NULL
+		  AND m.region = $1`, region).Scan(&count)
+	return count, err
+}
+
 // MarkParticipantUnranked sets tier_at_match = 'UNRANKED' for all participants
 // with this puuid where tier_at_match is currently null, so phase35 will not
 // query the Riot API for them again in future runs.
@@ -235,6 +256,16 @@ func (s *Store) MarkParticipantUnranked(ctx context.Context, puuid string) error
 		SET tier_at_match = 'UNRANKED'
 		WHERE puuid = $1 AND tier_at_match IS NULL`, puuid)
 	return err
+}
+
+func (s *Store) SaveParticipantUnranked(ctx context.Context, puuid string) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE match_participants
+			SET tier_at_match = 'UNRANKED'
+			WHERE puuid = $1 AND tier_at_match IS NULL`, puuid)
+		return err
+	})
 }
 
 // UpdateParticipantTierByPUUID backfills tier info for ALL participants
@@ -270,6 +301,10 @@ type PerkRow struct {
 
 // InsertPerks bulk-inserts perk rows.
 func (s *Store) InsertPerks(ctx context.Context, perks []PerkRow) error {
+	return insertPerksTx(ctx, s.Pool, perks)
+}
+
+func insertPerksTx(ctx context.Context, sender batchSender, perks []PerkRow) error {
 	batch := &pgx.Batch{}
 	for _, p := range perks {
 		batch.Queue(`
@@ -298,7 +333,7 @@ func (s *Store) InsertPerks(ctx context.Context, perks []PerkRow) error {
 			p.Vars[5][0], p.Vars[5][1], p.Vars[5][2],
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // InsertBans bulk-inserts ban rows for a match.

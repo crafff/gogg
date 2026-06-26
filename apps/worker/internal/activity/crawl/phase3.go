@@ -46,12 +46,20 @@ func (a *Activities) Phase3MatchDetails(ctx context.Context, in Phase3Input) (Ph
 		nil, "", in.RunStartedAt, time.Time{})
 
 	activity.RecordHeartbeat(ctx, "phase3_starting")
-	logger.Info("phase3 starting", "region", in.Region, "version", in.Version)
+	logger.Info("phase3_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 
 	p := phase3.New(riot, a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase3Output{}, fmt.Errorf("phase3 run: %w", err)
 	}
-	logger.Info("phase3 done")
+	logger.Info("phase3_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 	return Phase3Output{}, nil
 }

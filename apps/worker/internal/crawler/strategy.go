@@ -2,7 +2,8 @@ package crawler
 
 import (
 	"context"
-	"log/slog"
+
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 )
 
 // ExecutionStrategy determines how phases are ordered and grouped.
@@ -63,7 +64,7 @@ func (s *PipelineStrategy) Execute(ctx context.Context, phases []Phase, state *R
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		slog.Info("pipeline: processing tier", "tier", tier)
+		phaselog.Step(phaselog.Meta{RunID: state.ID, Region: state.Region(), Tier: tier}, "pipeline_tier_started")
 		state.CurrentTier = tier
 		tierCopy := tier
 		if err := state.SaveCheckpoint(ctx, s.PerTierPhaseIDs[0], &tierCopy); err != nil {
@@ -82,7 +83,7 @@ func (s *PipelineStrategy) Execute(ctx context.Context, phases []Phase, state *R
 
 func runPhase(ctx context.Context, p Phase, state *RunState) error {
 	if state.donePhases[p.ID()] {
-		slog.Info("phase skipped (completed in prior run)", "phase", p.Name())
+		phaselog.Skipped(phaseMeta(state, p, ""), "prior_run")
 		return nil
 	}
 	done, err := p.IsDone(ctx, state)
@@ -90,7 +91,7 @@ func runPhase(ctx context.Context, p Phase, state *RunState) error {
 		return err
 	}
 	if done {
-		slog.Info("phase already done, skipping", "phase", p.Name())
+		phaselog.Skipped(phaseMeta(state, p, ""), "already_done")
 		return nil
 	}
 	var tier *string
@@ -101,18 +102,29 @@ func runPhase(ctx context.Context, p Phase, state *RunState) error {
 	if err := state.SaveCheckpoint(ctx, p.ID(), tier); err != nil {
 		return err
 	}
+	tierValue := ""
 	if tier != nil {
-		slog.Info("starting phase", "phase", p.Name(), "tier", *tier)
-	} else {
-		slog.Info("starting phase", "phase", p.Name())
+		tierValue = *tier
 	}
+	phaselog.Started(phaseMeta(state, p, tierValue), "scope", "runner")
 	if err := p.Run(ctx, state); err != nil {
 		return err
 	}
-	if tier != nil {
-		slog.Info("phase complete", "phase", p.Name(), "tier", *tier)
-	} else {
-		slog.Info("phase complete", "phase", p.Name())
-	}
+	phaselog.Completed(phaseMeta(state, p, tierValue), "scope", "runner")
 	return nil
+}
+
+func phaseMeta(state *RunState, p Phase, tier string) phaselog.Meta {
+	version := ""
+	if state.Profile != nil {
+		version = state.Profile.Version
+	}
+	return phaselog.Meta{
+		RunID:   state.ID,
+		Region:  state.Region(),
+		Phase:   p.Name(),
+		PhaseID: p.ID(),
+		Version: version,
+		Tier:    tier,
+	}
 }

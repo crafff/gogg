@@ -3,9 +3,9 @@ package phase1
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -35,17 +35,28 @@ func (p *Phase) IsDone(_ context.Context, _ *crawler.RunState) (bool, error) {
 }
 
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
+	started := state.CurrentTier == ""
 	for _, tier := range state.Profile.RankPrefetchTiers {
+		if !started {
+			if tier != state.CurrentTier {
+				continue
+			}
+			started = true
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		slog.Info("syncing tier", "tier", tier)
+		phaselog.Step(phaseMeta(state, p, tier, ""), "tier_started")
 		tierCopy := tier
 		if err := state.SaveCheckpoint(ctx, 1, &tierCopy); err != nil {
 			return err
 		}
 		if err := p.syncTier(ctx, state, tier); err != nil {
 			return err
+		}
+		if tier == state.CurrentTier {
+			state.CurrentTier = ""
+			state.CurrentDivision = ""
 		}
 	}
 	return nil
@@ -81,13 +92,25 @@ func (p *Phase) syncTopTier(ctx context.Context, state *crawler.RunState, tier s
 			return err
 		}
 	}
-	slog.Info("synced top tier", "tier", tier, "count", len(list.Entries))
+	phaselog.Completed(phaseMeta(state, p, tier, ""), "scope", "tier", "count", len(list.Entries))
 	return nil
 }
 
 func (p *Phase) syncDivisionTier(ctx context.Context, state *crawler.RunState, tier string) error {
 	total := 0
+	started := state.CurrentDivision == "" || state.CurrentTier != tier
 	for _, div := range divisions {
+		if !started {
+			if div != state.CurrentDivision {
+				continue
+			}
+			started = true
+		}
+		tierCopy := tier
+		divCopy := div
+		if err := state.SaveCheckpointDetail(ctx, 1, &tierCopy, &divCopy); err != nil {
+			return err
+		}
 		count := 0
 		for page := 1; ; page++ {
 			if err := ctx.Err(); err != nil {
@@ -120,17 +143,26 @@ func (p *Phase) syncDivisionTier(ctx context.Context, state *crawler.RunState, t
 				break
 			}
 		}
-		slog.Info("synced division", "tier", tier, "division", div, "count", count)
+		phaselog.Completed(phaseMeta(state, p, tier, div), "scope", "division", "count", count)
 	}
-	slog.Info("synced tier", "tier", tier, "count", total)
+	phaselog.Completed(phaseMeta(state, p, tier, ""), "scope", "tier", "count", total)
 	return nil
 }
 
-func (p *Phase) upsertPlayer(ctx context.Context, state *crawler.RunState, puuid, leagueID, tier, division string, item riotapi.LeagueItemDTO) error {
-	if err := p.store.UpsertPlayer(ctx, puuid, state.Region(), nil, nil); err != nil {
-		return err
+func phaseMeta(state *crawler.RunState, p *Phase, tier, division string) phaselog.Meta {
+	return phaselog.Meta{
+		RunID:    state.ID,
+		Region:   state.Region(),
+		Phase:    p.Name(),
+		PhaseID:  p.ID(),
+		Version:  state.Profile.Version,
+		Tier:     tier,
+		Division: division,
+		Queue:    state.Profile.Queue,
 	}
+}
 
+func (p *Phase) upsertPlayer(ctx context.Context, state *crawler.RunState, puuid, leagueID, tier, division string, item riotapi.LeagueItemDTO) error {
 	leagueIDPtr := &leagueID
 	var divPtr *string
 	if division != "" {
@@ -155,5 +187,5 @@ func (p *Phase) upsertPlayer(ctx context.Context, state *crawler.RunState, puuid
 		HotStreak:    &item.HotStreak,
 		RankStatus:   "active",
 	}
-	return p.store.InsertSnapshot(ctx, snap)
+	return p.store.SavePlayerRankSnapshot(ctx, puuid, state.Region(), nil, nil, snap)
 }

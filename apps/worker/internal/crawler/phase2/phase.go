@@ -3,11 +3,12 @@ package phase2
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -42,7 +43,7 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		return err
 	}
 	if len(puuids) == 0 {
-		slog.Warn("phase2: no active puuids found for this run")
+		phaselog.Warn(phaseMeta(state, p, tiers), "no_active_puuids")
 		return nil
 	}
 
@@ -58,24 +59,53 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		endTime = *bounds.PatchEnd
 	}
 
-	slog.Info("phase2: collecting match IDs",
+	meta := phaseMeta(state, p, tiers)
+	phaselog.Step(meta,
+		"match_collection_started",
 		"puuids", len(puuids),
 		"patch_start", bounds.PatchStart.Format(time.RFC3339),
 		"end_time", endTime.Format(time.RFC3339),
 	)
 
+	start := time.Now()
 	for i, puuid := range puuids {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if i%25 == 0 {
+			heartbeat.Record(ctx, map[string]any{
+				"run_id":    state.ID,
+				"region":    state.Region(),
+				"version":   state.Profile.Version,
+				"tiers":     tiers,
+				"processed": i,
+				"total":     len(puuids),
+			})
+		}
 		if i%100 == 0 {
-			slog.Info("phase2: progress", "processed", i, "total", len(puuids))
+			phaselog.Progress(meta, i, len(puuids), 0, start)
 		}
 		if err := p.collectForPlayer(ctx, state.Region(), state, puuid, bounds.PatchStart, endTime); err != nil {
-			slog.Warn("phase2: failed to collect matches for player", "puuid", puuid, "err", err)
+			phaselog.Warn(meta, "player_failed", "puuid", puuid, "err", err)
 		}
 	}
 	return nil
+}
+
+func phaseMeta(state *crawler.RunState, p *Phase, tiers []string) phaselog.Meta {
+	tier := ""
+	if len(tiers) == 1 {
+		tier = tiers[0]
+	}
+	return phaselog.Meta{
+		RunID:   state.ID,
+		Region:  state.Region(),
+		Phase:   p.Name(),
+		PhaseID: p.ID(),
+		Version: state.Profile.Version,
+		Tier:    tier,
+		Queue:   state.Profile.Queue,
+	}
 }
 
 func (p *Phase) collectForPlayer(ctx context.Context, region string, state *crawler.RunState, puuid string, startTime, endTime time.Time) error {
@@ -95,6 +125,14 @@ func (p *Phase) collectForPlayer(ctx context.Context, region string, state *craw
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":       state.ID,
+			"region":       region,
+			"version":      state.Profile.Version,
+			"puuid_prefix": puuid[:8],
+			"start":        start,
+			"page_size":    pageSize,
+		})
 
 		ids, err := p.riot.GetMatchIDsByPUUID(ctx, puuid, 420, startTime.Unix(), endTime.Unix(), start, pageSize)
 		if err != nil {
@@ -108,20 +146,16 @@ func (p *Phase) collectForPlayer(ctx context.Context, region string, state *craw
 		}
 	}
 
-	// Write match IDs (idempotent).
-	for _, id := range collected {
-		if err := p.store.UpsertMatchID(ctx, id, region, state.Profile.Version); err != nil {
-			return err
-		}
-	}
-
-	// Update sync time only after all IDs are written.
-	if err := p.store.SetPlayerSyncTime(ctx, puuid, region, time.Now()); err != nil {
+	// Update sync time only after all IDs are written in the same transaction.
+	if err := p.store.SavePlayerMatchIDs(ctx, puuid, region, state.Profile.Version, collected, time.Now()); err != nil {
 		return err
 	}
 
 	if len(collected) > 0 {
-		slog.Debug("phase2: collected match IDs", "puuid", puuid[:8], "count", len(collected))
+		phaselog.DebugStep(phaseMeta(state, p, []string{state.CurrentTier}), "player_completed",
+			"puuid_prefix", puuid[:8],
+			"match_count", len(collected),
+		)
 	}
 	return nil
 }

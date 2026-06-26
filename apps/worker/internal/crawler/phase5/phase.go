@@ -4,9 +4,11 @@ package phase5
 
 import (
 	"context"
-	"log/slog"
+	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -42,14 +44,16 @@ func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, erro
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 	region := state.Region()
 	version := state.Profile.Version
+	meta := phaselog.Meta{RunID: state.ID, Region: region, Phase: p.Name(), PhaseID: p.ID(), Version: version}
 
 	total, err := p.store.CountMatchesNeedingTimeline(ctx, region, version)
 	if err != nil {
 		return err
 	}
-	slog.Info("phase5: start", "pending", total)
+	phaselog.Step(meta, "pending_loaded", "pending", total)
 
 	processed, failed := 0, 0
+	start := time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -61,20 +65,51 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		if len(ids) == 0 {
 			break
 		}
-		for _, matchID := range ids {
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":     state.ID,
+			"region":     region,
+			"version":    version,
+			"batch_size": len(ids),
+			"processed":  processed,
+			"total":      total,
+			"failed":     failed,
+		})
+
+		for idx, matchID := range ids {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			heartbeat.Record(ctx, map[string]any{
+				"run_id":    state.ID,
+				"region":    region,
+				"version":   version,
+				"match_id":  matchID,
+				"processed": processed,
+				"total":     total,
+				"failed":    failed,
+			})
 			if err := p.processTimeline(ctx, matchID); err != nil {
-				slog.Warn("phase5: failed", "match_id", matchID, "err", err)
+				phaselog.Warn(meta, "match_failed", "match_id", matchID, "err", err)
 				if err2 := p.store.MarkTimelineError(ctx, matchID); err2 != nil {
 					return err2
 				}
 				failed++
 			}
 			processed++
+			if (idx+1)%10 == 0 {
+				heartbeat.Record(ctx, map[string]any{
+					"run_id":             state.ID,
+					"region":             region,
+					"version":            version,
+					"processed_in_batch": idx + 1,
+					"batch_size":         len(ids),
+					"processed":          processed,
+					"total":              total,
+					"failed":             failed,
+				})
+			}
 		}
-		slog.Info("phase5: progress", "processed", processed, "total", total, "failed", failed)
+		phaselog.Progress(meta, processed, total, failed, start)
 	}
 	return nil
 }
@@ -87,16 +122,7 @@ func (p *Phase) processTimeline(ctx context.Context, matchID string) error {
 
 	itemEvents, skillEvents, snapshots := extractTimeline(matchID, dto)
 
-	if err := p.store.InsertItemEvents(ctx, itemEvents); err != nil {
-		return err
-	}
-	if err := p.store.InsertSkillEvents(ctx, skillEvents); err != nil {
-		return err
-	}
-	if err := p.store.InsertParticipantSnapshots(ctx, snapshots); err != nil {
-		return err
-	}
-	return p.store.MarkTimelineDone(ctx, matchID)
+	return p.store.SaveTimeline(ctx, matchID, itemEvents, skillEvents, snapshots)
 }
 
 // extractTimeline parses a TimelineDTO and returns item purchase events and

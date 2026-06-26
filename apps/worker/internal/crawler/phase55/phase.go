@@ -5,9 +5,11 @@ package phase55
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -41,17 +43,19 @@ func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, erro
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 	region := state.Region()
 	version := state.Profile.Version
+	meta := phaselog.Meta{RunID: state.ID, Region: region, Phase: p.Name(), PhaseID: p.ID(), Version: version}
 
 	total, err := p.store.CountMatchesNeedingItems(ctx, region, version)
 	if err != nil {
 		return err
 	}
-	slog.Info("phase55: start", "pending", total)
+	phaselog.Step(meta, "pending_loaded", "pending", total)
 
 	// Cache ItemSets per CDragon patch across the batch.
 	setsCache := make(map[string]*storage.ItemSets)
 
 	processed, failed := 0, 0
+	start := time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -63,12 +67,34 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		if len(ids) == 0 {
 			break
 		}
-		for _, matchID := range ids {
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":     state.ID,
+			"region":     region,
+			"version":    version,
+			"batch_size": len(ids),
+			"processed":  processed,
+			"total":      total,
+			"failed":     failed,
+		})
+
+		for idx, matchID := range ids {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			if (idx+1)%50 == 0 {
+				heartbeat.Record(ctx, map[string]any{
+					"run_id":             state.ID,
+					"region":             region,
+					"version":            version,
+					"processed_in_batch": idx + 1,
+					"batch_size":         len(ids),
+					"processed":          processed,
+					"total":              total,
+					"failed":             failed,
+				})
+			}
 			if err := p.processMatch(ctx, matchID, setsCache); err != nil {
-				slog.Warn("phase55: failed", "match_id", matchID, "err", err)
+				phaselog.Warn(meta, "match_failed", "match_id", matchID, "err", err)
 				if err2 := p.store.MarkItemsError(ctx, matchID); err2 != nil {
 					return err2
 				}
@@ -76,7 +102,7 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 			}
 			processed++
 		}
-		slog.Info("phase55: progress", "processed", processed, "total", total, "failed", failed)
+		phaselog.Progress(meta, processed, total, failed, start)
 	}
 	return nil
 }
@@ -107,16 +133,7 @@ func (p *Phase) processMatch(ctx context.Context, matchID string, cache map[stri
 
 	completedItems, starterItems, bootsItems := classify(matchID, events, sets)
 
-	if err := p.store.InsertCompletedItems(ctx, completedItems); err != nil {
-		return err
-	}
-	if err := p.store.InsertStarterItems(ctx, starterItems); err != nil {
-		return err
-	}
-	if err := p.store.InsertBoots(ctx, bootsItems); err != nil {
-		return err
-	}
-	return p.store.MarkItemsDone(ctx, matchID)
+	return p.store.SaveItemClassification(ctx, matchID, completedItems, starterItems, bootsItems)
 }
 
 // classify processes item events for one match and returns:
@@ -209,7 +226,11 @@ func (p *Phase) loadCatalog(ctx context.Context, patch string) (*storage.ItemSet
 		return nil, err
 	}
 	if !loaded {
-		slog.Info("phase55: fetching item catalog", "patch", patch)
+		heartbeat.Record(ctx, map[string]any{
+			"patch": patch,
+			"step":  "catalog_fetch_started",
+		})
+		phaselog.Step(phaselog.Meta{Phase: p.Name(), PhaseID: p.ID(), Version: patch}, "catalog_fetch_started")
 		items, err := riotapi.GetItemCatalog(ctx, patch)
 		if err != nil {
 			return nil, err
@@ -231,7 +252,7 @@ func (p *Phase) loadCatalog(ctx context.Context, patch string) (*storage.ItemSet
 		if err := p.store.UpsertItemCatalog(ctx, entries); err != nil {
 			return nil, err
 		}
-		slog.Info("phase55: catalog loaded", "patch", patch, "items", len(entries))
+		phaselog.Step(phaselog.Meta{Phase: p.Name(), PhaseID: p.ID(), Version: patch}, "catalog_loaded", "items", len(entries))
 	}
 	return p.store.GetItemSets(ctx, patch)
 }

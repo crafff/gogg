@@ -81,14 +81,22 @@ var (
 			MaximumAttempts:    5,
 		},
 	}
-	// Phase 2-4 share a generous timeout because the legacy phase
-	// code doesn't heartbeat mid-loop yet. Chunk 4 will refactor the
-	// inner loops to heartbeat per batch, at which point we'll tighten
-	// HeartbeatTimeout. Today the only heartbeat fires on Activity
-	// entry so HeartbeatTimeout MUST be unset (=disabled) — a finite
-	// value would trip during the per-puuid pagination.
+	phase1DiamondOpts = workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    2 * time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    5 * time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    2 * time.Minute,
+			MaximumAttempts:    5,
+		},
+	}
+	// Phase 2-4 keep generous start-to-close limits, but heartbeat from
+	// their inner batch loops so a dead worker can be detected without
+	// waiting for the full activity timeout.
 	phase2Opts = workflow.ActivityOptions{
-		StartToCloseTimeout: 2 * time.Hour,
+		StartToCloseTimeout: 4 * time.Hour, // 10000s matches for master tier on KR daily walk, 100 requets/ 2 min rate limit
+		HeartbeatTimeout:    3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    5 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -98,6 +106,7 @@ var (
 	}
 	phase3Opts = workflow.ActivityOptions{
 		StartToCloseTimeout: 4 * time.Hour,
+		HeartbeatTimeout:    3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    5 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -107,6 +116,7 @@ var (
 	}
 	phase35Opts = workflow.ActivityOptions{
 		StartToCloseTimeout: time.Hour,
+		HeartbeatTimeout:    3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    5 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -116,6 +126,7 @@ var (
 	}
 	phase4Opts = workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    2 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    2 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -128,6 +139,7 @@ var (
 	// Generous timeout to cover a cold KR daily walk.
 	phase5Opts = workflow.ActivityOptions{
 		StartToCloseTimeout: 4 * time.Hour,
+		HeartbeatTimeout:    5 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    5 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -140,6 +152,7 @@ var (
 	// minutes is comfortable.
 	phase55Opts = workflow.ActivityOptions{
 		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    2 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    2 * time.Second,
 			BackoffCoefficient: 2.0,
@@ -212,74 +225,14 @@ func runPhases(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot
 		}
 	}
 
-	ctx1 := workflow.WithActivityOptions(ctx, phase1Opts)
-	var p1 crawlact.Phase1Output
-	if err := workflow.ExecuteActivity(ctx1, (*crawlact.Activities).Phase1RankSnapshot, crawlact.Phase1Input{
-		RunID:             runID,
-		Region:            profile.Region,
-		Queue:             profile.Queue,
-		RankPrefetchTiers: profile.RankPrefetchTiers,
-	}).Get(ctx1, &p1); err != nil {
+	p1, err := runPhase1(ctx, runID, profile)
+	if err != nil {
 		return CrawlRegionOutput{}, fmt.Errorf("phase1: %w", err)
 	}
 
-	p2Outputs, err := runPhase2(ctx, runID, profile, p0.ResolvedVersion, startedAt)
+	p2Outputs, p3, p35, p4, p5, p55, err := runPostPhase1(ctx, runID, profile, p0.ResolvedVersion, startedAt)
 	if err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase2: %w", err)
-	}
-
-	ctx3 := workflow.WithActivityOptions(ctx, phase3Opts)
-	var p3 crawlact.Phase3Output
-	if err := workflow.ExecuteActivity(ctx3, (*crawlact.Activities).Phase3MatchDetails, crawlact.Phase3Input{
-		RunID:        runID,
-		Region:       profile.Region,
-		Version:      p0.ResolvedVersion,
-		RunStartedAt: startedAt,
-	}).Get(ctx3, &p3); err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase3: %w", err)
-	}
-
-	ctx35 := workflow.WithActivityOptions(ctx, phase35Opts)
-	var p35 crawlact.Phase35Output
-	if err := workflow.ExecuteActivity(ctx35, (*crawlact.Activities).Phase35OnDemandRank, crawlact.Phase35Input{
-		RunID:        runID,
-		Region:       profile.Region,
-		Queue:        profile.Queue,
-		RunStartedAt: startedAt,
-	}).Get(ctx35, &p35); err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase35: %w", err)
-	}
-
-	ctx4 := workflow.WithActivityOptions(ctx, phase4Opts)
-	var p4 crawlact.Phase4Output
-	if err := workflow.ExecuteActivity(ctx4, (*crawlact.Activities).Phase4AvgTierCalc, crawlact.Phase4Input{
-		RunID:        runID,
-		Region:       profile.Region,
-		RunStartedAt: startedAt,
-	}).Get(ctx4, &p4); err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase4: %w", err)
-	}
-
-	ctx5 := workflow.WithActivityOptions(ctx, phase5Opts)
-	var p5 crawlact.Phase5Output
-	if err := workflow.ExecuteActivity(ctx5, (*crawlact.Activities).Phase5Timeline, crawlact.Phase5Input{
-		RunID:        runID,
-		Region:       profile.Region,
-		Version:      p0.ResolvedVersion,
-		RunStartedAt: startedAt,
-	}).Get(ctx5, &p5); err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase5: %w", err)
-	}
-
-	ctx55 := workflow.WithActivityOptions(ctx, phase55Opts)
-	var p55 crawlact.Phase55Output
-	if err := workflow.ExecuteActivity(ctx55, (*crawlact.Activities).Phase55ItemClassify, crawlact.Phase55Input{
-		RunID:        runID,
-		Region:       profile.Region,
-		Version:      p0.ResolvedVersion,
-		RunStartedAt: startedAt,
-	}).Get(ctx55, &p55); err != nil {
-		return CrawlRegionOutput{}, fmt.Errorf("phase55: %w", err)
+		return CrawlRegionOutput{}, err
 	}
 
 	if err := workflow.ExecuteActivity(ctxBK, (*crawlact.Activities).CompleteRun, runID).Get(ctxBK, nil); err != nil {
@@ -301,62 +254,225 @@ func runPhases(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot
 	}, nil
 }
 
-// runPhase2 picks the dispatch shape:
+// runPhase1 schedules top tiers as one Activity each and division tiers
+// as one Activity per division. Retries stay scoped to the smallest
+// rank slice that failed, so DIAMOND/I does not force DIAMOND/II-IV or
+// CHALLENGER/GRANDMASTER/MASTER to rerun.
+func runPhase1(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot) (crawlact.Phase1Output, error) {
+	if len(profile.RankPrefetchTiers) == 0 {
+		return crawlact.Phase1Output{}, fmt.Errorf("rank_prefetch_tiers must be non-empty")
+	}
+	counts := make(map[string]int, len(profile.RankPrefetchTiers))
+	for _, tier := range profile.RankPrefetchTiers {
+		if isTopTier(tier) {
+			n, err := runPhase1RankSlice(ctx, runID, profile, tier, "")
+			if err != nil {
+				return crawlact.Phase1Output{}, err
+			}
+			counts[tier] += n
+			continue
+		}
+		for _, division := range phase1Divisions {
+			n, err := runPhase1RankSlice(ctx, runID, profile, tier, division)
+			if err != nil {
+				return crawlact.Phase1Output{}, err
+			}
+			counts[tier] += n
+		}
+	}
+	return crawlact.Phase1Output{TierCounts: counts}, nil
+}
+
+func runPhase1RankSlice(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot, tier, division string) (int, error) {
+	opts := phase1Opts
+	if tier == "DIAMOND" {
+		opts = phase1DiamondOpts
+	}
+	ctx1 := workflow.WithActivityOptions(ctx, opts)
+	var out crawlact.Phase1Output
+	if err := workflow.ExecuteActivity(ctx1, (*crawlact.Activities).Phase1RankSnapshot, crawlact.Phase1Input{
+		RunID:             runID,
+		Region:            profile.Region,
+		Queue:             profile.Queue,
+		RankPrefetchTiers: []string{tier},
+		Division:          division,
+	}).Get(ctx1, &out); err != nil {
+		if division != "" {
+			return 0, fmt.Errorf("tier %s division %s: %w", tier, division, err)
+		}
+		return 0, fmt.Errorf("tier %s: %w", tier, err)
+	}
+	return out.TierCounts[tier], nil
+}
+
+func isTopTier(tier string) bool {
+	switch tier {
+	case "CHALLENGER", "GRANDMASTER", "MASTER":
+		return true
+	default:
+		return false
+	}
+}
+
+var phase1Divisions = []string{"I", "II", "III", "IV"}
+
+// runPostPhase1 picks the dispatch shape:
 //   - execution=sequential (or unset): one Activity with all TargetTiers
-//     inline. Matches legacy SequentialStrategy.
-//   - execution=pipeline: fan out one Activity per tier with
-//     workflow.Future and await all. New in Phase C — legacy
-//     PipelineStrategy was actually per-tier *serial*, so this is a
-//     real speedup when tiers don't share rate-limit budget.
-//
-// Phase 3/3.5/4 stay sequential after the barrier because they operate
-// on global pending tables — concurrent invocations would race.
+//     inline, then one global Phase3→Phase5.5 chain.
+//   - execution=pipeline: for each TargetTier in order, run
+//     Phase2→Phase3→Phase3.5→Phase4→Phase5→Phase5.5 before moving
+//     to the next tier. Later phases still query region+version
+//     pending rows, so this is practical tier-first ordering rather
+//     than strict per-tier match isolation.
+func runPostPhase1(
+	ctx workflow.Context,
+	runID int,
+	profile crawlact.ProfileSnapshot,
+	resolvedVersion string,
+	startedAt time.Time,
+) (
+	[]crawlact.Phase2Output,
+	crawlact.Phase3Output,
+	crawlact.Phase35Output,
+	crawlact.Phase4Output,
+	crawlact.Phase5Output,
+	crawlact.Phase55Output,
+	error,
+) {
+	if len(profile.TargetTiers) == 0 {
+		return nil, crawlact.Phase3Output{}, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{},
+			fmt.Errorf("phase2: profile.target_tiers must be non-empty")
+	}
+
+	if profile.Execution != "pipeline" {
+		p2, err := runPhase2(ctx, runID, profile, resolvedVersion, startedAt, profile.TargetTiers)
+		if err != nil {
+			return nil, crawlact.Phase3Output{}, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{},
+				fmt.Errorf("phase2: %w", err)
+		}
+		p3, p35, p4, p5, p55, err := runLaterPhases(ctx, runID, profile, resolvedVersion, startedAt)
+		if err != nil {
+			return nil, crawlact.Phase3Output{}, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{}, err
+		}
+		return []crawlact.Phase2Output{p2}, p3, p35, p4, p5, p55, nil
+	}
+
+	outs := make([]crawlact.Phase2Output, 0, len(profile.TargetTiers))
+	var p3 crawlact.Phase3Output
+	var p35 crawlact.Phase35Output
+	var p4 crawlact.Phase4Output
+	var p5 crawlact.Phase5Output
+	var p55 crawlact.Phase55Output
+	for _, tier := range profile.TargetTiers {
+		workflow.GetLogger(ctx).Info("pipeline_tier_started", "run_id", runID, "region", profile.Region, "version", resolvedVersion, "tier", tier)
+		p2, err := runPhase2(ctx, runID, profile, resolvedVersion, startedAt, []string{tier})
+		if err != nil {
+			return nil, crawlact.Phase3Output{}, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{},
+				fmt.Errorf("phase2 tier %s: %w", tier, err)
+		}
+		outs = append(outs, p2)
+		p3, p35, p4, p5, p55, err = runLaterPhases(ctx, runID, profile, resolvedVersion, startedAt)
+		if err != nil {
+			return nil, crawlact.Phase3Output{}, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{},
+				fmt.Errorf("tier %s: %w", tier, err)
+		}
+		workflow.GetLogger(ctx).Info("pipeline_tier_completed", "run_id", runID, "region", profile.Region, "version", resolvedVersion, "tier", tier)
+	}
+	return outs, p3, p35, p4, p5, p55, nil
+}
+
 func runPhase2(
 	ctx workflow.Context,
 	runID int,
 	profile crawlact.ProfileSnapshot,
 	resolvedVersion string,
 	startedAt time.Time,
-) ([]crawlact.Phase2Output, error) {
-	if len(profile.TargetTiers) == 0 {
-		return nil, fmt.Errorf("phase2: profile.target_tiers must be non-empty")
-	}
+	tiers []string,
+) (crawlact.Phase2Output, error) {
 	ctx2 := workflow.WithActivityOptions(ctx, phase2Opts)
+	var out crawlact.Phase2Output
+	if err := workflow.ExecuteActivity(ctx2, (*crawlact.Activities).Phase2MatchIDCollection, crawlact.Phase2Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Version:      resolvedVersion,
+		Queue:        profile.Queue,
+		Tiers:        tiers,
+		RunStartedAt: startedAt,
+	}).Get(ctx2, &out); err != nil {
+		return crawlact.Phase2Output{}, err
+	}
+	return out, nil
+}
 
-	if profile.Execution != "pipeline" {
-		var out crawlact.Phase2Output
-		if err := workflow.ExecuteActivity(ctx2, (*crawlact.Activities).Phase2MatchIDCollection, crawlact.Phase2Input{
-			RunID:        runID,
-			Region:       profile.Region,
-			Version:      resolvedVersion,
-			Queue:        profile.Queue,
-			Tiers:        profile.TargetTiers,
-			RunStartedAt: startedAt,
-		}).Get(ctx2, &out); err != nil {
-			return nil, err
-		}
-		return []crawlact.Phase2Output{out}, nil
+func runLaterPhases(
+	ctx workflow.Context,
+	runID int,
+	profile crawlact.ProfileSnapshot,
+	resolvedVersion string,
+	startedAt time.Time,
+) (
+	crawlact.Phase3Output,
+	crawlact.Phase35Output,
+	crawlact.Phase4Output,
+	crawlact.Phase5Output,
+	crawlact.Phase55Output,
+	error,
+) {
+	ctx3 := workflow.WithActivityOptions(ctx, phase3Opts)
+	var p3 crawlact.Phase3Output
+	if err := workflow.ExecuteActivity(ctx3, (*crawlact.Activities).Phase3MatchDetails, crawlact.Phase3Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Version:      resolvedVersion,
+		RunStartedAt: startedAt,
+	}).Get(ctx3, &p3); err != nil {
+		return p3, crawlact.Phase35Output{}, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{}, fmt.Errorf("phase3: %w", err)
 	}
 
-	// Pipeline mode: fan out per-tier futures, gather in order.
-	futures := make([]workflow.Future, len(profile.TargetTiers))
-	for i, tier := range profile.TargetTiers {
-		futures[i] = workflow.ExecuteActivity(ctx2, (*crawlact.Activities).Phase2MatchIDCollection, crawlact.Phase2Input{
-			RunID:        runID,
-			Region:       profile.Region,
-			Version:      resolvedVersion,
-			Queue:        profile.Queue,
-			Tiers:        []string{tier},
-			RunStartedAt: startedAt,
-		})
+	ctx35 := workflow.WithActivityOptions(ctx, phase35Opts)
+	var p35 crawlact.Phase35Output
+	if err := workflow.ExecuteActivity(ctx35, (*crawlact.Activities).Phase35OnDemandRank, crawlact.Phase35Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Queue:        profile.Queue,
+		RunStartedAt: startedAt,
+	}).Get(ctx35, &p35); err != nil {
+		return p3, p35, crawlact.Phase4Output{}, crawlact.Phase5Output{}, crawlact.Phase55Output{}, fmt.Errorf("phase35: %w", err)
 	}
-	outs := make([]crawlact.Phase2Output, len(futures))
-	for i, f := range futures {
-		if err := f.Get(ctx2, &outs[i]); err != nil {
-			return nil, fmt.Errorf("phase2 tier %s: %w", profile.TargetTiers[i], err)
-		}
+
+	ctx4 := workflow.WithActivityOptions(ctx, phase4Opts)
+	var p4 crawlact.Phase4Output
+	if err := workflow.ExecuteActivity(ctx4, (*crawlact.Activities).Phase4AvgTierCalc, crawlact.Phase4Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Version:      resolvedVersion,
+		RunStartedAt: startedAt,
+	}).Get(ctx4, &p4); err != nil {
+		return p3, p35, p4, crawlact.Phase5Output{}, crawlact.Phase55Output{}, fmt.Errorf("phase4: %w", err)
 	}
-	return outs, nil
+
+	ctx5 := workflow.WithActivityOptions(ctx, phase5Opts)
+	var p5 crawlact.Phase5Output
+	if err := workflow.ExecuteActivity(ctx5, (*crawlact.Activities).Phase5Timeline, crawlact.Phase5Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Version:      resolvedVersion,
+		RunStartedAt: startedAt,
+	}).Get(ctx5, &p5); err != nil {
+		return p3, p35, p4, p5, crawlact.Phase55Output{}, fmt.Errorf("phase5: %w", err)
+	}
+
+	ctx55 := workflow.WithActivityOptions(ctx, phase55Opts)
+	var p55 crawlact.Phase55Output
+	if err := workflow.ExecuteActivity(ctx55, (*crawlact.Activities).Phase55ItemClassify, crawlact.Phase55Input{
+		RunID:        runID,
+		Region:       profile.Region,
+		Version:      resolvedVersion,
+		RunStartedAt: startedAt,
+	}).Get(ctx55, &p55); err != nil {
+		return p3, p35, p4, p5, p55, fmt.Errorf("phase55: %w", err)
+	}
+	return p3, p35, p4, p5, p55, nil
 }
 
 func resolveProfile(ctx workflow.Context, in CrawlRegionInput) (crawlact.ProfileSnapshot, error) {

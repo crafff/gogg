@@ -3,10 +3,12 @@ package phase4
 
 import (
 	"context"
-	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/heartbeat"
+	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 )
 
@@ -51,7 +53,7 @@ func (p *Phase) ID() int      { return 4 }
 func (p *Phase) Name() string { return "Phase4:AvgTierCalc" }
 
 func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, error) {
-	ids, err := p.store.GetMatchesNeedingTierCalc(ctx, state.Region(), 1)
+	ids, err := p.store.GetMatchesNeedingTierCalc(ctx, state.Region(), state.Profile.Version, 1)
 	if err != nil {
 		return false, err
 	}
@@ -59,34 +61,57 @@ func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, erro
 }
 
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
+	region := state.Region()
+	version := state.Profile.Version
+	meta := phaselog.Meta{RunID: state.ID, Region: region, Phase: p.Name(), PhaseID: p.ID(), Version: version}
+
 	thresholds, err := p.store.GetApexThresholds(ctx, state.ID, state.Region())
 	if err != nil {
 		return err
 	}
-	slog.Info("phase4: apex thresholds",
+	phaselog.Step(meta, "thresholds_loaded",
 		"challenger_min_score", thresholds.ChallengerMinScore,
 		"grandmaster_min_score", thresholds.GrandmasterMinScore,
 	)
 
 	total := 0
+	start := time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		ids, err := p.store.GetMatchesNeedingTierCalc(ctx, state.Region(), batchSize)
+		ids, err := p.store.GetMatchesNeedingTierCalc(ctx, region, version, batchSize)
 		if err != nil {
 			return err
 		}
 		if len(ids) == 0 {
 			break
 		}
-		for _, matchID := range ids {
+		heartbeat.Record(ctx, map[string]any{
+			"run_id":     state.ID,
+			"region":     region,
+			"version":    version,
+			"batch_size": len(ids),
+			"processed":  total,
+		})
+
+		for idx, matchID := range ids {
 			if err := p.computeAndStore(ctx, matchID, thresholds); err != nil {
-				slog.Warn("phase4: failed to compute tier", "match_id", matchID, "err", err)
+				phaselog.Warn(meta, "match_failed", "match_id", matchID, "err", err)
 			}
 			total++
+			if (idx+1)%100 == 0 {
+				heartbeat.Record(ctx, map[string]any{
+					"run_id":             state.ID,
+					"region":             region,
+					"version":            version,
+					"processed_in_batch": idx + 1,
+					"batch_size":         len(ids),
+					"processed":          total,
+				})
+			}
 		}
-		slog.Info("phase4: computed avg_tier", "total", total)
+		phaselog.Progress(meta, total, 0, 0, start)
 	}
 	return nil
 }
@@ -97,7 +122,7 @@ func (p *Phase) computeAndStore(ctx context.Context, matchID string, thresholds 
 		return err
 	}
 	if len(rows) == 0 {
-		return p.store.UpdateAvgTier(ctx, matchID, "", "", 0, 0)
+		return p.store.SaveAvgTier(ctx, matchID, "", "", 0, 0)
 	}
 
 	sum := 0
@@ -113,7 +138,7 @@ func (p *Phase) computeAndStore(ctx context.Context, matchID string, thresholds 
 	}
 	avg := sum / len(rows)
 	tier, division := scoreToTier(avg, thresholds)
-	return p.store.UpdateAvgTier(ctx, matchID, tier, division, avg, len(rows))
+	return p.store.SaveAvgTier(ctx, matchID, tier, division, avg, len(rows))
 }
 
 // scoreToTier converts a numeric score to (tier, division).

@@ -109,6 +109,10 @@ func (s *Store) MarkTimelineError(ctx context.Context, matchID string) error {
 
 // InsertSkillEvents bulk-inserts skill level-up events for a match.
 func (s *Store) InsertSkillEvents(ctx context.Context, events []SkillEvent) error {
+	return insertSkillEventsTx(ctx, s.Pool, events)
+}
+
+func insertSkillEventsTx(ctx context.Context, sender batchSender, events []SkillEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -119,11 +123,15 @@ func (s *Store) InsertSkillEvents(ctx context.Context, events []SkillEvent) erro
 			VALUES ($1, $2, $3, $4, $5)`,
 			e.MatchID, e.ParticipantID, e.TimestampMs, e.SkillSlot, e.LevelUpType)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // InsertItemEvents bulk-inserts item purchase events for a match.
 func (s *Store) InsertItemEvents(ctx context.Context, events []ItemEvent) error {
+	return insertItemEventsTx(ctx, s.Pool, events)
+}
+
+func insertItemEventsTx(ctx context.Context, sender batchSender, events []ItemEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -138,11 +146,15 @@ func (s *Store) InsertItemEvents(ctx context.Context, events []ItemEvent) error 
 			VALUES ($1, $2, $3, $4, $5)`,
 			e.MatchID, e.ParticipantID, e.TimestampMs, e.ItemID, removal)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
 }
 
 // InsertParticipantSnapshots bulk-inserts per-minute snapshots for a match.
 func (s *Store) InsertParticipantSnapshots(ctx context.Context, snaps []ParticipantSnapshot) error {
+	return insertParticipantSnapshotsTx(ctx, s.Pool, snaps)
+}
+
+func insertParticipantSnapshotsTx(ctx context.Context, sender batchSender, snaps []ParticipantSnapshot) error {
 	if len(snaps) == 0 {
 		return nil
 	}
@@ -165,5 +177,32 @@ func (s *Store) InsertParticipantSnapshots(ctx context.Context, snaps []Particip
 			sn.DmgTrueChamps, sn.DmgTaken,
 		)
 	}
-	return s.Pool.SendBatch(ctx, batch).Close()
+	return sender.SendBatch(ctx, batch).Close()
+}
+
+// SaveTimeline atomically replaces timeline-derived rows for a match and marks
+// the timeline done only after all rows are written.
+func (s *Store) SaveTimeline(ctx context.Context, matchID string, itemEvents []ItemEvent, skillEvents []SkillEvent, snapshots []ParticipantSnapshot) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM match_item_events WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_skill_events WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM match_participant_snapshots WHERE match_id = $1`, matchID); err != nil {
+			return err
+		}
+		if err := insertItemEventsTx(ctx, tx, itemEvents); err != nil {
+			return err
+		}
+		if err := insertSkillEventsTx(ctx, tx, skillEvents); err != nil {
+			return err
+		}
+		if err := insertParticipantSnapshotsTx(ctx, tx, snapshots); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE matches SET timeline_status = 'done' WHERE match_id = $1`, matchID)
+		return err
+	})
 }

@@ -47,12 +47,20 @@ func (a *Activities) Phase5Timeline(ctx context.Context, in Phase5Input) (Phase5
 		nil, "", in.RunStartedAt, time.Time{})
 
 	activity.RecordHeartbeat(ctx, "phase5_starting")
-	logger.Info("phase5 starting", "region", in.Region, "version", in.Version)
+	logger.Info("phase5_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 
 	p := phase5.New(riot, a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase5Output{}, fmt.Errorf("phase5 run: %w", err)
 	}
-	logger.Info("phase5 done")
+	logger.Info("phase5_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+	)
 	return Phase5Output{}, nil
 }

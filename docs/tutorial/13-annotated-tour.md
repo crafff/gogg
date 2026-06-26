@@ -351,35 +351,21 @@ func CrawlRegionWorkflow(ctx workflow.Context, in CrawlRegionInput) (CrawlRegion
 
 > Happy path: stamp the row complete, log success, return the output. The output struct goes into Temporal's event history; subsequent Temporal SDK queries can read it.
 
-Inside `runPhases`, look at the per-tier fan-out:
+Inside `runPhases`, look at the tier-first pipeline branch:
 
 ```go
 if profile.Execution == "pipeline" {
-    futures := make([]workflow.Future, 0, len(profile.TargetTiers))
     for _, tier := range profile.TargetTiers {
-        in := crawlact.Phase2Input{
-            RunID:   runID,
-            Profile: profile,
-            Tiers:   []string{tier},
-        }
-        f := workflow.ExecuteActivity(
-            workflow.WithActivityOptions(ctx, phase2Opts),
-            (*crawlact.Activities)(nil).Phase2MatchIDCollection,
-            in,
-        )
-        futures = append(futures, f)
-    }
-    for _, f := range futures {
-        var p2 crawlact.Phase2Output
-        if err := f.Get(ctx, &p2); err != nil { return err }
+        p2 := runPhase2(ctx, runID, profile, version, startedAt, []string{tier})
+        p3, p35, p4, p5, p55 := runLaterPhases(ctx, runID, profile, version, startedAt)
         out.Phase2Outputs = append(out.Phase2Outputs, p2)
     }
 }
 ```
 
-> **Pipeline mode parallelism.** We ExecuteActivity once per tier (the schedule is non-blocking — it returns a `workflow.Future`). Then we collect them via `f.Get(ctx, &p2)` — that blocks until each tier's activity finishes. N tiers run in parallel; the workflow waits for the slowest.
+> **Pipeline mode priority.** Pipeline is tier-first. It runs `CHALLENGER` Phase 2→5.5, then `GRANDMASTER` Phase 2→5.5, then the next configured tier. This gets high-rank data usable earlier than a phase-first sweep.
 >
-> The legacy "PipelineStrategy" was per-tier *serial*. This Temporal version is the per-tier *parallel* win for free, just by using futures instead of synchronous calls.
+> Later phases still select pending matches by region + version, because Riot match data cannot be fetched by tier directly. If an earlier run left same-region/version pending rows from another tier, the current tier's later phases may consume them; the crawler accepts that limitation for now.
 
 ### What this teaches
 

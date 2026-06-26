@@ -46,12 +46,20 @@ func (a *Activities) Phase35OnDemandRank(ctx context.Context, in Phase35Input) (
 		nil, "", in.RunStartedAt, time.Time{})
 
 	activity.RecordHeartbeat(ctx, "phase35_starting")
-	logger.Info("phase35 starting", "region", in.Region, "queue", in.Queue)
+	logger.Info("phase35_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"queue", in.Queue,
+	)
 
 	p := phase35.New(riot, a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase35Output{}, fmt.Errorf("phase35 run: %w", err)
 	}
-	logger.Info("phase35 done")
+	logger.Info("phase35_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"queue", in.Queue,
+	)
 	return Phase35Output{}, nil
 }

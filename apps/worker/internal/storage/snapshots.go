@@ -3,6 +3,9 @@ package storage
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type RankSnapshot struct {
@@ -26,19 +29,73 @@ type RankSnapshot struct {
 	CreatedAt    time.Time
 }
 
-// InsertSnapshot writes a new rank snapshot row.
-func (s *Store) InsertSnapshot(ctx context.Context, snap *RankSnapshot) error {
-	_, err := s.Pool.Exec(ctx, `
+// UpsertSnapshot writes a rank snapshot row. Retries for the same
+// run/player/rank scope update the existing row instead of duplicating
+// snapshots; top tiers use division "I" for a non-null key.
+func (s *Store) UpsertSnapshot(ctx context.Context, snap *RankSnapshot) error {
+	return upsertSnapshotTx(ctx, s.Pool, snap)
+}
+
+type execer interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func upsertSnapshotTx(ctx context.Context, exec execer, snap *RankSnapshot) error {
+	division := "I"
+	if snap.Division != nil && *snap.Division != "" {
+		division = *snap.Division
+	}
+	_, err := exec.Exec(ctx, `
 		INSERT INTO player_rank_snapshots
 		  (run_id, puuid, region, source, league_id, queue, tier, division,
 		   league_points, wins, losses, veteran, inactive, fresh_blood,
 		   hot_streak, rank_status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+		ON CONFLICT (run_id, puuid, region, source, queue, tier, division)
+		DO UPDATE SET
+			league_id = EXCLUDED.league_id,
+			league_points = EXCLUDED.league_points,
+			wins = EXCLUDED.wins,
+			losses = EXCLUDED.losses,
+			veteran = EXCLUDED.veteran,
+			inactive = EXCLUDED.inactive,
+			fresh_blood = EXCLUDED.fresh_blood,
+			hot_streak = EXCLUDED.hot_streak,
+			rank_status = EXCLUDED.rank_status,
+			created_at = now()`,
 		snap.RunID, snap.PUUID, snap.Region, snap.Source, snap.LeagueID, snap.Queue,
-		snap.Tier, snap.Division, snap.LeaguePoints, snap.Wins, snap.Losses,
+		snap.Tier, division, snap.LeaguePoints, snap.Wins, snap.Losses,
 		snap.Veteran, snap.Inactive, snap.FreshBlood, snap.HotStreak, snap.RankStatus,
 	)
 	return err
+}
+
+// SaveRankBackfill atomically records an on-demand snapshot and applies it to
+// all pending participant rows for the PUUID.
+func (s *Store) SaveRankBackfill(ctx context.Context, snap *RankSnapshot, tier, division string, lp int) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		if err := upsertSnapshotTx(ctx, tx, snap); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
+			UPDATE match_participants mp
+			SET tier_at_match        = $1,
+			    division_at_match    = $2,
+			    lp_at_match          = $3,
+			    tier_snapshot_delta_h = ROUND(ABS(EXTRACT(EPOCH FROM (NOW() - m.game_start_ts)) / 3600))::int
+			FROM matches m
+			WHERE mp.match_id = m.match_id
+			  AND mp.puuid = $4
+			  AND mp.tier_at_match IS NULL`,
+			tier, division, lp, snap.PUUID)
+		return err
+	})
+}
+
+// InsertSnapshot is kept for older call sites; new code should call
+// UpsertSnapshot so retry semantics are explicit.
+func (s *Store) InsertSnapshot(ctx context.Context, snap *RankSnapshot) error {
+	return s.UpsertSnapshot(ctx, snap)
 }
 
 // GetLatestSnapshot returns the most recent snapshot for a player in a region.

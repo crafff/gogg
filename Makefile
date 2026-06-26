@@ -118,7 +118,7 @@ migrate-new: ## Create a new migration; usage: make migrate-new name=add_users
 
 # ── Build ───────────────────────────────────────────────────
 .PHONY: build
-build: build-api build-worker ## Build all binaries
+build: build-api build-worker build-crawler-lite ## Build all binaries
 
 .PHONY: build-api
 build-api:
@@ -133,6 +133,13 @@ build-worker:
 	@if [ -d apps/worker/cmd/worker ] && [ -f apps/worker/cmd/worker/main.go ]; then \
 		go build -trimpath -o bin/gogg-worker ./apps/worker/cmd/worker; \
 	else echo "apps/worker/cmd/worker/main.go not present yet"; fi
+
+.PHONY: build-crawler-lite
+build-crawler-lite:
+	@mkdir -p bin
+	@if [ -d apps/worker/cmd/crawler-lite ] && [ -f apps/worker/cmd/crawler-lite/main.go ]; then \
+		go build -trimpath -o bin/gogg-crawler-lite ./apps/worker/cmd/crawler-lite; \
+	else echo "apps/worker/cmd/crawler-lite/main.go not present yet"; fi
 
 .PHONY: run-api
 run-api: ## Run gogg-api locally with SOPS or config/dev.yaml
@@ -165,6 +172,20 @@ run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
 		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/worker; \
 	elif [ -f config/dev.yaml ]; then \
 		APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/worker; \
+	else \
+		echo "missing config/dev.yaml; copy config/dev.example.yaml and fill riot.api_key"; \
+		exit 1; \
+	fi
+
+.PHONY: run-crawler-lite
+run-crawler-lite: ## Run crawler-lite; pass args='run --profile daily_kr'
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-crawler-lite.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/crawler-lite $(args); \
+	elif [ -f config/dev.yaml ]; then \
+		APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/crawler-lite $(args); \
 	else \
 		echo "missing config/dev.yaml; copy config/dev.example.yaml and fill riot.api_key"; \
 		exit 1; \

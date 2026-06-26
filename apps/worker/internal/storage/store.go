@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -44,4 +45,20 @@ func New(ctx context.Context, dsn string, maxOpen, maxIdle int32, maxLifetimeSec
 
 func (s *Store) Close() {
 	s.Pool.Close()
+}
+
+func (s *Store) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		rbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(rbCtx) // no-op after Commit
+	}()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

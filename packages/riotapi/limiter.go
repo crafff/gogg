@@ -14,8 +14,8 @@ type RateLimiter struct {
 
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		perSecond: rate.NewLimiter(rate.Limit(20), 5),
-		per2Min:   rate.NewLimiter(rate.Limit(98.0/120.0), 10),
+		perSecond: rate.NewLimiter(rate.Limit(20), 1),
+		per2Min:   rate.NewLimiter(rate.Limit(98.0/120.0), 1),
 	}
 }
 

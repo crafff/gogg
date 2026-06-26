@@ -68,14 +68,23 @@ func (a *Activities) Phase2MatchIDCollection(ctx context.Context, in Phase2Input
 		in.Tiers, currentTier, in.RunStartedAt, lastRunEnd)
 
 	activity.RecordHeartbeat(ctx, in.Tiers)
-	logger.Info("phase2 starting",
-		"region", in.Region, "version", in.Version,
-		"tiers", in.Tiers, "current_tier", currentTier,
+	logger.Info("phase2_started",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+		"queue", in.Queue,
+		"tiers", in.Tiers,
+		"current_tier", currentTier,
 	)
 	p := phase2.New(riot, a.rt.Store)
 	if err := p.Run(ctx, state); err != nil {
 		return Phase2Output{}, fmt.Errorf("phase2 run: %w", err)
 	}
-	logger.Info("phase2 done", "tiers", in.Tiers)
+	logger.Info("phase2_completed",
+		"run_id", in.RunID,
+		"region", in.Region,
+		"version", in.Version,
+		"tiers", in.Tiers,
+	)
 	return Phase2Output{Tiers: in.Tiers}, nil
 }

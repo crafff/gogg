@@ -10,6 +10,7 @@ import (
 type Run struct {
 	ID                int
 	Status            string
+	RunnerType        string
 	Profile           *string
 	Mode              string
 	TargetTiers       []string
@@ -20,9 +21,13 @@ type Run struct {
 	Region            string
 	CurrentPhase      int
 	CurrentTier       *string
+	CurrentDivision   *string
+	PauseRequested    bool
 	StartedAt         time.Time
 	EndedAt           *time.Time
 	LastRunEnd        time.Time
+	LastError         *string
+	UpdatedAt         time.Time
 }
 
 // RunProfile carries the config fields stored alongside a run.
@@ -49,11 +54,28 @@ func (s *Store) CreateRun(ctx context.Context, profile *string, p RunProfile, la
 	return id, startedAt, err
 }
 
+// CreateLiteRun inserts a crawler-lite owned run.
+func (s *Store) CreateLiteRun(ctx context.Context, profile *string, p RunProfile, lastRunEnd time.Time) (int, time.Time, error) {
+	id, startedAt, err := s.CreateRun(ctx, profile, p, lastRunEnd)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	_, err = s.Pool.Exec(ctx, `
+		UPDATE runs
+		SET runner_type = 'lite',
+		    pause_requested = false,
+		    last_error = NULL,
+		    updated_at = now()
+		WHERE id = $1`, id)
+	return id, startedAt, err
+}
+
 // GetActiveRun returns the most recent running run for the given region, if any.
 func (s *Store) GetActiveRun(ctx context.Context, region string) (*Run, error) {
 	row := s.Pool.QueryRow(ctx, `
-		SELECT id, status, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
-		       current_phase, current_tier, started_at, ended_at, last_run_end
+		SELECT id, status, runner_type, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
+		       current_phase, current_tier, current_division, pause_requested, started_at, ended_at, last_run_end,
+		       last_error, updated_at
 		FROM runs
 		WHERE status = 'running' AND region = $1
 		ORDER BY id DESC
@@ -68,8 +90,9 @@ func (s *Store) GetActiveRun(ctx context.Context, region string) (*Run, error) {
 // GetRunByID returns a single run by ID, or nil if not found.
 func (s *Store) GetRunByID(ctx context.Context, id int) (*Run, error) {
 	row := s.Pool.QueryRow(ctx, `
-		SELECT id, status, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
-		       current_phase, current_tier, started_at, ended_at, last_run_end
+		SELECT id, status, runner_type, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
+		       current_phase, current_tier, current_division, pause_requested, started_at, ended_at, last_run_end,
+		       last_error, updated_at
 		FROM runs WHERE id = $1`, id)
 	r, err := scanRun(row)
 	if err == pgx.ErrNoRows {
@@ -81,21 +104,21 @@ func (s *Store) GetRunByID(ctx context.Context, id int) (*Run, error) {
 // ReactivateRun resets a failed/interrupted run back to 'running' for resume.
 func (s *Store) ReactivateRun(ctx context.Context, runID int) error {
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET status = 'running', ended_at = NULL WHERE id = $1`, runID)
+		`UPDATE runs SET status = 'running', ended_at = NULL, pause_requested = false, updated_at = now() WHERE id = $1`, runID)
 	return err
 }
 
 // UpdateRunVersion stores the resolved game version on a run.
 func (s *Store) UpdateRunVersion(ctx context.Context, runID int, version string) error {
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET version = $1 WHERE id = $2`, version, runID)
+		`UPDATE runs SET version = $1, updated_at = now() WHERE id = $2`, version, runID)
 	return err
 }
 
 // ResetRunToPhase0 resets a run's checkpoint to phase 0 and deletes phase1 snapshots.
 func (s *Store) ResetRunToPhase0(ctx context.Context, runID int) error {
 	if _, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET current_phase = 0, current_tier = NULL WHERE id = $1`, runID); err != nil {
+		`UPDATE runs SET current_phase = 0, current_tier = NULL, current_division = NULL, updated_at = now() WHERE id = $1`, runID); err != nil {
 		return err
 	}
 	_, err := s.Pool.Exec(ctx,
@@ -105,23 +128,43 @@ func (s *Store) ResetRunToPhase0(ctx context.Context, runID int) error {
 
 // UpdateCheckpoint saves the current phase/tier progress for a run.
 func (s *Store) UpdateCheckpoint(ctx context.Context, runID, phase int, tier *string) error {
+	return s.UpdateCheckpointDetail(ctx, runID, phase, tier, nil)
+}
+
+// UpdateCheckpointDetail saves phase/tier/division progress for a run.
+func (s *Store) UpdateCheckpointDetail(ctx context.Context, runID, phase int, tier, division *string) error {
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET current_phase = $1, current_tier = $2 WHERE id = $3`,
-		phase, tier, runID)
+		`UPDATE runs
+		 SET current_phase = $1,
+		     current_tier = $2,
+		     current_division = $3,
+		     updated_at = now()
+		 WHERE id = $4`,
+		phase, tier, division, runID)
 	return err
 }
 
 // CompleteRun marks a run as completed.
 func (s *Store) CompleteRun(ctx context.Context, runID int) error {
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET status = 'completed', ended_at = now() WHERE id = $1`, runID)
+		`UPDATE runs SET status = 'completed', ended_at = now(), pause_requested = false, updated_at = now() WHERE id = $1`, runID)
 	return err
 }
 
 // FailRun marks a run as failed.
 func (s *Store) FailRun(ctx context.Context, runID int) error {
+	return s.FailRunWithError(ctx, runID, "")
+}
+
+// FailRunWithError marks a run as failed and records the last error.
+func (s *Store) FailRunWithError(ctx context.Context, runID int, msg string) error {
+	var errPtr *string
+	if msg != "" {
+		errPtr = &msg
+	}
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET status = 'failed', ended_at = now() WHERE id = $1`, runID)
+		`UPDATE runs SET status = 'failed', ended_at = now(), last_error = $2, updated_at = now() WHERE id = $1`,
+		runID, errPtr)
 	return err
 }
 
@@ -154,8 +197,9 @@ func (s *Store) GetLastCompletedRunEnd(ctx context.Context, region string) time.
 // ListRuns returns the N most recent runs across all regions.
 func (s *Store) ListRuns(ctx context.Context, limit int) ([]Run, error) {
 	rows, err := s.Pool.Query(ctx, `
-		SELECT id, status, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
-		       current_phase, current_tier, started_at, ended_at, last_run_end
+		SELECT id, status, runner_type, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
+		       current_phase, current_tier, current_division, pause_requested, started_at, ended_at, last_run_end,
+		       last_error, updated_at
 		FROM runs
 		ORDER BY id DESC
 		LIMIT $1`, limit)
@@ -175,12 +219,20 @@ func (s *Store) ListRuns(ctx context.Context, limit int) ([]Run, error) {
 	return runs, rows.Err()
 }
 
+// MarkRunPaused marks a lite run paused at the current checkpoint.
+func (s *Store) MarkRunPaused(ctx context.Context, runID int) error {
+	_, err := s.Pool.Exec(ctx,
+		`UPDATE runs SET status = 'paused', pause_requested = false, updated_at = now() WHERE id = $1`, runID)
+	return err
+}
+
 func scanRun(row pgx.Row) (*Run, error) {
 	var r Run
 	err := row.Scan(
-		&r.ID, &r.Status, &r.Profile, &r.Mode, &r.TargetTiers, &r.RankPrefetchTiers,
+		&r.ID, &r.Status, &r.RunnerType, &r.Profile, &r.Mode, &r.TargetTiers, &r.RankPrefetchTiers,
 		&r.Queue, &r.Execution, &r.Version, &r.Region,
-		&r.CurrentPhase, &r.CurrentTier, &r.StartedAt, &r.EndedAt, &r.LastRunEnd,
+		&r.CurrentPhase, &r.CurrentTier, &r.CurrentDivision, &r.PauseRequested,
+		&r.StartedAt, &r.EndedAt, &r.LastRunEnd, &r.LastError, &r.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

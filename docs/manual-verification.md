@@ -342,7 +342,7 @@ Pass that as `--address <ip>:7233`.
 
 ### `go test ./apps/worker/...` reports a race
 
-The pipeline mode fans goroutines out per tier. Test counters must use `atomic.Int64`; plain `int++` will race. See `apps/worker/internal/workflow/crawl/workflow_test.go` for the pattern.
+Pipeline mode is tier-first: each configured tier runs Phase 2 through Phase 5.5 before the next tier starts. If tests count activity callbacks, keep counters concurrency-safe because the Temporal testsuite still invokes activity callbacks from worker goroutines. See `apps/worker/internal/workflow/crawl/workflow_test.go` for the pattern.
 
 ### `npm run codegen` emits TS2300 duplicate types
 
