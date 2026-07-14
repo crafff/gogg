@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -29,6 +31,7 @@ import (
 	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/runtime"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var phaseOrder = []int{0, 1, 2, 3, 35, 4, 5, 55}
@@ -157,11 +160,11 @@ func listRuns(limit int) error {
 		return err
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tRUNNER\tSTATUS\tPROFILE\tREGION\tVERSION\tEXECUTION\tPHASE\tTIER\tDIV\tUPDATED\tERROR")
+	fmt.Fprintln(w, "ID\tRUNNER\tSTATUS\tPROFILE\tREGION\tVERSION\tEXECUTION\tPHASE\tTIER\tDIV\tPAGE\tUPDATED\tERROR")
 	for _, r := range runs {
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			r.ID, r.RunnerType, r.Status, value(r.Profile), r.Region, value(r.Version), r.Execution,
-			phaseLabel(r.CurrentPhase), value(r.CurrentTier), value(r.CurrentDivision),
+			phaseLabel(r.CurrentPhase), value(r.CurrentTier), value(r.CurrentDivision), intValue(r.CurrentPage),
 			r.UpdatedAt.Format("2006-01-02 15:04:05"), value(r.LastError))
 	}
 	return w.Flush()
@@ -180,9 +183,9 @@ func showRun(runID int) error {
 	if r == nil {
 		return fmt.Errorf("run %d not found", runID)
 	}
-	fmt.Printf("id: %d\nrunner: %s\nstatus: %s\nprofile: %s\nregion: %s\nversion: %s\nexecution: %s\nphase: %s\ntier: %s\ndivision: %s\nstarted_at: %s\nupdated_at: %s\nlast_error: %s\n",
+	fmt.Printf("id: %d\nrunner: %s\nstatus: %s\nprofile: %s\nregion: %s\nversion: %s\nexecution: %s\nphase: %s\ntier: %s\ndivision: %s\npage: %s\nstarted_at: %s\nupdated_at: %s\nlast_error: %s\n",
 		r.ID, r.RunnerType, r.Status, value(r.Profile), r.Region, value(r.Version), r.Execution,
-		phaseLabel(r.CurrentPhase), value(r.CurrentTier), value(r.CurrentDivision),
+		phaseLabel(r.CurrentPhase), value(r.CurrentTier), value(r.CurrentDivision), intValue(r.CurrentPage),
 		r.StartedAt.Format(time.RFC3339), r.UpdatedAt.Format(time.RFC3339), value(r.LastError))
 	return nil
 }
@@ -202,9 +205,24 @@ func boot() (context.Context, *runtime.Runtime, error) {
 		<-ctx.Done()
 		stop()
 	}()
-	rt, err := runtime.Build(ctx, cfg)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build runtime: %w", err)
+	var rt *runtime.Runtime
+	for attempt, delay := 1, time.Second; ; attempt++ {
+		rt, err = runtime.Build(ctx, cfg)
+		if err == nil {
+			if attempt > 1 {
+				slog.Info("database_connectivity_restored", "attempt", attempt)
+			}
+			break
+		}
+		if !isTransientDatabaseError(err) {
+			return nil, nil, fmt.Errorf("build runtime: %w", err)
+		}
+		wait := retryJitter(delay)
+		slog.Warn("database_retry_wait", "attempt", attempt, "wait", wait, "err", err)
+		if err := waitForRetry(ctx, wait); err != nil {
+			return nil, nil, err
+		}
+		delay = min(delay*2, 2*time.Minute)
 	}
 	return ctx, rt, nil
 }
@@ -226,6 +244,14 @@ func execute(ctx context.Context, rt *runtime.Runtime, state *crawler.RunState, 
 	defer cancelStatus()
 	switch {
 	case err == nil:
+		terminalErrors, countErr := rt.Store.CountTerminalMatchErrors(statusCtx, state.Region(), state.Profile.Version)
+		if countErr != nil {
+			return countErr
+		}
+		if terminalErrors > 0 {
+			message := fmt.Sprintf("%d match or timeline item(s) exhausted retries", terminalErrors)
+			return rt.Store.CompleteRunWithErrors(statusCtx, state.ID, message)
+		}
 		return state.Complete(statusCtx)
 	case errors.Is(err, context.Canceled):
 		if pauseErr := rt.Store.MarkRunPaused(statusCtx, state.ID); pauseErr != nil {
@@ -309,6 +335,22 @@ func executePipeline(ctx context.Context, phases map[int]crawler.Phase, state *c
 }
 
 func executePhase(ctx context.Context, p crawler.Phase, state *crawler.RunState) error {
+	for attempt, delay := 1, time.Second; ; attempt++ {
+		err := executePhaseOnce(ctx, p, state)
+		if err == nil || !isTransientDatabaseError(err) {
+			return err
+		}
+		wait := retryJitter(delay)
+		slog.WarnContext(ctx, "lite_phase_database_retry_wait", "run_id", state.ID,
+			"phase", p.Name(), "attempt", attempt, "wait", wait, "err", err)
+		if err := waitForRetry(ctx, wait); err != nil {
+			return err
+		}
+		delay = min(delay*2, 2*time.Minute)
+	}
+}
+
+func executePhaseOnce(ctx context.Context, p crawler.Phase, state *crawler.RunState) error {
 	if p == nil {
 		return nil
 	}
@@ -325,8 +367,14 @@ func executePhase(ctx context.Context, p crawler.Phase, state *crawler.RunState)
 		d := state.CurrentDivision
 		divPtr = &d
 	}
-	if err := state.SaveCheckpointDetail(ctx, p.ID(), tierPtr, divPtr); err != nil {
-		return err
+	if state.CurrentPage > 0 {
+		if err := state.SaveCheckpointPosition(ctx, p.ID(), tierPtr, divPtr, state.CurrentPage); err != nil {
+			return err
+		}
+	} else {
+		if err := state.SaveCheckpointDetail(ctx, p.ID(), tierPtr, divPtr); err != nil {
+			return err
+		}
 	}
 	done, err := p.IsDone(ctx, state)
 	if err != nil {
@@ -342,6 +390,34 @@ func executePhase(ctx context.Context, p crawler.Phase, state *crawler.RunState)
 	}
 	phaselog.Completed(litePhaseMeta(state, p), "scope", "runner", "runner", "lite")
 	return nil
+}
+
+func isTransientDatabaseError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if pgconn.SafeToRetry(err) || pgconn.Timeout(err) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr)
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func retryJitter(delay time.Duration) time.Duration {
+	const fraction = 0.2
+	factor := 1 + ((rand.Float64()*2 - 1) * fraction)
+	return time.Duration(float64(delay) * factor)
 }
 
 func litePhaseMeta(state *crawler.RunState, p crawler.Phase) phaselog.Meta {
@@ -366,6 +442,13 @@ func litePhaseMeta(state *crawler.RunState, p crawler.Phase) phaselog.Meta {
 func buildPhases(rt *runtime.Runtime, region string) (map[int]crawler.Phase, error) {
 	riot, err := rt.RiotForRegion(region)
 	if err != nil {
+		return nil, err
+	}
+	// Unlike Temporal activities, crawler-lite has no external orchestrator to
+	// retry an outage. Keep the current request parked until Riot/network
+	// connectivity returns or the process context is cancelled.
+	if err := riot.ConfigureOutageWait(rt.Cfg.Lite.OutageInitialInterval,
+		rt.Cfg.Lite.OutageMaxInterval, rt.Cfg.Lite.OutageJitter); err != nil {
 		return nil, err
 	}
 	return map[int]crawler.Phase{
@@ -401,6 +484,13 @@ func value(s *string) string {
 		return "-"
 	}
 	return *s
+}
+
+func intValue(v *int) string {
+	if v == nil || *v <= 0 {
+		return "-"
+	}
+	return strconv.Itoa(*v)
 }
 
 func phaseLabel(phase int) string {

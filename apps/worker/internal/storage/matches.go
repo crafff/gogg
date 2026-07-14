@@ -31,7 +31,8 @@ func (s *Store) GetPendingMatchIDs(ctx context.Context, region, version string, 
 	rows, err := s.Pool.Query(ctx, `
 		SELECT match_id FROM matches
 		WHERE fetch_status = 'pending' AND region = $1 AND version = $2
-		ORDER BY created_at
+		  AND (fetch_next_retry_at IS NULL OR fetch_next_retry_at <= now())
+		ORDER BY COALESCE(fetch_next_retry_at, created_at), created_at
 		LIMIT $3`, region, version, limit)
 	if err != nil {
 		return nil, err
@@ -168,17 +169,53 @@ func (s *Store) SaveMatchDetail(ctx context.Context, h *MatchHeader, participant
 	})
 }
 
-const maxMatchRetries = 3
+const maxMatchRetries = 4
 
 // IncrementMatchRetry bumps retry_count. Status stays 'pending' until
 // maxMatchRetries is reached, then becomes 'error'.
-func (s *Store) IncrementMatchRetry(ctx context.Context, matchID string) error {
+func (s *Store) IncrementMatchRetry(ctx context.Context, matchID, kind string, code int, message string) error {
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE matches
 		SET retry_count  = retry_count + 1,
-		    fetch_status = CASE WHEN retry_count + 1 >= $2 THEN 'error' ELSE 'pending' END
-		WHERE match_id = $1`, matchID, maxMatchRetries)
+		    fetch_status = CASE WHEN retry_count + 1 >= $2 THEN 'error' ELSE 'pending' END,
+		    fetch_next_retry_at = CASE retry_count + 1
+		        WHEN 1 THEN now() + interval '30 seconds'
+		        WHEN 2 THEN now() + interval '2 minutes'
+		        WHEN 3 THEN now() + interval '5 minutes'
+		        ELSE NULL
+		    END,
+		    fetch_last_error_kind = $3,
+		    fetch_last_error_code = NULLIF($4, 0),
+		    fetch_last_error_message = LEFT($5, 1000)
+		WHERE match_id = $1`, matchID, maxMatchRetries, kind, code, message)
 	return err
+}
+
+func (s *Store) MarkMatchNotFound(ctx context.Context, matchID, message string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE matches
+		SET retry_count = $2, fetch_status = 'error', fetch_next_retry_at = NULL,
+		    fetch_last_error_kind = 'not_found', fetch_last_error_code = 404,
+		    fetch_last_error_message = LEFT($3, 1000)
+		WHERE match_id = $1`, matchID, maxMatchRetries, message)
+	return err
+}
+
+func (s *Store) NextMatchRetryAt(ctx context.Context, region, version string) (*time.Time, error) {
+	var next *time.Time
+	err := s.Pool.QueryRow(ctx, `
+		SELECT MIN(fetch_next_retry_at) FROM matches
+		WHERE fetch_status = 'pending' AND region = $1 AND version = $2`, region, version).Scan(&next)
+	return next, err
+}
+
+func (s *Store) CountTerminalMatchErrors(ctx context.Context, region, version string) (int, error) {
+	var count int
+	err := s.Pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM matches
+		WHERE region = $1 AND version = $2
+		  AND (fetch_status = 'error' OR timeline_status = 'error')`, region, version).Scan(&count)
+	return count, err
 }
 
 // GetMatchesNeedingTierCalc returns match_ids where avg_tier_score is null

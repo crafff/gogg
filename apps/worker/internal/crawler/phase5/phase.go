@@ -4,6 +4,7 @@ package phase5
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/crafff/gogg/apps/worker/internal/crawler"
@@ -34,11 +35,11 @@ func (p *Phase) ID() int      { return 5 }
 func (p *Phase) Name() string { return "Phase5:Timeline" }
 
 func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, error) {
-	ids, err := p.store.GetMatchesNeedingTimeline(ctx, state.Region(), state.Profile.Version, 1)
+	count, err := p.store.CountMatchesNeedingTimeline(ctx, state.Region(), state.Profile.Version)
 	if err != nil {
 		return false, err
 	}
-	return len(ids) == 0, nil
+	return count == 0, nil
 }
 
 func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
@@ -63,7 +64,17 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 			return err
 		}
 		if len(ids) == 0 {
-			break
+			next, err := p.store.NextTimelineRetryAt(ctx, region, version)
+			if err != nil {
+				return err
+			}
+			if next == nil {
+				break
+			}
+			if err := waitUntil(ctx, *next); err != nil {
+				return err
+			}
+			continue
 		}
 		heartbeat.Record(ctx, map[string]any{
 			"run_id":     state.ID,
@@ -89,8 +100,18 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 				"failed":    failed,
 			})
 			if err := p.processTimeline(ctx, matchID); err != nil {
+				var apiErr *riotapi.APIError
+				if !errors.As(err, &apiErr) || riotapi.IsGlobalPermanent(err) {
+					return err
+				}
 				phaselog.Warn(meta, "match_failed", "match_id", matchID, "err", err)
-				if err2 := p.store.MarkTimelineError(ctx, matchID); err2 != nil {
+				var err2 error
+				if riotapi.IsNotFound(err) {
+					err2 = p.store.MarkTimelineNotFound(ctx, matchID, err.Error())
+				} else {
+					err2 = p.store.MarkTimelineError(ctx, matchID, string(apiErr.Kind), apiErr.StatusCode, err.Error())
+				}
+				if err2 != nil {
 					return err2
 				}
 				failed++
@@ -112,6 +133,24 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		phaselog.Progress(meta, processed, total, failed, start)
 	}
 	return nil
+}
+
+func waitUntil(ctx context.Context, at time.Time) error {
+	for {
+		delay := time.Until(at)
+		if delay <= 0 {
+			return nil
+		}
+		wait := min(delay, time.Minute)
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+			heartbeat.Record(ctx, map[string]any{"waiting_for_retry_at": at})
+		}
+	}
 }
 
 func (p *Phase) processTimeline(ctx context.Context, matchID string) error {

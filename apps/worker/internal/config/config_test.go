@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +25,10 @@ regions:
     base_url: https://kr.api.riotgames.com
 database:
   dsn: postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
+crawler_lite:
+  outage_initial_interval: 3s
+  outage_max_interval: 90s
+  outage_jitter: 0.1
 schedule:
   - cron: "0 4 * * *"
     profile: daily_kr
@@ -42,6 +47,9 @@ run_profiles:
 	require.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 	require.Equal(t, "postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable", cfg.Database.DSN)
 	require.Len(t, cfg.Schedule, 1)
+	require.Equal(t, 3*time.Second, cfg.Lite.OutageInitialInterval)
+	require.Equal(t, 90*time.Second, cfg.Lite.OutageMaxInterval)
+	require.Equal(t, 0.1, cfg.Lite.OutageJitter)
 
 	profile, err := cfg.Profile("daily_kr")
 	require.NoError(t, err)

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	crawlercfg "github.com/crafff/gogg/apps/worker/internal/crawlerconfig"
 	"github.com/spf13/viper"
@@ -31,6 +32,7 @@ type Config struct {
 	Regions  []RegionConfig        `mapstructure:"regions"`
 	Database DatabaseConfig        `mapstructure:"database"`
 	Crawler  CrawlerConfig         `mapstructure:"crawler"`
+	Lite     CrawlerLiteConfig     `mapstructure:"crawler_lite"`
 	Schedule []ScheduleEntry       `mapstructure:"schedule"`
 	Profiles map[string]RunProfile `mapstructure:"run_profiles"`
 }
@@ -39,6 +41,7 @@ type RiotConfig = crawlercfg.RiotConfig
 type RegionConfig = crawlercfg.RegionConfig
 type DatabaseConfig = crawlercfg.DatabaseConfig
 type CrawlerConfig = crawlercfg.CrawlerConfig
+type CrawlerLiteConfig = crawlercfg.CrawlerLiteConfig
 type ScheduleEntry = crawlercfg.ScheduleEntry
 type RunProfile = crawlercfg.RunProfile
 type Mode = crawlercfg.Mode
@@ -85,6 +88,11 @@ func Default() Config {
 		Logging: LoggingConfig{
 			Level:  "info",
 			Format: "json",
+		},
+		Lite: CrawlerLiteConfig{
+			OutageInitialInterval: time.Second,
+			OutageMaxInterval:     2 * time.Minute,
+			OutageJitter:          0.2,
 		},
 	}
 }
@@ -216,5 +224,8 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("database.max_open_conns", 10)
 	v.SetDefault("database.max_idle_conns", 2)
 	v.SetDefault("database.conn_max_lifetime_seconds", 300)
+	v.SetDefault("crawler_lite.outage_initial_interval", def.Lite.OutageInitialInterval)
+	v.SetDefault("crawler_lite.outage_max_interval", def.Lite.OutageMaxInterval)
+	v.SetDefault("crawler_lite.outage_jitter", def.Lite.OutageJitter)
 	return nil
 }

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -53,6 +54,7 @@ func (s *Store) GetMatchesNeedingTimeline(ctx context.Context, region, version s
 		SELECT match_id FROM matches
 		WHERE fetch_status = 'done'
 		  AND timeline_status = 'pending'
+		  AND (timeline_next_retry_at IS NULL OR timeline_next_retry_at <= now())
 		  AND region = $1
 		  AND version = $2
 		ORDER BY created_at
@@ -91,20 +93,48 @@ func (s *Store) MarkTimelineDone(ctx context.Context, matchID string) error {
 	return err
 }
 
-const maxTimelineRetries = 3
+const maxTimelineRetries = 4
 
 // MarkTimelineError increments timeline_retry_count. Status stays 'pending'
 // until maxTimelineRetries is reached, then becomes 'error'.
-func (s *Store) MarkTimelineError(ctx context.Context, matchID string) error {
+func (s *Store) MarkTimelineError(ctx context.Context, matchID, kind string, code int, message string) error {
 	_, err := s.Pool.Exec(ctx, `
 		UPDATE matches
 		SET timeline_retry_count = timeline_retry_count + 1,
 		    timeline_status = CASE
 		        WHEN timeline_retry_count + 1 >= $2 THEN 'error'
 		        ELSE 'pending'
-		    END
-		WHERE match_id = $1`, matchID, maxTimelineRetries)
+		    END,
+		    timeline_next_retry_at = CASE timeline_retry_count + 1
+		        WHEN 1 THEN now() + interval '30 seconds'
+		        WHEN 2 THEN now() + interval '2 minutes'
+		        WHEN 3 THEN now() + interval '5 minutes'
+		        ELSE NULL
+		    END,
+		    timeline_last_error_kind = $3,
+		    timeline_last_error_code = NULLIF($4, 0),
+		    timeline_last_error_message = LEFT($5, 1000)
+		WHERE match_id = $1`, matchID, maxTimelineRetries, kind, code, message)
 	return err
+}
+
+func (s *Store) MarkTimelineNotFound(ctx context.Context, matchID, message string) error {
+	_, err := s.Pool.Exec(ctx, `
+		UPDATE matches
+		SET timeline_retry_count = $2, timeline_status = 'error', timeline_next_retry_at = NULL,
+		    timeline_last_error_kind = 'not_found', timeline_last_error_code = 404,
+		    timeline_last_error_message = LEFT($3, 1000)
+		WHERE match_id = $1`, matchID, maxTimelineRetries, message)
+	return err
+}
+
+func (s *Store) NextTimelineRetryAt(ctx context.Context, region, version string) (*time.Time, error) {
+	var next *time.Time
+	err := s.Pool.QueryRow(ctx, `
+		SELECT MIN(timeline_next_retry_at) FROM matches
+		WHERE fetch_status = 'done' AND timeline_status = 'pending'
+		  AND region = $1 AND version = $2`, region, version).Scan(&next)
+	return next, err
 }
 
 // InsertSkillEvents bulk-inserts skill level-up events for a match.

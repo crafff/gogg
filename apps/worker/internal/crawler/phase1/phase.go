@@ -108,12 +108,16 @@ func (p *Phase) syncDivisionTier(ctx context.Context, state *crawler.RunState, t
 		}
 		tierCopy := tier
 		divCopy := div
-		if err := state.SaveCheckpointDetail(ctx, 1, &tierCopy, &divCopy); err != nil {
-			return err
-		}
 		count := 0
-		for page := 1; ; page++ {
+		startPage := 1
+		if state.CurrentTier == tier && state.CurrentDivision == div && state.CurrentPage > 0 {
+			startPage = state.CurrentPage
+		}
+		for page := startPage; ; page++ {
 			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := state.SaveCheckpointPosition(ctx, 1, &tierCopy, &divCopy, page); err != nil {
 				return err
 			}
 			entries, err := p.riot.GetLeagueEntries(ctx, state.Profile.Queue, tier, div, page)
@@ -143,6 +147,7 @@ func (p *Phase) syncDivisionTier(ctx context.Context, state *crawler.RunState, t
 				break
 			}
 		}
+		state.CurrentPage = 0
 		phaselog.Completed(phaseMeta(state, p, tier, div), "scope", "division", "count", count)
 	}
 	phaselog.Completed(phaseMeta(state, p, tier, ""), "scope", "tier", "count", total)

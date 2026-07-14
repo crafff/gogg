@@ -40,10 +40,10 @@ func (s *Store) GetPlayerSyncTime(ctx context.Context, puuid, region string) (ti
 	err := s.Pool.QueryRow(ctx,
 		`SELECT last_synced_at FROM player_match_sync WHERE puuid = $1 AND region = $2`,
 		puuid, region).Scan(&t)
-	if err != nil {
+	if err == pgx.ErrNoRows {
 		return time.Time{}, nil
 	}
-	return t, nil
+	return t, err
 }
 
 // SetPlayerSyncTime upserts the last synced match timestamp for a player in a region.

@@ -57,6 +57,11 @@ riot:
   api_key: YOUR_API_KEY
   base_url: https://kr.api.riotgames.com
 
+crawler_lite:
+  outage_initial_interval: 1s
+  outage_max_interval: 2m
+  outage_jitter: 0.2
+
 regions:
   - name: KR
     base_url: https://kr.api.riotgames.com

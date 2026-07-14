@@ -4,6 +4,7 @@ package phase3
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"time"
 
@@ -33,11 +34,11 @@ func (p *Phase) ID() int      { return 3 }
 func (p *Phase) Name() string { return "Phase3:MatchDetails" }
 
 func (p *Phase) IsDone(ctx context.Context, state *crawler.RunState) (bool, error) {
-	ids, err := p.store.GetPendingMatchIDs(ctx, state.Region(), state.Profile.Version, 1)
+	count, err := p.store.CountPendingMatchIDs(ctx, state.Region(), state.Profile.Version)
 	if err != nil {
 		return false, err
 	}
-	return len(ids) == 0, nil
+	return count == 0, nil
 }
 
 const logEvery = 50
@@ -77,15 +78,35 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 			return err
 		}
 		if len(ids) == 0 {
-			break
+			next, err := p.store.NextMatchRetryAt(ctx, region, version)
+			if err != nil {
+				return err
+			}
+			if next == nil {
+				break
+			}
+			if err := waitUntil(ctx, *next); err != nil {
+				return err
+			}
+			continue
 		}
 		for _, id := range ids {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 			if err := p.processMatch(ctx, region, id); err != nil {
+				var apiErr *riotapi.APIError
+				if !errors.As(err, &apiErr) || riotapi.IsGlobalPermanent(err) {
+					return err
+				}
 				phaselog.Warn(meta, "match_failed", "match_id", id, "err", err)
-				if err2 := p.store.IncrementMatchRetry(ctx, id); err2 != nil {
+				var err2 error
+				if riotapi.IsNotFound(err) {
+					err2 = p.store.MarkMatchNotFound(ctx, id, err.Error())
+				} else {
+					err2 = p.store.IncrementMatchRetry(ctx, id, string(apiErr.Kind), apiErr.StatusCode, err.Error())
+				}
+				if err2 != nil {
 					return err2
 				}
 				failed++
@@ -109,6 +130,24 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 
 	logProgress()
 	return nil
+}
+
+func waitUntil(ctx context.Context, at time.Time) error {
+	for {
+		delay := time.Until(at)
+		if delay <= 0 {
+			return nil
+		}
+		wait := min(delay, time.Minute)
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+			heartbeat.Record(ctx, map[string]any{"waiting_for_retry_at": at})
+		}
+	}
 }
 
 func (p *Phase) processMatch(ctx context.Context, region string, matchID string) error {

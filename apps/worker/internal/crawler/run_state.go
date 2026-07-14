@@ -17,6 +17,7 @@ type RunState struct {
 	LastRunEnd      time.Time
 	CurrentTier     string       // set by PipelineStrategy before each per-tier phase group
 	CurrentDivision string       // set on resume for division-sliced Phase1 work
+	CurrentPage     int          // set on resume for page-sliced Phase1 work
 	donePhases      map[int]bool // set on resume: phase IDs that completed before the checkpoint
 	store           *storage.Store
 }
@@ -92,6 +93,9 @@ func ResumeRunState(run *storage.Run, profile *config.RunProfile, store *storage
 	if run.CurrentDivision != nil {
 		state.CurrentDivision = *run.CurrentDivision
 	}
+	if run.CurrentPage != nil {
+		state.CurrentPage = *run.CurrentPage
+	}
 	return state
 }
 
@@ -105,7 +109,13 @@ func (rs *RunState) SaveCheckpoint(ctx context.Context, phase int, tier *string)
 
 // SaveCheckpointDetail persists phase/tier/division progress.
 func (rs *RunState) SaveCheckpointDetail(ctx context.Context, phase int, tier, division *string) error {
+	rs.CurrentPage = 0
 	return rs.store.UpdateCheckpointDetail(ctx, rs.ID, phase, tier, division)
+}
+
+func (rs *RunState) SaveCheckpointPosition(ctx context.Context, phase int, tier, division *string, page int) error {
+	rs.CurrentPage = page
+	return rs.store.UpdateCheckpointPosition(ctx, rs.ID, phase, tier, division, &page)
 }
 
 // Complete marks the run as successfully finished.

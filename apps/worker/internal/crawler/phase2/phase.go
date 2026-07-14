@@ -3,6 +3,7 @@ package phase2
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -86,6 +87,13 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 			phaselog.Progress(meta, i, len(puuids), 0, start)
 		}
 		if err := p.collectForPlayer(ctx, state.Region(), state, puuid, bounds.PatchStart, endTime); err != nil {
+			if riotapi.IsGlobalPermanent(err) {
+				return err
+			}
+			var apiErr *riotapi.APIError
+			if !errors.As(err, &apiErr) {
+				return err
+			}
 			phaselog.Warn(meta, "player_failed", "puuid", puuid, "err", err)
 		}
 	}

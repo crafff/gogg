@@ -71,10 +71,12 @@ Phase1 division-sliced work also records the division:
 current_phase = 1
 current_tier = DIAMOND
 current_division = III
+current_page = 4
 ```
 
-On resume, crawler-lite restarts from the recorded phase/tier/division. It
-does not store cursors such as `last_puuid` or `last_match_id`; existing
+On resume, crawler-lite restarts from the recorded phase/tier/division/page.
+Phase 1 writes the page checkpoint before each Riot request. It does not store
+cursors such as `last_puuid` or `last_match_id`; existing
 upsert and pending/status queries make re-running the current phase safe.
 
 ## Pause Behavior
@@ -101,3 +103,44 @@ API key:
 
 The resumed process loads the new key because it rebuilds the runtime from the
 current config.
+
+## Outage Behavior
+
+`crawler-lite` waits through transient connectivity failures instead of
+failing or skipping the current player/match. This includes DNS and connection
+errors, request timeouts, Riot `408`, `425`, `429`, and `5xx` responses. Retry
+delays use exponential backoff with jitter, capped at two minutes. A successful
+request resets the delay and processing continues from the current operation.
+
+The wait has no time limit. `Ctrl+C` still cancels the pending request or retry
+timer immediately and the run is marked `paused`. Database connection failures
+at startup and safe-to-retry pgx connection errors during a phase use the same
+behavior. If the database itself is unreachable when the process is stopped,
+the last successfully persisted checkpoint remains the resume point.
+
+Permanent errors are not retried indefinitely:
+
+- Riot `401` and `403` fail the run so an invalid API key can be corrected.
+- Riot `404` remains an item-level failure where the phase supports item work.
+- malformed successful responses are attempted three times.
+- configuration, SQL, schema, and constraint errors fail immediately.
+
+Temporal workers retain their finite client retry policy. Infinite outage
+waiting is enabled only when `crawler-lite` builds its phase set.
+
+The outage backoff is configurable; these defaults preserve infinite waiting:
+
+```yaml
+crawler_lite:
+  outage_initial_interval: 1s
+  outage_max_interval: 2m
+  outage_jitter: 0.2
+```
+
+Match-detail and timeline failures which are specific to one match use durable
+retry scheduling in the `matches` row. Attempts are delayed by 30 seconds, 2
+minutes, and 5 minutes, then the fourth failure marks that item `error`. A
+`404` is marked terminal immediately. While delayed work is
+pending, the phase waits rather than reporting completion. A run that finishes
+with exhausted match or timeline items is marked `completed_with_errors` and
+keeps the error count in `runs.last_error`.

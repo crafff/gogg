@@ -80,6 +80,9 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 
 			entries, err := p.riot.GetEntriesByPUUID(ctx, puuid)
 			if err != nil {
+				if riotapi.IsGlobalPermanent(err) {
+					return err
+				}
 				phaselog.Warn(meta, "rank_fetch_failed", "puuid_prefix", puuid[:8], "err", err)
 				processed++
 				if processed%100 == 0 {

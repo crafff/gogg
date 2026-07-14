@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 // RiotConfig holds a global API key and a default base URL used when
 // no per-region config is defined.
 type RiotConfig struct {
@@ -23,6 +25,12 @@ type DatabaseConfig struct {
 
 type CrawlerConfig struct {
 	Phase1PrefetchTiers []string `mapstructure:"phase1_prefetch_tiers"`
+}
+
+type CrawlerLiteConfig struct {
+	OutageInitialInterval time.Duration `mapstructure:"outage_initial_interval"`
+	OutageMaxInterval     time.Duration `mapstructure:"outage_max_interval"`
+	OutageJitter          float64       `mapstructure:"outage_jitter"`
 }
 
 type ScheduleEntry struct {
