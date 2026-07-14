@@ -67,12 +67,22 @@ tmp/performance/<experiment>/<variant>/<scenario>-<mode>/run-NN/
   metadata.env       # timestamps, commit, image, dataset ID, load, and host
   dataset.env        # sorted PostgreSQL table row estimates behind dataset ID
   k6-summary.json    # raw k6 result
+  git-status.txt     # branch and changed/untracked file names
+  git-diff.patch     # unstaged changes to tracked files
+  git-diff-cached.patch # staged changes to tracked files
 ```
 
-`tmp/performance/` is intentionally not committed. Commit only the experiment
-conclusion to `docs/api-optimization-log.md`, including the experiment ID, the
-three run IDs, and their median. Do not compare results with different dataset,
-scenario, cache mode, VUs, duration, or machine configuration.
+For a dirty worktree, review these Git snapshots and explain the relevant
+differences in the experiment conclusion. Untracked files appear by name in
+`git-status.txt`, but their contents are deliberately not archived because they
+may contain local data or secrets. A result with unexplained or unpreserved
+runtime-affecting changes is not a formal baseline.
+
+`tmp/performance/` is intentionally not committed. Create one conclusion under
+`docs/performance/experiments/`, including the experiment ID, the three run IDs,
+and their median, then add it to `docs/performance/README.md`. Do not compare
+results with different dataset, scenario, cache mode, VUs, duration, or machine
+configuration.
 
 The cold-cache target deletes local Redis data and measures exactly one request.
 This avoids mixing the initial database load with later cache hits. It is

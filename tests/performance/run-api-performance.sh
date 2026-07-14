@@ -32,6 +32,9 @@ run_id=$(printf 'run-%02d' "$run")
 output="$base/$run_id"
 
 commit=$(git rev-parse --verify HEAD 2>/dev/null || printf unknown)
+git status --short --branch >"$output/git-status.txt" 2>/dev/null || true
+git diff --binary >"$output/git-diff.patch" 2>/dev/null || true
+git diff --cached --binary >"$output/git-diff-cached.patch" 2>/dev/null || true
 if test -n "$(git status --porcelain 2>/dev/null)"; then dirty=true; else dirty=false; fi
 started_at=$(date --iso-8601=seconds)
 
