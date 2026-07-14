@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func TestMetrics_recordsDurationCountAndInFlight(t *testing.T) {
@@ -18,6 +19,7 @@ func TestMetrics_recordsDurationCountAndInFlight(t *testing.T) {
 	r.Use(m.Middleware)
 	r.Get("/x/{id}", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
+		_, _ = w.Write([]byte("short response"))
 	})
 
 	rec := httptest.NewRecorder()
@@ -32,6 +34,13 @@ func TestMetrics_recordsDurationCountAndInFlight(t *testing.T) {
 	got := testutil.ToFloat64(m.requestsTotal.WithLabelValues("GET", "/x/{id}", "418"))
 	if got != 1 {
 		t.Errorf("requests_total{route=/x/{id}, 418} = %v, want 1", got)
+	}
+	metric := &dto.Metric{}
+	if err := m.responseSize.WithLabelValues("GET", "/x/{id}", "418").(prometheus.Metric).Write(metric); err != nil {
+		t.Fatalf("write response size metric: %v", err)
+	}
+	if got := metric.GetHistogram().GetSampleSum(); got != 14 {
+		t.Errorf("response_size_bytes sum = %v, want 14", got)
 	}
 }
 
@@ -57,6 +66,7 @@ func TestMetrics_registersThreeCollectors(t *testing.T) {
 	}
 	for _, want := range []string{
 		"gogg_api_http_request_duration_seconds",
+		"gogg_api_http_response_size_bytes",
 		"gogg_api_http_requests_total",
 		"gogg_api_http_requests_in_flight",
 	} {

@@ -1,0 +1,76 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "title": "Requests / second",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "targets": [{"expr": "sum by (route) (rate(gogg_api_http_requests_total[5m]))", "legendFormat": "{{route}}"}]
+    },
+    {
+      "title": "Latency quantiles",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le) (rate(gogg_api_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(gogg_api_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(gogg_api_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p99"}
+      ]
+    },
+    {
+      "title": "HTTP error rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}},
+      "targets": [
+        {"expr": "sum(rate(gogg_api_http_requests_total{status=~\"4..\"}[5m])) / clamp_min(sum(rate(gogg_api_http_requests_total[5m])), 0.001)", "legendFormat": "4xx"},
+        {"expr": "sum(rate(gogg_api_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(gogg_api_http_requests_total[5m])), 0.001)", "legendFormat": "5xx"}
+      ]
+    },
+    {
+      "title": "Response size p95",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, route) (rate(gogg_api_http_response_size_bytes_bucket[5m])))", "legendFormat": "{{route}}"}]
+    },
+    {
+      "title": "Redis hit rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "targets": [{"expr": "rate(redis_keyspace_hits_total[5m]) / clamp_min(rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]), 0.001)", "legendFormat": "hit rate"}]
+    },
+    {
+      "title": "PostgreSQL connections",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "targets": [{"expr": "sum(pg_stat_database_numbackends{datname=\"gogg\"})", "legendFormat": "connections"}]
+    },
+    {
+      "title": "Go heap",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "targets": [{"expr": "go_memstats_heap_alloc_bytes{job=\"gogg-api\"}", "legendFormat": "allocated"}]
+    },
+    {
+      "title": "In-flight requests",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [{"expr": "gogg_api_http_requests_in_flight", "legendFormat": "requests"}]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 40,
+  "tags": ["gogg", "api", "local"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timezone": "browser",
+  "title": "Gogg API Overview",
+  "uid": "gogg-api-overview",
+  "version": 1
+}

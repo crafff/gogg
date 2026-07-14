@@ -21,6 +21,8 @@ volumes:
   pg_data:
   temporal_pg_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 services:
   # ── App database ────────────────────────────────────────────
@@ -32,6 +34,12 @@ services:
       POSTGRES_USER: gogg
       POSTGRES_PASSWORD: goggpass
       POSTGRES_DB: gogg
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
     ports:
       - "55433:5432"
     volumes:
@@ -129,4 +137,111 @@ services:
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
+    networks: [gogg-dev]
+
+  # Start the observability profile with `make observability`.
+  api-observed:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/api.Dockerfile
+    image: gogg-api:local
+    container_name: gogg-dev-api-observed
+    profiles: [observability]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      GOGG_DATABASE_DSN: postgres://gogg:goggpass@postgres:5432/gogg?sslmode=disable
+      GOGG_REDIS_URL: redis://redis:6379/0
+      GOGG_API_GRAPHQL_PLAYGROUND: "false"
+      # Cold aggregate queries can exceed the production default while we
+      # measure them. Keep the load-test connection alive so k6 records the
+      # real latency instead of an artificial EOF at 15 seconds.
+      GOGG_API_WRITE_TIMEOUT: 60s
+    ports:
+      - "18080:8080"
+    networks: [gogg-dev]
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: gogg-dev-postgres-exporter
+    profiles: [observability]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: postgresql://gogg:goggpass@postgres:5432/gogg?sslmode=disable
+    networks: [gogg-dev]
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: gogg-dev-redis-exporter
+    profiles: [observability]
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    networks: [gogg-dev]
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: gogg-dev-prometheus
+    profiles: [observability]
+    restart: unless-stopped
+    depends_on:
+      - api-observed
+      - postgres-exporter
+      - redis-exporter
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ../observability/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [gogg-dev]
+
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: [performance]
+    user: "${K6_UID:-1000}:${K6_GID:-1000}"
+    depends_on:
+      - api-observed
+    environment:
+      BASE_URL: http://api-observed:8080
+    volumes:
+      - ../../tests/performance/k6:/scripts:ro
+      - ../../tmp/performance:/results
+    networks: [gogg-dev]
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: gogg-dev-grafana
+    profiles: [observability]
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
     networks: [gogg-dev]

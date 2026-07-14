@@ -1,0 +1,61 @@
+groups:
+  - name: gogg-api
+    rules:
+      - alert: GoggAPIHighErrorRate
+        expr: |
+          sum(rate(gogg_api_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(gogg_api_http_requests_total[5m])), 0.001) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: gogg-api 5xx rate is above 1%
+
+      - alert: GoggAPIHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(gogg_api_http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: gogg-api p95 latency is above 500 ms
+
+      - alert: GoggAPIDown
+        expr: up{job="gogg-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus cannot scrape gogg-api
+
+  - name: gogg-dependencies
+    rules:
+      - alert: GoggPostgresExporterDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL exporter is unavailable
+
+      - alert: GoggRedisExporterDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis exporter is unavailable
+
+      - alert: GoggRedisLowHitRate
+        expr: |
+          rate(redis_keyspace_hits_total[10m])
+          /
+          clamp_min(rate(redis_keyspace_hits_total[10m]) + rate(redis_keyspace_misses_total[10m]), 0.001) < 0.70
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis keyspace hit rate is below 70%

@@ -14,6 +14,7 @@ import (
 // Middleware into the chi stack.
 type MetricsRegistry struct {
 	requestDuration *prometheus.HistogramVec
+	responseSize    *prometheus.HistogramVec
 	requestsTotal   *prometheus.CounterVec
 	inFlight        prometheus.Gauge
 }
@@ -33,6 +34,14 @@ func NewMetrics(reg prometheus.Registerer) *MetricsRegistry {
 			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 		}, []string{"method", "route", "status"}),
 
+		responseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "gogg",
+			Subsystem: "api",
+			Name:      "http_response_size_bytes",
+			Help:      "HTTP response body size by method, route, status.",
+			Buckets:   prometheus.ExponentialBuckets(256, 2, 14), // 256 B through 2 MiB.
+		}, []string{"method", "route", "status"}),
+
 		requestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "gogg",
 			Subsystem: "api",
@@ -47,7 +56,7 @@ func NewMetrics(reg prometheus.Registerer) *MetricsRegistry {
 			Help:      "In-flight HTTP requests right now.",
 		}),
 	}
-	reg.MustRegister(m.requestDuration, m.requestsTotal, m.inFlight)
+	reg.MustRegister(m.requestDuration, m.responseSize, m.requestsTotal, m.inFlight)
 	return m
 }
 
@@ -73,6 +82,7 @@ func (m *MetricsRegistry) Middleware(next http.Handler) http.Handler {
 		status := strconv.Itoa(mw.status)
 		labels := prometheus.Labels{"method": r.Method, "route": route, "status": status}
 		m.requestDuration.With(labels).Observe(time.Since(start).Seconds())
+		m.responseSize.With(labels).Observe(float64(mw.bytes))
 		m.requestsTotal.With(labels).Inc()
 	})
 }

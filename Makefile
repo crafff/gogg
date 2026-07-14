@@ -12,6 +12,11 @@ LEFTHOOK_VERSION      ?= v1.10.0
 DEV_PG_DSN  ?= postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
 DEV_REDIS   ?= redis://localhost:6379/0
 DEV_TEMPORAL ?= localhost:7233
+PERF_SCENARIO ?= rankings
+PERF_VUS      ?= 20
+PERF_DURATION ?= 1m
+PERF_DIR      ?= tmp/performance
+PERF_VARIANT  ?= baseline
 GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
 
 # ── Compose ─────────────────────────────────────────────────
@@ -37,6 +42,35 @@ dev-down: ## Tear down the local dev stack
 .PHONY: dev-reset
 dev-reset: ## Tear down AND drop all volumes (data loss!)
 	docker compose -f $(COMPOSE_FILE) down -v
+
+.PHONY: observability
+observability: ## Start Prometheus, Grafana, and DB/cache exporters
+	docker compose -f $(COMPOSE_FILE) --profile observability up -d --build postgres redis api-observed postgres-exporter redis-exporter prometheus grafana
+	docker compose -f $(COMPOSE_FILE) exec -T postgres psql -U gogg -d gogg -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
+	@echo "Grafana:    http://localhost:3001 (admin/admin)"
+	@echo "Prometheus: http://localhost:9090"
+
+.PHONY: observability-down
+observability-down: ## Stop only local observability services
+	docker compose -f $(COMPOSE_FILE) --profile observability stop grafana prometheus redis-exporter postgres-exporter api-observed
+
+.PHONY: db-slow-queries
+db-slow-queries: ## Show top PostgreSQL statements by total execution time
+	docker compose -f $(COMPOSE_FILE) exec -T postgres psql -U gogg -d gogg -f /dev/stdin < deploy/observability/postgres/slow-queries.sql
+
+.PHONY: perf-warm
+perf-warm: ## Run a repeatable warm-cache k6 API baseline
+	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
+		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
+		PERF_EXPERIMENT=$(PERF_EXPERIMENT) COMPOSE_FILE=$(COMPOSE_FILE) \
+		bash tests/performance/run-api-performance.sh warm
+
+.PHONY: perf-cold
+perf-cold: ## Flush local Compose Redis, then run the k6 baseline
+	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
+		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
+		PERF_EXPERIMENT=$(PERF_EXPERIMENT) COMPOSE_FILE=$(COMPOSE_FILE) \
+		bash tests/performance/run-api-performance.sh cold
 
 # ── Quality gates ───────────────────────────────────────────
 .PHONY: lint
