@@ -20,11 +20,6 @@ const FIXED_MIN_GAMES = 20;
 export interface UseRankingsQueryOptions {
   filters: RankingsFiltersState;
   /**
-   * Current page-size limit. The infinite-scroll handler bumps this
-   * up; the backend returns the first `limit` rows.
-   */
-  limit: number;
-  /**
    * When false the hook holds the query in a disabled state — useful
    * during fade-out animations so the new query doesn't fire before
    * the table has finished exiting.
@@ -49,13 +44,10 @@ export interface UseRankingsQueryResult {
  * minGames floor, and (3) flattens the response into a tuple the
  * presenter components can consume directly.
  *
- * `keepPreviousData` is on so the rankings table doesn't blank out
- * during pagination requests — the legacy fade-out covers the more
- * disruptive filter swaps.
+ * `keepPreviousData` keeps the table stable while a filter change is fetched.
  */
 export function useRankingsQuery({
   filters,
-  limit,
   enabled = true,
 }: UseRankingsQueryOptions): UseRankingsQueryResult {
   const filter = useMemo<ChampionRankingsFilter>(
@@ -65,9 +57,8 @@ export function useRankingsQuery({
       region: filters.region,
       version: filters.version,
       minGames: FIXED_MIN_GAMES,
-      limit,
     }),
-    [filters, limit],
+    [filters],
   );
 
   const query = useChampionRankingsQuery(

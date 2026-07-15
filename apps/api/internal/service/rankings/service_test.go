@@ -80,7 +80,6 @@ func TestGetOverall_passesFilterToQuerier(t *testing.T) {
 		Region:            "kr", // gets uppercased
 		TierGroup:         "master_plus",
 		MinGames:          20,
-		Limit:             50,
 		PositionThreshold: 5.0,
 	})
 	if err != nil {
@@ -96,6 +95,9 @@ func TestGetOverall_passesFilterToQuerier(t *testing.T) {
 	}
 	if q.overallArg.PositionThreshold != 5.0 {
 		t.Errorf("position_threshold = %v", q.overallArg.PositionThreshold)
+	}
+	if q.overallArg.RowLimit != 500 {
+		t.Errorf("row_limit = %d want fixed safety limit 500", q.overallArg.RowLimit)
 	}
 
 	if len(res.Items) != 1 {
@@ -173,6 +175,9 @@ func TestGetByPosition_setsPositionOnRows(t *testing.T) {
 	}
 	if q.byPosArg.PositionFilter != "MIDDLE" {
 		t.Errorf("position uppercased to %q, want MIDDLE", q.byPosArg.PositionFilter)
+	}
+	if q.byPosArg.RowLimit != 500 {
+		t.Errorf("row_limit = %d want fixed safety limit 500", q.byPosArg.RowLimit)
 	}
 	if got := res.Items[0].TeamPosition; len(got) != 1 || got[0] != "MIDDLE" {
 		t.Errorf("TeamPosition = %v, want [MIDDLE]", got)

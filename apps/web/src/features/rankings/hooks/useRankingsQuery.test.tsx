@@ -18,7 +18,6 @@ interface CapturedRequest {
       region?: string;
       version?: string;
       minGames?: number;
-      limit?: number;
     };
   };
 }
@@ -82,7 +81,6 @@ describe("useRankingsQuery", () => {
             region: "KR",
             version: "latest",
           },
-          limit: 40,
         }),
       { wrapper: Wrapper },
     );
@@ -96,7 +94,6 @@ describe("useRankingsQuery", () => {
       region: "KR",
       version: "latest",
       minGames: 20,
-      limit: 40,
     });
   });
 
@@ -110,7 +107,6 @@ describe("useRankingsQuery", () => {
             region: "",
             version: "latest",
           },
-          limit: 40,
         }),
       { wrapper: Wrapper },
     );
@@ -132,7 +128,6 @@ describe("useRankingsQuery", () => {
             region: "",
             version: "latest",
           },
-          limit: 40,
           enabled: false,
         }),
       { wrapper: Wrapper },

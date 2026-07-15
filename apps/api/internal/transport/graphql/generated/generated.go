@@ -372,8 +372,6 @@ input ChampionRankingsFilter {
   tierGroup: TierGroup = ALL
   """Drop champions with fewer games than this. 0 = no floor."""
   minGames: Int = 0
-  """Cap the result rows. -1 = unlimited."""
-  limit: Int = -1
   """Minimum share of games per position to list the position in
   teamPosition. 0.5 = position is "primary" if played in ≥50% of
   games. Ignored when ` + "`" + `position` + "`" + ` is set."""
@@ -2224,9 +2222,6 @@ func (ec *executionContext) unmarshalInputChampionRankingsFilter(ctx context.Con
 	if _, present := asMap["minGames"]; !present {
 		asMap["minGames"] = 0
 	}
-	if _, present := asMap["limit"]; !present {
-		asMap["limit"] = -1
-	}
 	if _, present := asMap["positionThreshold"]; !present {
 		asMap["positionThreshold"] = 0.500000
 	}
@@ -2234,7 +2229,7 @@ func (ec *executionContext) unmarshalInputChampionRankingsFilter(ctx context.Con
 		asMap["position"] = ""
 	}
 
-	fieldsInOrder := [...]string{"queueId", "version", "region", "tierGroup", "minGames", "limit", "positionThreshold", "position"}
+	fieldsInOrder := [...]string{"queueId", "version", "region", "tierGroup", "minGames", "positionThreshold", "position"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -2276,13 +2271,6 @@ func (ec *executionContext) unmarshalInputChampionRankingsFilter(ctx context.Con
 				return it, err
 			}
 			it.MinGames = data
-		case "limit":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Limit = data
 		case "positionThreshold":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("positionThreshold"))
 			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)

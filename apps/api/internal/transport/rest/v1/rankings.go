@@ -23,7 +23,6 @@ type RankingsService interface {
 // Defaults and clamps keep the REST contract stable for existing
 // clients:
 //
-//	limit              default -1   range [-1, 500]
 //	minGames           default 20   range [1, 20000]
 //	queueId            default 420  range [0, 9999]
 //	position           "" or one of TOP|JUNGLE|MIDDLE|BOTTOM|UTILITY (uppercased)
@@ -42,7 +41,6 @@ func rankingsHandler(s RankingsService) http.HandlerFunc {
 			Position:          strings.ToUpper(strings.TrimSpace(q.Get("position"))),
 			TierGroup:         strings.ToLower(strings.TrimSpace(q.Get("tier"))),
 			MinGames:          clampInt(intQuery(q, "minGames", 20), 1, 20000),
-			Limit:             clampInt(intQuery(q, "limit", -1), -1, 500),
 			PositionThreshold: clampFloat(floatQuery(q, "positionThreshold", 5.0), 0, 100),
 		}
 
@@ -83,7 +81,6 @@ func rankingsHandler(s RankingsService) http.HandlerFunc {
 				"tier":              filter.TierGroup,
 				"position":          filter.Position,
 				"minGames":          filter.MinGames,
-				"limit":             filter.Limit,
 				"positionThreshold": filter.PositionThreshold,
 				"totalMatches":      res.TotalMatches,
 			},

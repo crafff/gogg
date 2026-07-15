@@ -8,7 +8,6 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
 	gqlgenerated "github.com/crafff/gogg/apps/api/internal/transport/graphql/generated"
@@ -56,69 +55,4 @@ func (r *queryResolver) ChampionRankings(ctx context.Context, filter *gqlgenerat
 		out.ResolvedVersion = &v
 	}
 	return out, nil
-}
-
-// filterFromInput applies the same defaults and normalisation the REST
-// handler does, then returns a service-layer Filter. Defaults match
-// /api/v1/rankings/champions so the GraphQL surface and the REST
-// compat layer return identical data for equivalent filters.
-//
-// Nil filter from the client (the user didn't pass `filter:` at all)
-// is treated as "use every default".
-func filterFromInput(in *gqlgenerated.ChampionRankingsFilter) rankings.Filter {
-	f := rankings.Filter{
-		QueueID:           420,
-		Version:           "latest",
-		MinGames:          20,
-		Limit:             -1,
-		PositionThreshold: 5.0,
-	}
-	if in == nil {
-		return f
-	}
-	if in.QueueID != nil {
-		f.QueueID = clampInt(*in.QueueID, 0, 9999)
-	}
-	if in.Version != nil {
-		f.Version = strings.TrimSpace(*in.Version)
-	}
-	if in.Region != nil {
-		f.Region = strings.ToUpper(strings.TrimSpace(*in.Region))
-	}
-	if in.TierGroup != nil && *in.TierGroup != gqlgenerated.TierGroupAll {
-		f.TierGroup = strings.ToLower(string(*in.TierGroup))
-	}
-	if in.MinGames != nil {
-		f.MinGames = clampInt(*in.MinGames, 1, 20000)
-	}
-	if in.Limit != nil {
-		f.Limit = clampInt(*in.Limit, -1, 500)
-	}
-	if in.PositionThreshold != nil {
-		f.PositionThreshold = clampFloat(*in.PositionThreshold, 0, 100)
-	}
-	if in.Position != nil {
-		f.Position = strings.ToUpper(strings.TrimSpace(*in.Position))
-	}
-	return f
-}
-
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func clampFloat(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }

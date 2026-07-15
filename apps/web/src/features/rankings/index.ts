@@ -14,4 +14,3 @@ export type {
 } from "./hooks/useRankingsFilters";
 
 export { useRankingsQuery } from "./hooks/useRankingsQuery";
-export { useInfiniteScroll } from "./hooks/useInfiniteScroll";

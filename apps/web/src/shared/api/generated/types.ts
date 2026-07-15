@@ -8,8 +8,6 @@ export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' |
  * the legacy REST query params 1:1.
  */
 export type ChampionRankingsFilter = {
-  /** Cap the result rows. -1 = unlimited. */
-  limit?: number | null | undefined;
   /** Drop champions with fewer games than this. 0 = no floor. */
   minGames?: number | null | undefined;
   /**

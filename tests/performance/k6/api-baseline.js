@@ -33,7 +33,7 @@ export const options = {
 const requests = {
   rankings: (phase) =>
     http.get(
-      `${baseURL}/api/v1/rankings/champions?region=KR&version=latest&tier=master_plus&limit=100`,
+      `${baseURL}/api/v1/rankings/champions?region=KR&version=latest&tier=master_plus`,
       { tags: { endpoint: "rankings", phase } },
     ),
   versions: (phase) =>

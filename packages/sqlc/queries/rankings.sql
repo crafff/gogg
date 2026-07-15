@@ -17,7 +17,7 @@
 --   position_threshold  : minimum % of a champion's games to keep that position
 --   position_filter     : ONLY for by-position; '' for overall (unused)
 --   min_games           : drop champions with fewer than N games
---   row_limit           : -1 means unlimited (becomes LIMIT NULL via NULLIF)
+--   row_limit           : internal safety ceiling; API callers always pass 500
 
 -- name: ListOverallRankings :many
 WITH filtered_matches AS (
@@ -100,7 +100,7 @@ LEFT JOIN valid_positions vp ON vp.champion_id = ca.champion_id
 LEFT JOIN ban_agg ba         ON ba.champion_id = ca.champion_id
 WHERE ca.games >= @min_games::int
 ORDER BY win_rate DESC, pick_rate DESC, games DESC
-LIMIT NULLIF(@row_limit::int, -1);
+LIMIT @row_limit::int;
 
 
 -- name: ListRankingsByPosition :many
@@ -168,4 +168,4 @@ CROSS JOIN totals t
 LEFT JOIN ban_agg ba ON ba.champion_id = ca.champion_id
 WHERE ca.games >= @min_games::int
 ORDER BY win_rate DESC, pick_rate DESC, games DESC
-LIMIT NULLIF(@row_limit::int, -1);
+LIMIT @row_limit::int;

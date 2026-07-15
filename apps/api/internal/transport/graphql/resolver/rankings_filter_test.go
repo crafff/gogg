@@ -13,7 +13,6 @@ func TestFilterFromInput_NilUsesDefaults(t *testing.T) {
 		QueueID:           420,
 		Version:           "latest",
 		MinGames:          20,
-		Limit:             -1,
 		PositionThreshold: 5.0,
 	}
 	if f != want {
@@ -68,7 +67,7 @@ func TestFilterFromInput_Clamps(t *testing.T) {
 				v := 99999
 				in.QueueID = &v
 			},
-			want: rankings.Filter{QueueID: 9999, Version: "latest", MinGames: 20, Limit: -1, PositionThreshold: 5.0},
+			want: rankings.Filter{QueueID: 9999, Version: "latest", MinGames: 20, PositionThreshold: 5.0},
 		},
 		{
 			name: "minGames clamps low",
@@ -76,15 +75,7 @@ func TestFilterFromInput_Clamps(t *testing.T) {
 				v := 0
 				in.MinGames = &v
 			},
-			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 1, Limit: -1, PositionThreshold: 5.0},
-		},
-		{
-			name: "limit clamps high",
-			mut: func(in *gqlgenerated.ChampionRankingsFilter) {
-				v := 10000
-				in.Limit = &v
-			},
-			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 20, Limit: 500, PositionThreshold: 5.0},
+			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 1, PositionThreshold: 5.0},
 		},
 		{
 			name: "positionThreshold clamps low",
@@ -92,7 +83,7 @@ func TestFilterFromInput_Clamps(t *testing.T) {
 				v := -1.0
 				in.PositionThreshold = &v
 			},
-			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 20, Limit: -1, PositionThreshold: 0},
+			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 20, PositionThreshold: 0},
 		},
 	}
 	for _, tc := range cases {

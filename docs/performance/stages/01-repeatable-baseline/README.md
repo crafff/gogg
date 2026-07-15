@@ -1,5 +1,7 @@
 # 阶段 1：建立可重复基线
 
+本目录集中管理基线执行计划、数据快照说明和阶段验收材料。
+
 ## 目标
 
 在相同提交、数据和环境下得到可解释、不可覆盖且可追溯的基线结果。
@@ -19,8 +21,8 @@
 5. 核对每次运行的 commit、image、dataset ID、负载、退出码和 Git 差异快照。
 6. 在实验文档填写中位数及所有参与统计的 run ID。
 
-命令和目录结构见 [../../performance-testing.md](../../performance-testing.md)。统计规则见
-[../methodology.md](../methodology.md)。
+命令和目录结构见 [../../../performance-testing.md](../../../performance-testing.md)。统计规则见
+[../../methodology.md](../../methodology.md)。
 
 ## 必须采集
 
@@ -35,3 +37,9 @@
 - 三次正式运行的差异能够解释；波动过大时不进入下一阶段。
 - k6、Prometheus 和服务日志的时间窗口能够对应。
 - 能区分客户端、API、Redis 和 PostgreSQL 故障。
+
+## 实施文档
+
+- [基线执行计划](baseline-plan.md)
+- [数据快照记录](dataset-snapshot.md)
+- [阶段验收报告](acceptance-report.md)

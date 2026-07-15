@@ -55,7 +55,7 @@ type Querier interface {
 	//   position_threshold  : minimum % of a champion's games to keep that position
 	//   position_filter     : ONLY for by-position; '' for overall (unused)
 	//   min_games           : drop champions with fewer than N games
-	//   row_limit           : -1 means unlimited (becomes LIMIT NULL via NULLIF)
+	//   row_limit           : internal safety ceiling; API callers always pass 500
 	ListOverallRankings(ctx context.Context, arg ListOverallRankingsParams) ([]ListOverallRankingsRow, error)
 	ListRankingsByPosition(ctx context.Context, arg ListRankingsByPositionParams) ([]ListRankingsByPositionRow, error)
 	// Queries on the region column of matches.

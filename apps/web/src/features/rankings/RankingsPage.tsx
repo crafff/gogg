@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRegionsQuery, useVersionsQuery } from "@shared/api";
@@ -9,11 +9,8 @@ import { RankingsFilters } from "./components/RankingsFilters";
 import { RankingsStatsBar } from "./components/RankingsStatsBar";
 import { RankingsTable } from "./components/RankingsTable";
 import { useFadeTransition } from "./hooks/useFadeTransition";
-import { useInfiniteScroll } from "./hooks/useInfiniteScroll";
 import { useRankingsFilters } from "./hooks/useRankingsFilters";
 import { useRankingsQuery } from "./hooks/useRankingsQuery";
-
-const PAGE_SIZE = 40;
 
 /**
  * Rankings page presenter. The orchestration is:
@@ -21,8 +18,8 @@ const PAGE_SIZE = 40;
  *  1. Filters hook owns the UI vs committed state split.
  *  2. The user changing a filter triggers `fade.beginExit()` (via the
  *     onBeforeCommit callback) — table starts fading out immediately.
- *  3. The post-fade-out effect commits the filter and resets the
- *     paging limit, which kicks off a new GraphQL query.
+ *  3. The post-fade-out effect commits the filter, which kicks off a
+ *     new GraphQL query returning the complete bounded champion roster.
  *  4. When the query resolves (data refreshes), the post-load effect
  *     calls `fade.beginEnter()` → fade-in → "shown".
  *  5. While `phase ≠ "shown"` the query is disabled; the previous data
@@ -37,12 +34,8 @@ export function RankingsPage() {
       // fade animation immediately — the commit step below picks up
       // after the fade has finished.
       fade.beginExit();
-      // Reset paging window so each new filter slice starts at page 1.
-      setLimit(PAGE_SIZE);
     },
   });
-
-  const [limit, setLimit] = useState(PAGE_SIZE);
 
   // Commit the selected filter once the fade-out has completed (state
   // arrives at "hidden"). The hook handles "shown" before any swap,
@@ -61,7 +54,6 @@ export function RankingsPage() {
 
   const rankings = useRankingsQuery({
     filters: filters.committed,
-    limit,
     enabled: fade.phase === "shown" || fade.phase === "fading-in",
   });
 
@@ -72,23 +64,10 @@ export function RankingsPage() {
     fade.beginEnter();
   }, [fade, rankings.isLoading, rankings.isFetching]);
 
-  const onLoadMore = useCallback(() => {
-    if (rankings.isFetching || rankings.isError) return;
-    if (rankings.items.length < limit) return; // backend returned fewer = end
-    setLimit((prev) => prev + PAGE_SIZE);
-  }, [rankings.isFetching, rankings.isError, rankings.items.length, limit]);
-
-  const sentinelRef = useInfiniteScroll<HTMLDivElement>({
-    onLoadMore,
-    enabled: fade.phase === "shown" && rankings.items.length >= limit,
-  });
-
   const lockedStyle =
     fade.lockedHeight !== null
       ? { minHeight: `${fade.lockedHeight}px` }
       : undefined;
-  const reachedEnd = rankings.items.length > 0 && rankings.items.length < limit;
-
   return (
     <section className="space-y-6">
       <header className="space-y-1">
@@ -144,20 +123,6 @@ export function RankingsPage() {
 
         {!rankings.isError && rankings.items.length > 0 && (
           <RankingsTable items={rankings.items} />
-        )}
-
-        {!rankings.isError && rankings.items.length > 0 && (
-          <div
-            ref={!reachedEnd ? sentinelRef : undefined}
-            className="py-4 text-center text-xs text-fg-subtle"
-            data-testid="rankings-load-more"
-          >
-            {rankings.isFetching
-              ? t("common:state.loadingMore")
-              : reachedEnd
-                ? t("common:state.endOfList")
-                : t("common:state.loadMore")}
-          </div>
         )}
 
         {!rankings.isError &&

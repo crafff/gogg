@@ -46,10 +46,14 @@ type Filter struct {
 	Region            string // exact match; "" = all
 	TierGroup         string // "master_plus", "challenger", … "" = all
 	MinGames          int
-	Limit             int // -1 = unlimited
 	PositionThreshold float64
 	Position          string // "" = call GetOverall; non-empty = call GetByPosition
 }
+
+// maxChampionRankingRows is a defensive data-integrity ceiling, not a
+// client-controlled page size. The game has a finite champion roster, so a
+// normal query returns every qualifying champion well before this limit.
+const maxChampionRankingRows int32 = 500
 
 // Result bundles the rows with the cross-row totalMatches the legacy
 // response embeds in `meta`. Returning these in one shot avoids two
@@ -107,7 +111,7 @@ func (s *Service) GetOverall(ctx context.Context, f Filter) (Result, error) {
 		AvgTiers:          tierGroupToAvgTiers(f.TierGroup),
 		PositionThreshold: f.PositionThreshold,
 		MinGames:          int32(f.MinGames),
-		RowLimit:          int32(f.Limit),
+		RowLimit:          maxChampionRankingRows,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("list overall rankings: %w", err)
@@ -151,7 +155,7 @@ func (s *Service) GetByPosition(ctx context.Context, f Filter) (Result, error) {
 		AvgTiers:       tierGroupToAvgTiers(f.TierGroup),
 		PositionFilter: strings.ToUpper(f.Position),
 		MinGames:       int32(f.MinGames),
-		RowLimit:       int32(f.Limit),
+		RowLimit:       maxChampionRankingRows,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("list by-position rankings: %w", err)

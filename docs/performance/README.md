@@ -24,15 +24,15 @@
 
 | 阶段 | 状态 | 文档 | 当前下一步 |
 |---|---|---|---|
-| 0 契约和 SLO | 进行中 | [00-contract-and-slo.md](stages/00-contract-and-slo.md) | 固定代表性请求和数据集 |
-| 1 可重复基线 | 进行中 | [01-repeatable-baseline.md](stages/01-repeatable-baseline.md) | 保存三次 warm/cold 基线 |
-| 2 可观测性 | 第一版完成 | [02-observability.md](stages/02-observability.md) | 增加业务缓存与连接池指标 |
-| 3 PostgreSQL | 待执行 | [03-postgresql.md](stages/03-postgresql.md) | 分析 rankings 执行计划 |
-| 4 缓存 | 待执行 | [04-cache.md](stages/04-cache.md) | 等待数据库基线完成 |
-| 5 API 保护 | 待执行 | [05-api-protection.md](stages/05-api-protection.md) | 盘点资源上限 |
-| 6 GraphQL 成本 | 待执行 | [06-graphql-cost.md](stages/06-graphql-cost.md) | 固定代表性 operation |
-| 7 容量与故障 | 待执行 | [07-capacity-and-failure.md](stages/07-capacity-and-failure.md) | 等待关键路径稳定 |
-| 8 CI 与发布 | 待执行 | [08-ci-and-release.md](stages/08-ci-and-release.md) | 定义回归阈值 |
+| 0 契约和 SLO | 进行中 | [阶段 0](stages/00-contract-and-slo/README.md) | 固定代表性请求和数据集 |
+| 1 可重复基线 | 进行中 | [阶段 1](stages/01-repeatable-baseline/README.md) | 保存三次 warm/cold 基线 |
+| 2 可观测性 | 第一版完成 | [阶段 2](stages/02-observability/README.md) | 增加业务缓存与连接池指标 |
+| 3 PostgreSQL | 待执行 | [阶段 3](stages/03-postgresql/README.md) | 分析 rankings 执行计划 |
+| 4 缓存 | 待执行 | [阶段 4](stages/04-cache/README.md) | 等待数据库基线完成 |
+| 5 API 保护 | 待执行 | [阶段 5](stages/05-api-protection/README.md) | 盘点资源上限 |
+| 6 GraphQL 成本 | 待执行 | [阶段 6](stages/06-graphql-cost/README.md) | 固定代表性 operation |
+| 7 容量与故障 | 待执行 | [阶段 7](stages/07-capacity-and-failure/README.md) | 等待关键路径稳定 |
+| 8 CI 与发布 | 待执行 | [阶段 8](stages/08-ci-and-release/README.md) | 定义回归阈值 |
 
 ## 当前事实
 
