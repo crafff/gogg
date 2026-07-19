@@ -43,3 +43,12 @@
 - [基线执行计划](baseline-plan.md)
 - [数据快照记录](dataset-snapshot.md)
 - [阶段验收报告](acceptance-report.md)
+
+## 当前进展
+
+2026-07-19 已完成首次 warm/cold 基线以及一次 warmup、三次 warm 的观测补验，全部
+请求和正确性 checks 通过，且满足 Stage 00 定义的本地 SLO。补验自动归档了同窗口的
+Prometheus、API 日志、容器资源和 pg_stat_statements，证明 load 请求数的运行间范围
+约 2.3%；此前的名义 RPS 波动主要是 k6 将 setup 的过期缓存重建时间计入 rate 分母。
+Stage 1 已完成。数据见[首次实验](../../experiments/EXP-20260719-STAGE01-BASELINE.md)
+和[补验记录](../../experiments/EXP-20260719-STAGE01-RECHECK.md)。

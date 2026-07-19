@@ -76,7 +76,21 @@ tmp/performance/<experiment>/<variant>/<scenario>-<mode>/run-NN/
   git-status.txt     # branch and changed/untracked file names
   git-diff.patch     # unstaged changes to tracked files
   git-diff-cached.patch # staged changes to tracked files
+  api.log            # API container logs for the exact run window
+  container-stats-before.tsv # API container resource snapshot before load
+  container-stats-after.tsv  # API container resource snapshot after load
+  postgres-statements.txt    # pg_stat_statements reset immediately before this run
+  prometheus/
+    queries.tsv      # archived query names and PromQL expressions
+    *.json           # 5-second query_range samples for the run window
 ```
+
+Observation collection is part of the run gate. `observation_exit_code=0` in
+`metadata.env` means all Prometheus ranges, API logs, container snapshots, and
+PostgreSQL statement statistics were archived. A collection failure makes the
+command fail even when k6 passed, so an incomplete run is not mistaken for a
+formal baseline. Set `PERF_PROMETHEUS_URL` or `PERF_API_CONTAINER` only when the
+observability endpoints use non-default local names.
 
 For a dirty worktree, review these Git snapshots and explain the relevant
 differences in the experiment conclusion. Untracked files appear by name in
@@ -105,6 +119,12 @@ environment warm-up, then run three or more measured iterations and use their
 median when comparing code changes. For the single-request cold test, compare
 request duration rather than percentiles within one run; use the median across
 three or more cold runs.
+
+The k6 `http_reqs{phase:load}` rate can use the whole process wall time as its
+denominator, including a slow request in `setup()`. Always retain the raw load
+request count and duration. If setup had to repopulate an expired cache entry,
+report both the exported rate and `load request count / configured duration`;
+the latter isolates sustained load throughput from warm-up cost.
 
 ## Inspect PostgreSQL
 
