@@ -1,0 +1,28 @@
+name: gogg-perf-drive
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gogg-perf-postgres
+    restart: "no"
+    environment:
+      POSTGRES_USER: gogg
+      POSTGRES_PASSWORD: goggpass
+      POSTGRES_DB: gogg
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    ports:
+      - "55434:5432"
+    volumes:
+      - type: bind
+        source: ${GOGG_PERF_DRIVE_ROOT:?set GOGG_PERF_DRIVE_ROOT}/postgres-16
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gogg -d gogg"]
+      interval: 5s
+      timeout: 3s
+      retries: 30

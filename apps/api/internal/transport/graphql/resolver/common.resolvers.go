@@ -12,7 +12,7 @@ import (
 )
 
 // Ok is the resolver for the _ok field.
-func (r *queryResolver) Ok(_ context.Context) (bool, error) {
+func (r *queryResolver) Ok(ctx context.Context) (bool, error) {
 	return true, nil
 }
 

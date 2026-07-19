@@ -12,11 +12,12 @@ LEFTHOOK_VERSION      ?= v1.10.0
 DEV_PG_DSN  ?= postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
 DEV_REDIS   ?= redis://localhost:6379/0
 DEV_TEMPORAL ?= localhost:7233
-PERF_SCENARIO ?= rankings
+PERF_SCENARIO ?= rankings_graphql
 PERF_VUS      ?= 20
 PERF_DURATION ?= 1m
 PERF_DIR      ?= tmp/performance
 PERF_VARIANT  ?= baseline
+PERF_DB_CONTAINER ?= gogg-perf-postgres
 GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
 
 # ── Compose ─────────────────────────────────────────────────
@@ -62,6 +63,7 @@ db-slow-queries: ## Show top PostgreSQL statements by total execution time
 perf-warm: ## Run a repeatable warm-cache k6 API baseline
 	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
 		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
+		PERF_DB_CONTAINER=$(PERF_DB_CONTAINER) \
 		PERF_EXPERIMENT=$(PERF_EXPERIMENT) COMPOSE_FILE=$(COMPOSE_FILE) \
 		bash tests/performance/run-api-performance.sh warm
 
@@ -69,8 +71,18 @@ perf-warm: ## Run a repeatable warm-cache k6 API baseline
 perf-cold: ## Flush local Compose Redis, then run the k6 baseline
 	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
 		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
+		PERF_DB_CONTAINER=$(PERF_DB_CONTAINER) \
 		PERF_EXPERIMENT=$(PERF_EXPERIMENT) COMPOSE_FILE=$(COMPOSE_FILE) \
 		bash tests/performance/run-api-performance.sh cold
+
+.PHONY: perf-env-up
+perf-env-up: ## Start the fixed mobile-drive database and observed API
+	tests/performance/perf-drive.sh up
+	PERF_API_DATABASE_DSN='postgres://gogg:goggpass@host.docker.internal:55434/gogg?sslmode=disable' \
+	PERF_EXPORTER_DATABASE_DSN='postgresql://gogg:goggpass@host.docker.internal:55434/gogg?sslmode=disable' \
+		docker compose -f $(COMPOSE_FILE) --profile observability up -d --build \
+			postgres redis api-observed postgres-exporter redis-exporter prometheus grafana
+	@echo "Observed API: http://localhost:18080 (database: mobile drive on :55434)"
 
 # ── Quality gates ───────────────────────────────────────────
 .PHONY: lint

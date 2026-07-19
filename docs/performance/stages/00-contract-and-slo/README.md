@@ -1,40 +1,32 @@
-# 阶段 0：定义 API 契约和 SLO
+# Stage 00：API 契约与 SLO
 
-本目录集中管理 API 清单、代表性请求、测试数据定义和阶段验收材料。
+## 阶段目标
 
-## 目标
+固定 API 表面、合法参数、代表性 workload、测试数据和可计算的本地性能目标，为后续
+baseline 与 candidate 建立共同口径。
 
-固定关键接口、代表性请求、测试数据和可验证的性能目标，为后续实验建立共同口径。
+## 阅读顺序
 
-## 范围
+| 顺序 | 文档 | 负责内容 |
+|---:|---|---|
+| 1 | [API 表面与路由清单](01-api-surface.md) | method、path、调用方、认证、依赖和范围 |
+| 2 | [请求契约、工作负载与测试矩阵](02-request-contracts-and-workloads.md) | 标准参数、可执行请求、最大合法请求、k6 workload 和对等性矩阵 |
+| 3 | [固定性能数据集](03-fixed-dataset.md) | stable ID、快照、精确分布、恢复和移动硬盘约束 |
+| 4 | [SLO、容量哨兵与测量口径](04-slo-and-measurement.md) | 每项指标、数值目标、测量实现和生产边界 |
+| 5 | [Stage 00 验收报告](05-stage-acceptance.md) | 验收证据、固定基线契约和阶段结论 |
 
-| 场景 | 初始 p95 | 初始 p99 | 5xx |
-|---|---:|---:|---:|
-| versions、regions | `<100ms` | `<250ms` | `<0.1%` |
-| rankings 热缓存 | `<100ms` | `<250ms` | `<0.1%` |
-| rankings 冷缓存 | 先测量 | 先测量 | `<0.1%` |
-| GraphQL 常用查询 | `<300ms` | `<750ms` | `<0.1%` |
+## 完成标准
 
-以上是本地第一版目标，不等同于生产 SLO。生产目标还需结合真实流量和业务影响确认。
+- 每个关键 API 都能从 [API 清单](01-api-surface.md)跳转到
+  [可执行代表性请求](02-request-contracts-and-workloads.md#53-可直接执行)。
+- 正常参数和最大合法参数均由
+  [请求保护边界](02-request-contracts-and-workloads.md#10-最大合法请求和保护边界)定义。
+- 另一位工程师可按 [数据集恢复命令](03-fixed-dataset.md#创建恢复和使用)重建相同数据。
+- 延迟、失败率、吞吐、响应大小、陈旧时间和可比性都有
+  [指标注册项与实现链接](04-slo-and-measurement.md#指标注册表)。
+- 所有验收项均有 [证据链接](05-stage-acceptance.md#验收项)。
 
-## 步骤
+## 当前结论
 
-1. 列出公开 REST、GraphQL、Auth 和 Operations 接口及调用方。
-2. 为关键接口固定典型请求和最坏合法请求。
-3. 固定数据库快照，记录来源、`dataset_id`、表规模和关键字段分布。
-4. 定义延迟、错误率、响应大小、吞吐量及允许的数据陈旧时间。
-5. 明确本地回归目标、容量目标和生产 SLO 的边界。
-
-## 验收标准
-
-- 每个关键 API 都有可直接执行的代表性请求。
-- 所有目标均可计算，不使用“尽量快”等描述。
-- 另一个工程师可以重建相同测试数据和请求参数。
-- 正常参数与最大合法参数分别定义。
-
-## 实施文档
-
-- [API 清单](api-inventory.md)
-- [代表性请求](representative-requests.md)
-- [测试数据定义](dataset-definition.md)
-- [阶段验收报告](acceptance-report.md)
+Stage 00 已通过，详情见 [验收报告](05-stage-acceptance.md)。任何 API 参数、固定数据集、
+game version、缓存语义或 SLO 变化都必须更新对应编号文档并建立新基线。

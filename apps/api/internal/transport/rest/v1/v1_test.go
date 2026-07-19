@@ -98,3 +98,37 @@ func TestRegions_happyPath(t *testing.T) {
 		t.Errorf("regions = %v", got)
 	}
 }
+
+func TestRankings_invalidFiltersReturn400(t *testing.T) {
+	tests := []string{
+		"queueId=not-a-number",
+		"queueId=10000",
+		"minGames=0",
+		"positionThreshold=101",
+		"version=sixteen",
+		"region=EUW1",
+		"tier=diamond",
+		"position=CENTER",
+	}
+	for _, query := range tests {
+		t.Run(query, func(t *testing.T) {
+			r := Routes(fakeCatalog{}, nil)
+			req := httptest.NewRequest(http.MethodGet, "/rankings/champions?"+query, nil)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestRankings_oversizedQueryReturns414(t *testing.T) {
+	r := Routes(fakeCatalog{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/rankings/champions?version="+strings.Repeat("1", 4097), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestURITooLong {
+		t.Fatalf("status = %d, want 414", rec.Code)
+	}
+}

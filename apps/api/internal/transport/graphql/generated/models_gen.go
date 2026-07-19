@@ -39,11 +39,10 @@ type ChampionRankingsFilter struct {
 	Region *string `json:"region,omitempty"`
 	// Rank bucket. ALL = no tier filter.
 	TierGroup *TierGroup `json:"tierGroup,omitempty"`
-	// Drop champions with fewer games than this. 0 = no floor.
+	// Drop champions with fewer games than this. Legal range is 1–20000.
 	MinGames *int `json:"minGames,omitempty"`
-	// Minimum share of games per position to list the position in
-	//   teamPosition. 0.5 = position is "primary" if played in ≥50% of
-	//   games. Ignored when `position` is set.
+	// Minimum percentage of games per position to list the position in
+	//   teamPosition. Legal range is 0–100. Ignored when `position` is set.
 	PositionThreshold *float64 `json:"positionThreshold,omitempty"`
 	// Restrict to a single team position (TOP, JUNGLE, MIDDLE, BOTTOM,
 	//   UTILITY). When set the resolver calls the per-position path and

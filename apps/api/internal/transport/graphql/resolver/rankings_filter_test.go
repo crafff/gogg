@@ -1,9 +1,12 @@
 package resolver
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	"github.com/crafff/gogg/apps/api/internal/transport/graphql/domainerr"
 	gqlgenerated "github.com/crafff/gogg/apps/api/internal/transport/graphql/generated"
 )
 
@@ -17,6 +20,24 @@ func TestFilterFromInput_NilUsesDefaults(t *testing.T) {
 	}
 	if f != want {
 		t.Errorf("nil input: got %+v want %+v", f, want)
+	}
+}
+
+func TestChampionRankings_InvalidFilterReturnsBadUserInput(t *testing.T) {
+	region := "EUW1"
+	_, err := (&queryResolver{Resolver: &Resolver{}}).ChampionRankings(
+		context.Background(),
+		&gqlgenerated.ChampionRankingsFilter{Region: &region},
+	)
+	if err == nil {
+		t.Fatal("invalid filter accepted")
+	}
+	var domainError *domainerr.Error
+	if !errors.As(err, &domainError) {
+		t.Fatalf("error type = %T, want *domainerr.Error", err)
+	}
+	if domainError.Code != "BAD_USER_INPUT" {
+		t.Fatalf("code = %q, want BAD_USER_INPUT", domainError.Code)
 	}
 }
 
@@ -55,35 +76,35 @@ func TestFilterFromInput_TierGroupAllErases(t *testing.T) {
 	}
 }
 
-func TestFilterFromInput_Clamps(t *testing.T) {
+func TestFilterFromInput_PreservesInvalidValuesForValidation(t *testing.T) {
 	cases := []struct {
 		name string
 		mut  func(*gqlgenerated.ChampionRankingsFilter)
 		want rankings.Filter
 	}{
 		{
-			name: "queueId clamps high",
+			name: "queueId high",
 			mut: func(in *gqlgenerated.ChampionRankingsFilter) {
 				v := 99999
 				in.QueueID = &v
 			},
-			want: rankings.Filter{QueueID: 9999, Version: "latest", MinGames: 20, PositionThreshold: 5.0},
+			want: rankings.Filter{QueueID: 99999, Version: "latest", MinGames: 20, PositionThreshold: 5.0},
 		},
 		{
-			name: "minGames clamps low",
+			name: "minGames low",
 			mut: func(in *gqlgenerated.ChampionRankingsFilter) {
 				v := 0
 				in.MinGames = &v
 			},
-			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 1, PositionThreshold: 5.0},
+			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 0, PositionThreshold: 5.0},
 		},
 		{
-			name: "positionThreshold clamps low",
+			name: "positionThreshold low",
 			mut: func(in *gqlgenerated.ChampionRankingsFilter) {
 				v := -1.0
 				in.PositionThreshold = &v
 			},
-			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 20, PositionThreshold: 0},
+			want: rankings.Filter{QueueID: 420, Version: "latest", MinGames: 20, PositionThreshold: -1},
 		},
 	}
 	for _, tc := range cases {

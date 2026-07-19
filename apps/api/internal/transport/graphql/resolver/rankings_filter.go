@@ -21,7 +21,7 @@ func filterFromInput(in *gqlgenerated.ChampionRankingsFilter) rankings.Filter {
 		return f
 	}
 	if in.QueueID != nil {
-		f.QueueID = clampInt(*in.QueueID, 0, 9999)
+		f.QueueID = *in.QueueID
 	}
 	if in.Version != nil {
 		f.Version = strings.TrimSpace(*in.Version)
@@ -33,33 +33,13 @@ func filterFromInput(in *gqlgenerated.ChampionRankingsFilter) rankings.Filter {
 		f.TierGroup = strings.ToLower(string(*in.TierGroup))
 	}
 	if in.MinGames != nil {
-		f.MinGames = clampInt(*in.MinGames, 1, 20000)
+		f.MinGames = *in.MinGames
 	}
 	if in.PositionThreshold != nil {
-		f.PositionThreshold = clampFloat(*in.PositionThreshold, 0, 100)
+		f.PositionThreshold = *in.PositionThreshold
 	}
 	if in.Position != nil {
 		f.Position = strings.ToUpper(strings.TrimSpace(*in.Position))
 	}
 	return f
-}
-
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func clampFloat(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }

@@ -7,7 +7,7 @@ project while running the Go API on the host for fast iteration.
 
 ```bash
 make dev
-make observability
+make perf-env-up
 ```
 
 Open:
@@ -34,13 +34,19 @@ warm Redis cache:
 make perf-warm
 ```
 
+`perf-env-up` starts the persistent mobile-drive PostgreSQL on port 55434 and
+recreates the observed API with that DSN. The runner refuses to proceed if the
+API points at the development database.
+
 Override the scenario and load:
 
 ```bash
-make perf-warm PERF_SCENARIO=graphql PERF_VUS=50 PERF_DURATION=2m
+make perf-warm PERF_SCENARIO=RKG-GQL-KR-MP-ALL PERF_VUS=50 PERF_DURATION=2m
 ```
 
-Supported scenarios are `rankings`, `versions`, `regions`, and `graphql`.
+Supported scenarios are `rankings_graphql`, `rankings_rest`, `versions`,
+`regions`, `graphql_versions`, the seven documented `RKG-*` workload IDs, and
+`contract_matrix`.
 Every invocation creates a new run directory instead of overwriting an earlier
 result. Group related before/after runs under one experiment ID:
 

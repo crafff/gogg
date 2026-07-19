@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ type RankingsService interface {
 
 // rankingsHandler returns GET /api/v1/rankings/champions.
 //
-// Defaults and clamps keep the REST contract stable for existing
+// Defaults and validation keep the REST contract stable for existing
 // clients:
 //
 //	minGames           default 20   range [1, 20000]
@@ -32,22 +33,43 @@ type RankingsService interface {
 //	tier               "" or lowercased tier group (e.g. master_plus)
 func rankingsHandler(s RankingsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if len(r.URL.RawQuery) > 4096 {
+			respondError(w, r, http.StatusRequestURITooLong, "query string exceeds 4096 bytes")
+			return
+		}
 		q := r.URL.Query()
 
+		queueID, err := intQuery(q, "queueId", 420)
+		if err != nil {
+			respondError(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+		minGames, err := intQuery(q, "minGames", 20)
+		if err != nil {
+			respondError(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+		positionThreshold, err := floatQuery(q, "positionThreshold", 5.0)
+		if err != nil {
+			respondError(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+
 		filter := rankings.Filter{
-			QueueID:           clampInt(intQuery(q, "queueId", 420), 0, 9999),
+			QueueID:           queueID,
 			Version:           strings.TrimSpace(q.Get("version")),
 			Region:            strings.ToUpper(strings.TrimSpace(q.Get("region"))),
 			Position:          strings.ToUpper(strings.TrimSpace(q.Get("position"))),
 			TierGroup:         strings.ToLower(strings.TrimSpace(q.Get("tier"))),
-			MinGames:          clampInt(intQuery(q, "minGames", 20), 1, 20000),
-			PositionThreshold: clampFloat(floatQuery(q, "positionThreshold", 5.0), 0, 100),
+			MinGames:          minGames,
+			PositionThreshold: positionThreshold,
+		}
+		if err := rankings.ValidateFilter(filter); err != nil {
+			respondError(w, r, http.StatusBadRequest, err.Error())
+			return
 		}
 
-		var (
-			res rankings.Result
-			err error
-		)
+		var res rankings.Result
 		if filter.Position != "" {
 			res, err = s.GetByPosition(r.Context(), filter)
 		} else {
@@ -88,28 +110,28 @@ func rankingsHandler(s RankingsService) http.HandlerFunc {
 	}
 }
 
-func intQuery(q map[string][]string, key string, def int) int {
+func intQuery(q map[string][]string, key string, def int) (int, error) {
 	raw := strings.TrimSpace(get(q, key))
 	if raw == "" {
-		return def
+		return def, nil
 	}
 	v, err := strconv.Atoi(raw)
 	if err != nil {
-		return def
+		return 0, fmt.Errorf("invalid %s: must be an integer", key)
 	}
-	return v
+	return v, nil
 }
 
-func floatQuery(q map[string][]string, key string, def float64) float64 {
+func floatQuery(q map[string][]string, key string, def float64) (float64, error) {
 	raw := strings.TrimSpace(get(q, key))
 	if raw == "" {
-		return def
+		return def, nil
 	}
 	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return def
+		return 0, fmt.Errorf("invalid %s: must be a number", key)
 	}
-	return v
+	return v, nil
 }
 
 func get(q map[string][]string, key string) string {
@@ -117,16 +139,6 @@ func get(q map[string][]string, key string) string {
 		return vs[0]
 	}
 	return ""
-}
-
-func clampInt(v, min, max int) int {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
 }
 
 func clampFloat(v, min, max float64) float64 {

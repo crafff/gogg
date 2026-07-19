@@ -38,8 +38,10 @@ import (
 // subscriptions, and pulling it in adds gorilla/websocket as a
 // transitive dep we don't otherwise need.
 //
-// Persisted-query and parsed-query caches are LRU(1000); query depth
-// is capped at 15 to keep an adversarial query from melting the DB.
+// Persisted-query and parsed-query caches are LRU(1000). Request bodies are
+// capped at 64 KiB and calculated query complexity at 300.
+const maxRequestBodyBytes int64 = 64 << 10
+
 func NewHandler(r *resolver.Resolver) http.Handler {
 	srv := handler.New(gqlgenerated.NewExecutableSchema(gqlgenerated.Config{Resolvers: r}))
 
@@ -53,7 +55,14 @@ func NewHandler(r *resolver.Resolver) http.Handler {
 	srv.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
 
 	srv.SetErrorPresenter(sanitizingErrorPresenter)
-	return srv
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > maxRequestBodyBytes {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+		srv.ServeHTTP(w, r)
+	})
 }
 
 // sanitizingErrorPresenter is the gqlgen ErrorPresenter. It enforces

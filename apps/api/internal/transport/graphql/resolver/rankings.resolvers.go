@@ -10,12 +10,16 @@ import (
 	"fmt"
 
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	"github.com/crafff/gogg/apps/api/internal/transport/graphql/domainerr"
 	gqlgenerated "github.com/crafff/gogg/apps/api/internal/transport/graphql/generated"
 )
 
 // ChampionRankings is the resolver for the championRankings field.
 func (r *queryResolver) ChampionRankings(ctx context.Context, filter *gqlgenerated.ChampionRankingsFilter) (*gqlgenerated.RankingsResult, error) {
 	f := filterFromInput(filter)
+	if err := rankings.ValidateFilter(f); err != nil {
+		return nil, domainerr.Wrap("BAD_USER_INPUT", err.Error(), err)
+	}
 
 	var (
 		res rankings.Result

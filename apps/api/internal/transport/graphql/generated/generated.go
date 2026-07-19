@@ -370,12 +370,11 @@ input ChampionRankingsFilter {
   region: String = ""
   """Rank bucket. ALL = no tier filter."""
   tierGroup: TierGroup = ALL
-  """Drop champions with fewer games than this. 0 = no floor."""
-  minGames: Int = 0
-  """Minimum share of games per position to list the position in
-  teamPosition. 0.5 = position is "primary" if played in ≥50% of
-  games. Ignored when ` + "`" + `position` + "`" + ` is set."""
-  positionThreshold: Float = 0.5
+  """Drop champions with fewer games than this. Legal range is 1–20000."""
+  minGames: Int = 20
+  """Minimum percentage of games per position to list the position in
+  teamPosition. Legal range is 0–100. Ignored when ` + "`" + `position` + "`" + ` is set."""
+  positionThreshold: Float = 5.0
   """Restrict to a single team position (TOP, JUNGLE, MIDDLE, BOTTOM,
   UTILITY). When set the resolver calls the per-position path and
   every result row's teamPosition is exactly [position]."""
@@ -2220,10 +2219,10 @@ func (ec *executionContext) unmarshalInputChampionRankingsFilter(ctx context.Con
 		asMap["tierGroup"] = "ALL"
 	}
 	if _, present := asMap["minGames"]; !present {
-		asMap["minGames"] = 0
+		asMap["minGames"] = 20
 	}
 	if _, present := asMap["positionThreshold"]; !present {
-		asMap["positionThreshold"] = 0.500000
+		asMap["positionThreshold"] = 5.000000
 	}
 	if _, present := asMap["position"]; !present {
 		asMap["position"] = ""

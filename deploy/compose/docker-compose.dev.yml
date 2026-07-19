@@ -154,7 +154,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      GOGG_DATABASE_DSN: postgres://gogg:goggpass@postgres:5432/gogg?sslmode=disable
+      GOGG_DATABASE_DSN: ${PERF_API_DATABASE_DSN:-postgres://gogg:goggpass@postgres:5432/gogg?sslmode=disable}
       GOGG_REDIS_URL: redis://redis:6379/0
       GOGG_API_GRAPHQL_PLAYGROUND: "false"
       # Cold aggregate queries can exceed the production default while we
@@ -163,6 +163,8 @@ services:
       GOGG_API_WRITE_TIMEOUT: 60s
     ports:
       - "18080:8080"
+    extra_hosts:
+      - host.docker.internal:host-gateway
     networks: [gogg-dev]
 
   postgres-exporter:
@@ -174,7 +176,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATA_SOURCE_NAME: postgresql://gogg:goggpass@postgres:5432/gogg?sslmode=disable
+      DATA_SOURCE_NAME: ${PERF_EXPORTER_DATABASE_DSN:-postgresql://gogg:goggpass@postgres:5432/gogg?sslmode=disable}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     networks: [gogg-dev]
 
   redis-exporter:
