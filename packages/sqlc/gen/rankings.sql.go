@@ -11,79 +11,70 @@ import (
 
 const listOverallRankings = `-- name: ListOverallRankings :many
 
-WITH filtered_matches AS (
-    SELECT m.match_id
-    FROM matches m
-    WHERE m.queue_id = $3::int
-      AND ($4::text = '' OR m.version = $4::text)
-      AND ($5::text  = '' OR m.region  = $5::text)
-      AND m.fetch_status = 'done'
-      AND (cardinality($6::text[]) = 0 OR m.avg_tier = ANY($6::text[]))
-),
-base AS (
-    SELECT
-        mp.match_id,
-        mp.champion_id,
-        mp.champion_name,
-        mp.team_position,
-        mp.win,
-        mp.kills,
-        mp.deaths,
-        mp.assists
-    FROM match_participants mp
-    INNER JOIN filtered_matches fm ON fm.match_id = mp.match_id
-    WHERE mp.champion_id > 0
-),
-totals AS (
-    SELECT
-        COUNT(*)::float8                 AS total_participants,
-        COUNT(DISTINCT match_id)::float8 AS total_matches
-    FROM base
+WITH filtered_stats AS (
+    SELECT r.queue_id, r.version, r.region, r.tier_bucket, r.champion_id, r.champion_name, r.team_position, r.games, r.wins, r.kda_contribution_sum
+    FROM rankings_champion_position_rollup r
+    WHERE r.queue_id = $3::int
+      AND ($4::text = '' OR r.version = $4::text)
+      AND ($5::text  = '' OR r.region  = $5::text)
+      AND (cardinality($6::text[]) = 0 OR r.tier_bucket = ANY($6::text[]))
 ),
 champ_agg AS (
     SELECT
-        -- The base CTE filters champion_id > 0, so NULLs are
-        -- already excluded; COALESCE(..., 0) is a sqlc type-hint
-        -- only so the generated row uses int32 instead of *int32.
-        COALESCE(b.champion_id, 0)::int                                     AS champion_id,
-        COALESCE(MAX(b.champion_name), '')::text                            AS champion_name,
-        COUNT(*)::int                                                       AS games,
-        SUM(CASE WHEN b.win THEN 1 ELSE 0 END)::int                         AS wins,
-        AVG((b.kills + b.assists)::float8 / GREATEST(b.deaths, 1))::float8  AS kda
-    FROM base b
-    GROUP BY b.champion_id
+        champion_id,
+        MAX(champion_name)::text AS champion_name,
+        SUM(games)::int          AS games,
+        SUM(wins)::int           AS wins,
+        (
+            SUM(kda_contribution_sum) /
+            NULLIF(SUM(games), 0)
+        )::float8 AS kda
+    FROM filtered_stats
+    GROUP BY champion_id
 ),
 pos_agg AS (
-    SELECT b.champion_id, b.team_position, COUNT(*)::int AS pos_games
-    FROM base b
-    GROUP BY b.champion_id, b.team_position
+    SELECT champion_id, team_position, SUM(games)::bigint AS pos_games
+    FROM filtered_stats
+    GROUP BY champion_id, team_position
 ),
 valid_positions AS (
     SELECT
         pa.champion_id,
         ARRAY_AGG(pa.team_position ORDER BY pa.pos_games DESC) AS positions
     FROM pos_agg pa
-    INNER JOIN champ_agg ca ON pa.champion_id = ca.champion_id
+    INNER JOIN champ_agg ca ON ca.champion_id = pa.champion_id
     WHERE ((pa.pos_games::float8 / NULLIF(ca.games, 0)) * 100.0) >= $7::float8
     GROUP BY pa.champion_id
 ),
+totals AS (
+    SELECT
+        COALESCE(SUM(r.total_matches), 0)::float8 AS total_matches
+    FROM rankings_match_count_rollup r
+    WHERE r.queue_id = $3::int
+      AND ($4::text = '' OR r.version = $4::text)
+      AND ($5::text  = '' OR r.region  = $5::text)
+      AND (cardinality($6::text[]) = 0 OR r.tier_bucket = ANY($6::text[]))
+),
 ban_agg AS (
-    SELECT b.champion_id, COUNT(DISTINCT b.match_id)::float8 AS ban_matches
-    FROM match_bans b
-    INNER JOIN filtered_matches fm ON fm.match_id = b.match_id
-    GROUP BY b.champion_id
+    SELECT r.champion_id, SUM(r.ban_matches)::float8 AS ban_matches
+    FROM rankings_champion_ban_rollup r
+    WHERE r.queue_id = $3::int
+      AND ($4::text = '' OR r.version = $4::text)
+      AND ($5::text  = '' OR r.region  = $5::text)
+      AND (cardinality($6::text[]) = 0 OR r.tier_bucket = ANY($6::text[]))
+    GROUP BY r.champion_id
 )
 SELECT
-    ca.champion_id,
+    ca.champion_id::int AS champion_id,
     ca.champion_name,
     COALESCE(vp.positions, ARRAY[]::text[])::text[]                                                   AS team_position,
     ca.games,
     ca.wins,
-    (ca.games - ca.wins)                                                                              AS losses,
+    (ca.games - ca.wins)::int                                                                        AS losses,
     ROUND(((ca.wins::float8  / NULLIF(ca.games, 0))                  * 100.0)::numeric, 2)::float8    AS win_rate,
-    ROUND(((ca.games::float8 / NULLIF(t.total_matches, 0))           * 100.0)::numeric, 2)::float8    AS pick_rate,
+    ROUND(((ca.games::float8 / NULLIF(t.total_matches, 0))          * 100.0)::numeric, 2)::float8    AS pick_rate,
     ROUND(((COALESCE(ba.ban_matches, 0) / NULLIF(t.total_matches, 0)) * 100.0)::numeric, 2)::float8   AS ban_rate,
-    ROUND(ca.kda::numeric, 2)::float8                                                                 AS kda,
+    ROUND(COALESCE(ca.kda, 0)::numeric, 2)::float8                                                    AS kda,
     t.total_matches::int                                                                              AS total_matches
 FROM champ_agg ca
 CROSS JOIN totals t
@@ -118,27 +109,14 @@ type ListOverallRankingsRow struct {
 	TotalMatches int32
 }
 
-// Champion rankings: overall (aggregated across all positions) and
-// by-position. Mirrors legacy internal/server/rankings.go verbatim so
-// /api/v1/rankings/champions stays byte-equal with /api/rankings/champions
-// through the Phase D cutover.
+// Champion rankings served from narrow additive rollups. The refresh job
+// scans the raw match facts; online API requests only combine these tables.
 //
-// The filtered_matches CTE is duplicated between the two queries
-// because sqlc emits one Go function per query and has no cross-query
-// CTE sharing. Folding it into a postgres view is a future optimisation
-// (was already a code smell in legacy per ADR-0002); doing it during
-// Phase B is out of scope — we ship parity first, refactor later.
-//
-// Parameter semantics:
-//
-//	queue_id            : exact match on matches.queue_id (e.g. 420 for ranked solo)
-//	version_filter      : exact match on matches.version; '' means all
-//	region_filter       : exact match on matches.region;  '' means all
-//	avg_tiers           : whitelist of matches.avg_tier; empty slice means all
-//	position_threshold  : minimum % of a champion's games to keep that position
-//	position_filter     : ONLY for by-position; '' for overall (unused)
-//	min_games           : drop champions with fewer than N games
-//	row_limit           : internal safety ceiling; API callers always pass 500
+// Atomic tier buckets remain disjoint, so overlapping API groups such as
+// master_plus are assembled by summing MASTER, GRANDMASTER, and CHALLENGER.
+// Pick rate means the percentage of eligible matches in which the champion
+// was picked. Overall and position views therefore share total_matches as the
+// denominator; their cross-champion totals are not expected to equal 100%.
 func (q *Queries) ListOverallRankings(ctx context.Context, arg ListOverallRankingsParams) ([]ListOverallRankingsRow, error) {
 	rows, err := q.db.Query(ctx, listOverallRankings,
 		arg.MinGames,
@@ -180,64 +158,56 @@ func (q *Queries) ListOverallRankings(ctx context.Context, arg ListOverallRankin
 }
 
 const listRankingsByPosition = `-- name: ListRankingsByPosition :many
-WITH filtered_matches AS (
-    SELECT m.match_id
-    FROM matches m
-    WHERE m.queue_id = $3::int
-      AND ($4::text = '' OR m.version = $4::text)
-      AND ($5::text  = '' OR m.region  = $5::text)
-      AND m.fetch_status = 'done'
-      AND (cardinality($6::text[]) = 0 OR m.avg_tier = ANY($6::text[]))
-),
-base AS (
-    SELECT
-        mp.match_id,
-        mp.champion_id,
-        mp.champion_name,
-        mp.win,
-        mp.kills,
-        mp.deaths,
-        mp.assists
-    FROM match_participants mp
-    INNER JOIN filtered_matches fm ON fm.match_id = mp.match_id
-    WHERE mp.champion_id > 0
-      AND mp.team_position = $7::text
-),
-totals AS (
-    SELECT
-        COUNT(*)::float8                 AS total_participants,
-        COUNT(DISTINCT match_id)::float8 AS total_matches
-    FROM base
+WITH filtered_stats AS (
+    SELECT r.queue_id, r.version, r.region, r.tier_bucket, r.champion_id, r.champion_name, r.team_position, r.games, r.wins, r.kda_contribution_sum
+    FROM rankings_champion_position_rollup r
+    WHERE r.queue_id = $3::int
+      AND r.team_position = $4::text
+      AND ($5::text = '' OR r.version = $5::text)
+      AND ($6::text  = '' OR r.region  = $6::text)
+      AND (cardinality($7::text[]) = 0 OR r.tier_bucket = ANY($7::text[]))
 ),
 champ_agg AS (
     SELECT
-        -- The base CTE filters champion_id > 0, so NULLs are
-        -- already excluded; COALESCE(..., 0) is a sqlc type-hint
-        -- only so the generated row uses int32 instead of *int32.
-        COALESCE(b.champion_id, 0)::int                                     AS champion_id,
-        COALESCE(MAX(b.champion_name), '')::text                            AS champion_name,
-        COUNT(*)::int                                                       AS games,
-        SUM(CASE WHEN b.win THEN 1 ELSE 0 END)::int                         AS wins,
-        AVG((b.kills + b.assists)::float8 / GREATEST(b.deaths, 1))::float8  AS kda
-    FROM base b
-    GROUP BY b.champion_id
+        champion_id,
+        MAX(champion_name)::text AS champion_name,
+        SUM(games)::int          AS games,
+        SUM(wins)::int           AS wins,
+        (
+            SUM(kda_contribution_sum) /
+            NULLIF(SUM(games), 0)
+        )::float8 AS kda
+    FROM filtered_stats
+    GROUP BY champion_id
+),
+totals AS (
+    SELECT
+        COALESCE(SUM(r.total_matches), 0)::float8 AS total_matches
+    FROM rankings_match_count_rollup r
+    WHERE r.queue_id = $3::int
+      AND ($5::text = '' OR r.version = $5::text)
+      AND ($6::text  = '' OR r.region  = $6::text)
+      AND (cardinality($7::text[]) = 0 OR r.tier_bucket = ANY($7::text[]))
 ),
 ban_agg AS (
-    SELECT b.champion_id, COUNT(DISTINCT b.match_id)::float8 AS ban_matches
-    FROM match_bans b
-    INNER JOIN filtered_matches fm ON fm.match_id = b.match_id
-    GROUP BY b.champion_id
+    SELECT r.champion_id, SUM(r.ban_matches)::float8 AS ban_matches
+    FROM rankings_champion_ban_rollup r
+    WHERE r.queue_id = $3::int
+      AND ($5::text = '' OR r.version = $5::text)
+      AND ($6::text  = '' OR r.region  = $6::text)
+      AND (cardinality($7::text[]) = 0 OR r.tier_bucket = ANY($7::text[]))
+    GROUP BY r.champion_id
 )
 SELECT
-    ca.champion_id,
+    ca.champion_id::int AS champion_id,
     ca.champion_name,
     ca.games,
     ca.wins,
-    (ca.games - ca.wins)                                                                              AS losses,
+    (ca.games - ca.wins)::int                                                                        AS losses,
     ROUND(((ca.wins::float8  / NULLIF(ca.games, 0))                  * 100.0)::numeric, 2)::float8    AS win_rate,
-    ROUND(((ca.games::float8 / NULLIF(t.total_matches, 0))           * 100.0)::numeric, 2)::float8    AS pick_rate,
+    ROUND(((ca.games::float8 / NULLIF(t.total_matches, 0))          * 100.0)::numeric, 2)::float8    AS pick_rate,
     ROUND(((COALESCE(ba.ban_matches, 0) / NULLIF(t.total_matches, 0)) * 100.0)::numeric, 2)::float8   AS ban_rate,
-    ROUND(ca.kda::numeric, 2)::float8                                                                 AS kda,
+    ROUND(COALESCE(ca.kda, 0)::numeric, 2)::float8                                                    AS kda,
     t.total_matches::int                                                                              AS total_matches
 FROM champ_agg ca
 CROSS JOIN totals t
@@ -251,10 +221,10 @@ type ListRankingsByPositionParams struct {
 	MinGames       int32
 	RowLimit       int32
 	QueueID        int32
+	PositionFilter string
 	VersionFilter  string
 	RegionFilter   string
 	AvgTiers       []string
-	PositionFilter string
 }
 
 type ListRankingsByPositionRow struct {
@@ -275,10 +245,10 @@ func (q *Queries) ListRankingsByPosition(ctx context.Context, arg ListRankingsBy
 		arg.MinGames,
 		arg.RowLimit,
 		arg.QueueID,
+		arg.PositionFilter,
 		arg.VersionFilter,
 		arg.RegionFilter,
 		arg.AvgTiers,
-		arg.PositionFilter,
 	)
 	if err != nil {
 		return nil, err

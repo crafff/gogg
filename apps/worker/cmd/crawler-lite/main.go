@@ -31,6 +31,7 @@ import (
 	"github.com/crafff/gogg/apps/worker/internal/crawler/phaselog"
 	"github.com/crafff/gogg/apps/worker/internal/runtime"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
+	"github.com/crafff/gogg/packages/riotapi"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -259,6 +260,12 @@ func execute(ctx context.Context, rt *runtime.Runtime, state *crawler.RunState, 
 		}
 		slog.Info("lite_run_paused", "run_id", state.ID)
 		return nil
+	case riotapi.IsUnauthorized(err):
+		if pauseErr := rt.Store.MarkRunPausedWithError(statusCtx, state.ID, err.Error()); pauseErr != nil {
+			return fmt.Errorf("mark paused after Riot API authentication failure: %w (original error: %v)", pauseErr, err)
+		}
+		slog.Warn("lite_run_paused_api_key", "run_id", state.ID, "err", err)
+		return fmt.Errorf("Riot API key rejected; run %d was paused and can be resumed after rotating the key: %w", state.ID, err)
 	default:
 		_ = rt.Store.FailRunWithError(statusCtx, state.ID, err.Error())
 		return err

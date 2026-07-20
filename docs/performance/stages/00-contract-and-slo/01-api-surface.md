@@ -9,9 +9,10 @@
 |---|---|---|---|---|---|---|---|
 | REST | GET | `/api/v1/rankings/champions` | Web、兼容客户端 | 可选 Bearer，不要求登录 | PostgreSQL、Redis | P0 | `RKG-REST-*` |
 | GraphQL | POST | `/graphql`（`ChampionRankings`） | Web | 可选 Bearer，不要求登录 | PostgreSQL、Redis | P0 | `RKG-GQL-*` |
-| REST | GET | `/api/v1/versions` | Web | 不要求 | PostgreSQL | P1 | Catalog versions |
-| REST | GET | `/api/v1/regions` | Web | 不要求 | PostgreSQL | P1 | Catalog regions |
-| GraphQL | POST | `/graphql`（`Versions`） | Web/开发者 | 不要求 | PostgreSQL | P1 | GraphQL versions |
+| REST | GET | `/api/v1/versions` | Web | 不要求 | PostgreSQL | P1 | [Catalog versions](02-request-contracts-and-workloads.md#9-catalog-辅助请求) |
+| REST | GET | `/api/v1/regions` | Web | 不要求 | PostgreSQL | P1 | [Catalog regions](02-request-contracts-and-workloads.md#9-catalog-辅助请求) |
+| GraphQL | POST | `/graphql`（`Versions`） | Web/开发者 | 不要求 | PostgreSQL | P1 | [GraphQL Versions](02-request-contracts-and-workloads.md#9-catalog-辅助请求) |
+| GraphQL | POST | `/graphql`（`Regions`） | Web/开发者 | 不要求 | PostgreSQL | P1 | [GraphQL Regions](02-request-contracts-and-workloads.md#9-catalog-辅助请求) |
 | Operations | GET | `/healthz` | 平台探针 | 不要求；部署层限制访问 | 进程 | P1 | liveness |
 | Operations | GET | `/readyz` | 平台探针 | 不要求；部署层限制访问 | PostgreSQL、可选 Redis | P1 | readiness |
 | Operations | GET | `/metrics` | Prometheus | 不要求；部署层限制访问 | 指标 registry | P1 | scrape |

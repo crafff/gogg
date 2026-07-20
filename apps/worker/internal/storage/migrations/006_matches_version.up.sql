@@ -1,1 +1,0 @@
-ALTER TABLE matches ADD COLUMN IF NOT EXISTS version text NOT NULL DEFAULT '';

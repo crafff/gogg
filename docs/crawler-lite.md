@@ -120,7 +120,8 @@ the last successfully persisted checkpoint remains the resume point.
 
 Permanent errors are not retried indefinitely:
 
-- Riot `401` and `403` fail the run so an invalid API key can be corrected.
+- Riot `401` and `403` pause the run at its current checkpoint. Rotate the API
+  key, then use `resume --run-id <id>` to continue the same run.
 - Riot `404` remains an item-level failure where the phase supports item work.
 - malformed successful responses are attempted three times.
 - configuration, SQL, schema, and constraint errors fail immediately.

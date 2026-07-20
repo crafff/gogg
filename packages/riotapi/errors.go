@@ -58,6 +58,12 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Kind == ErrorNotFound
 }
 
+// IsUnauthorized reports whether Riot rejected the configured API key.
+func IsUnauthorized(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Kind == ErrorUnauthorized
+}
+
 func connectivityError(err error) *APIError {
 	if err == nil {
 		return nil

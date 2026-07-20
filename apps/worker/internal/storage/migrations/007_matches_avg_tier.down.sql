@@ -1,2 +1,0 @@
-ALTER TABLE matches DROP COLUMN IF EXISTS avg_tier;
-ALTER TABLE matches DROP COLUMN IF EXISTS avg_division;

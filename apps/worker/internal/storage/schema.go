@@ -2,21 +2,18 @@ package storage
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 
+	canonicalmigrations "github.com/crafff/gogg/packages/sqlc/migrations"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-//go:embed migrations/*.sql
-var migrationsFS embed.FS
-
 // InitSchema applies all pending database migrations.
 func (s *Store) InitSchema(ctx context.Context) error {
-	src, err := iofs.New(migrationsFS, "migrations")
+	src, err := iofs.New(canonicalmigrations.FS, ".")
 	if err != nil {
 		return fmt.Errorf("migrations source: %w", err)
 	}

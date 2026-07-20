@@ -250,6 +250,10 @@ GET /api/v1/regions
 query Versions {
   versions
 }
+
+query Regions {
+  regions
+}
 ```
 
 这些请求用于验证可用 version 和 region 选项，也可测量轻量 API/GraphQL

@@ -236,8 +236,19 @@ func (s *Store) ListRuns(ctx context.Context, limit int) ([]Run, error) {
 
 // MarkRunPaused marks a lite run paused at the current checkpoint.
 func (s *Store) MarkRunPaused(ctx context.Context, runID int) error {
+	return s.MarkRunPausedWithError(ctx, runID, "")
+}
+
+// MarkRunPausedWithError pauses a lite run at its current checkpoint and
+// records why operator intervention is required before it can resume.
+func (s *Store) MarkRunPausedWithError(ctx context.Context, runID int, msg string) error {
+	var errPtr *string
+	if msg != "" {
+		errPtr = &msg
+	}
 	_, err := s.Pool.Exec(ctx,
-		`UPDATE runs SET status = 'paused', pause_requested = false, updated_at = now() WHERE id = $1`, runID)
+		`UPDATE runs SET status = 'paused', ended_at = NULL, pause_requested = false,
+		 last_error = $2, updated_at = now() WHERE id = $1`, runID, errPtr)
 	return err
 }
 

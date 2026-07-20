@@ -26,6 +26,20 @@ jobs:
   go:
     name: go (vet, lint, test)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gogg
+          POSTGRES_PASSWORD: goggpass
+          POSTGRES_DB: gogg
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gogg -d gogg"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +80,18 @@ jobs:
 
       - name: go test
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: rankings PostgreSQL integration tests
+        env:
+          GOGG_INTTEST: "1"
+          GOGG_TEST_DATABASE_DSN: postgres://gogg:goggpass@localhost:5432/gogg?sslmode=disable
+        run: go test -race -tags=integration -count=1 ./apps/worker/internal/storage
+
+      - name: sqlc generated-code drift
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0
+          make gen-sqlc
+          git diff --exit-code -- packages/sqlc/gen
 
       - name: upload coverage
         uses: actions/upload-artifact@v4

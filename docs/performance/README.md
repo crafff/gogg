@@ -53,5 +53,6 @@
 | [EXP-20260713-02](experiments/EXP-20260713-02.md) | 1 | 完成 | EOF 来自观测 API 写超时；冷聚合仍需优化 |
 | [EXP-20260719-STAGE01-BASELINE](experiments/EXP-20260719-STAGE01-BASELINE.md) | 1 | 需要更多数据 | k6/SLO 通过；需补资源窗口并解释 warm 波动 |
 | [EXP-20260719-STAGE01-RECHECK](experiments/EXP-20260719-STAGE01-RECHECK.md) | 1 | 接受 | 同窗口观测归档完成；解释波动并通过 Stage 1 验收 |
+| [EXP-20260719-STAGE03-01](experiments/EXP-20260719-STAGE03-01.md) | 3 | 进行中 | 已拒绝 work_mem 和 totals 重写；下一步处理明细表全扫 |
 
 新增实验时复制 [实验模板](experiments/README.md)，并在此表追加一行。
