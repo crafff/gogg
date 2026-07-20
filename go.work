@@ -1,6 +1,6 @@
 go 1.26.1
 
-toolchain go1.26.4
+toolchain go1.26.5
 
 // The workspace currently contains the root module, which owns the
 // apps/ and packages/ trees. Keep the `go` directive >= the module's

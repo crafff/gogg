@@ -13,7 +13,7 @@ up the symptom — most of the rough edges have known fixes.
 ## 0 · Prerequisites
 
 ```bash
-go version          # 1.26.4 or newer
+go version          # 1.26.5 or newer
 node --version      # 22.12 or newer
 docker compose version
 sops --version      # any 3.x

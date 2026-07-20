@@ -9,14 +9,14 @@ The full setup runs in about 5 minutes on a warm machine. The first time, allow 
 Check each tool. If something's missing, install it before moving on.
 
 ```bash
-go version              # need 1.26.4 or newer
+go version              # need 1.26.5 or newer
 node --version          # need 22.12 or newer
 docker compose version  # need v2.x
 sops --version          # need 3.x (encrypts deploy/secrets/dev.enc.yaml)
 age --version           # any 1.x
 ```
 
-If `go version` is older than 1.26.4: the toolchain is pinned in `go.mod`, so Go will auto-download the right version on the first build. You just need *some* Go installed.
+If `go version` is older than 1.26.5: the toolchain is pinned in `go.work`, so Go will auto-download the right version on the first build. You just need *some* Go installed.
 
 If `sops` and `age` are missing: macOS `brew install sops age`; Ubuntu/Debian `sudo apt install age` (sops install instructions: <https://github.com/getsops/sops/releases>). The dev stack will work without sops — the API binary falls back to env-only config — but you'll get HTTP 401 from Riot because the API key won't be loaded.
 
