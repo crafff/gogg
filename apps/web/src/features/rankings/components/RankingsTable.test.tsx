@@ -31,4 +31,30 @@ describe("RankingsTable", () => {
     expect(screen.getByText("2.31")).toBeInTheDocument();
     expect(screen.getByText("12,500")).toBeInTheDocument();
   });
+
+  it("uses localized names and versioned images when assets are ready", () => {
+    render(
+      <RankingsTable
+        items={SAMPLE}
+        assetBaseURL="/game-assets/16.14"
+        assets={{
+          version: "16.14",
+          champions: {
+            "99": {
+              id: 99,
+              names: { en_us: "Lady of Luminosity" },
+              image: "champions/99.png",
+            },
+          },
+          positions: { middle: "positions/middle.png" },
+        }}
+      />,
+    );
+    expect(screen.getByText("Lady of Luminosity")).toBeInTheDocument();
+    const images = screen.getAllByRole("presentation");
+    expect(images[0]).toHaveAttribute(
+      "src",
+      "/game-assets/16.14/champions/99.png",
+    );
+  });
 });

@@ -62,3 +62,9 @@ schedule:
     profile: daily_na
   - cron: "0 3 * * 1"
     profile: diamond_weekly_kr
+# Optional CommunityDragon frontend assets. Mount this directory into the web
+# server (or upload it to object storage) before enabling in production.
+assets:
+  root: "data/game-assets"
+  locales: ["en_us", "zh_cn"]
+  positions: true

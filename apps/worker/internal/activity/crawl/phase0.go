@@ -7,6 +7,7 @@ import (
 
 	"go.temporal.io/sdk/activity"
 
+	"github.com/crafff/gogg/packages/cdragonassets"
 	"github.com/crafff/gogg/packages/riotapi"
 )
 
@@ -97,6 +98,16 @@ func (a *Activities) Phase0VersionSync(ctx context.Context, in Phase0Input) (Pha
 	resolved := in.PinnedVersion
 	if resolved == "" {
 		resolved = latest.Version
+	}
+	if a.rt.Cfg.Assets.Root != "" {
+		manifest, err := cdragonassets.Sync(ctx, cdragonassets.Options{
+			Root: a.rt.Cfg.Assets.Root, Version: riotapi.ExtractCDragonPatch(resolved),
+			Locales: a.rt.Cfg.Assets.Locales, Positions: a.rt.Cfg.Assets.Positions,
+		})
+		if err != nil {
+			return Phase0Output{}, fmt.Errorf("sync frontend assets for %s: %w", resolved, err)
+		}
+		logger.Info("phase0_assets_ready", "version", manifest.Version, "champions", len(manifest.Champions), "root", a.rt.Cfg.Assets.Root)
 	}
 	logger.Info("phase0_completed",
 		"region", in.Region,

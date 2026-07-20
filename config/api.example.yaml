@@ -9,6 +9,9 @@ api:
     - http://localhost:3000
   graphql_playground: true
 
+assets:
+  root: "data/game-assets"
+
 database:
   dsn: postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
   max_open_conns: 10

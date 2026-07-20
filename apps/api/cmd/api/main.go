@@ -195,6 +195,10 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	r.Get("/readyz", rest.ReadinessHandler(pingers...))
 
 	r.Method(http.MethodGet, "/metrics", rest.MetricsHandler(reg))
+	if cfg.Assets.Root != "" {
+		r.Handle("/game-assets/*", rest.GameAssetsHandler(cfg.Assets.Root))
+		logger.Info("game_assets_enabled", "root", cfg.Assets.Root)
+	}
 
 	// /api/v1 is the legacy-shape REST compatibility layer; deleted
 	// when Phase D's new web app cuts over per ADR-0003.

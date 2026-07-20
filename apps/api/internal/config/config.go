@@ -30,6 +30,11 @@ type Config struct {
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	Auth     AuthConfig     `mapstructure:"auth"`
 	OAuth    OAuthConfig    `mapstructure:"oauth"`
+	Assets   AssetConfig    `mapstructure:"assets"`
+}
+
+type AssetConfig struct {
+	Root string `mapstructure:"root"`
 }
 
 // APIConfig controls the HTTP server.
@@ -246,5 +251,6 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("oauth.google.client_id", "")
 	v.SetDefault("oauth.google.client_secret", "")
 	v.SetDefault("oauth.google.redirect_url", "")
+	v.SetDefault("assets.root", "")
 	return nil
 }

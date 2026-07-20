@@ -3,12 +3,15 @@ import { useTranslation } from "react-i18next";
 import { Tag } from "@shared/ui";
 import { cn } from "@shared/lib/cn";
 import type { ChampionRankingsQuery } from "@shared/api";
+import type { GameAssetManifest } from "../hooks/useGameAssets";
 
 export type RankingRow =
   ChampionRankingsQuery["championRankings"]["items"][number];
 
 export interface RankingsTableProps {
   items: ReadonlyArray<RankingRow>;
+  assets?: GameAssetManifest | null;
+  assetBaseURL?: string;
 }
 
 /**
@@ -16,7 +19,11 @@ export interface RankingsTableProps {
  * details kept minimal in chunk 4 — champion portraits + tier
  * badges land in chunk 5 once the static asset pipeline is wired up.
  */
-export function RankingsTable({ items }: RankingsTableProps) {
+export function RankingsTable({
+  items,
+  assets,
+  assetBaseURL = "",
+}: RankingsTableProps) {
   const { t } = useTranslation(["rankings", "common"]);
 
   return (
@@ -40,6 +47,8 @@ export function RankingsTable({ items }: RankingsTableProps) {
               key={`${row.championId}-${row.teamPosition.join(",")}`}
               row={row}
               index={index}
+              assets={assets}
+              assetBaseURL={assetBaseURL}
             />
           ))}
         </tbody>
@@ -55,8 +64,21 @@ function Th({
   return <th className={cn("px-3 py-2 font-medium", className)}>{children}</th>;
 }
 
-function Row({ row, index }: { row: RankingRow; index: number }) {
-  const { t } = useTranslation("rankings");
+function Row({
+  row,
+  index,
+  assets,
+  assetBaseURL,
+}: {
+  row: RankingRow;
+  index: number;
+  assets?: GameAssetManifest | null;
+  assetBaseURL: string;
+}) {
+  const { t, i18n } = useTranslation("rankings");
+  const champion = assets?.champions[String(row.championId)];
+  const locale = i18n.language.toLowerCase().replace("-", "_");
+  const championName = champion?.names[locale] ?? row.championName;
 
   return (
     <tr className="hover:bg-surface-overlay/40">
@@ -64,12 +86,29 @@ function Row({ row, index }: { row: RankingRow; index: number }) {
         {index + 1}
       </td>
       <td className="px-3 py-2 font-medium text-fg-default">
-        {row.championName}
+        <div className="flex items-center gap-2">
+          {champion && (
+            <img
+              src={`${assetBaseURL}/${champion.image}`}
+              alt=""
+              loading="lazy"
+              className="h-8 w-8 rounded object-cover"
+            />
+          )}
+          <span>{championName}</span>
+        </div>
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-1">
           {row.teamPosition.map((pos) => (
             <Tag key={pos} size="sm">
+              {assets?.positions?.[pos.toLowerCase()] && (
+                <img
+                  src={`${assetBaseURL}/${assets.positions[pos.toLowerCase()]}`}
+                  alt=""
+                  className="mr-1 inline-block h-3.5 w-3.5"
+                />
+              )}
               {t(`position.${pos}` as const, { defaultValue: pos })}
             </Tag>
           ))}

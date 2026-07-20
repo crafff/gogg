@@ -11,6 +11,7 @@ import { RankingsTable } from "./components/RankingsTable";
 import { useFadeTransition } from "./hooks/useFadeTransition";
 import { useRankingsFilters } from "./hooks/useRankingsFilters";
 import { useRankingsQuery } from "./hooks/useRankingsQuery";
+import { useGameAssets } from "./hooks/useGameAssets";
 
 /**
  * Rankings page presenter. The orchestration is:
@@ -56,6 +57,7 @@ export function RankingsPage() {
     filters: filters.committed,
     enabled: fade.phase === "shown" || fade.phase === "fading-in",
   });
+  const gameAssets = useGameAssets(rankings.resolvedVersion);
 
   // Drive the "fade-in" half once new data has actually landed.
   useEffect(() => {
@@ -122,7 +124,11 @@ export function RankingsPage() {
           !rankings.isError && <SkeletonTable />}
 
         {!rankings.isError && rankings.items.length > 0 && (
-          <RankingsTable items={rankings.items} />
+          <RankingsTable
+            items={rankings.items}
+            assets={gameAssets.manifest}
+            assetBaseURL={gameAssets.baseURL}
+          />
         )}
 
         {!rankings.isError &&

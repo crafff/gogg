@@ -32,9 +32,18 @@ type Config struct {
 	Regions  []RegionConfig        `mapstructure:"regions"`
 	Database DatabaseConfig        `mapstructure:"database"`
 	Crawler  CrawlerConfig         `mapstructure:"crawler"`
+	Assets   AssetConfig           `mapstructure:"assets"`
 	Lite     CrawlerLiteConfig     `mapstructure:"crawler_lite"`
 	Schedule []ScheduleEntry       `mapstructure:"schedule"`
 	Profiles map[string]RunProfile `mapstructure:"run_profiles"`
+}
+
+// AssetConfig enables the optional CommunityDragon frontend-asset publisher.
+// An empty root keeps existing workers read-only and disables the integration.
+type AssetConfig struct {
+	Root      string   `mapstructure:"root"`
+	Locales   []string `mapstructure:"locales"`
+	Positions bool     `mapstructure:"positions"`
 }
 
 type RiotConfig = crawlercfg.RiotConfig
@@ -94,6 +103,7 @@ func Default() Config {
 			OutageMaxInterval:     2 * time.Minute,
 			OutageJitter:          0.2,
 		},
+		Assets: AssetConfig{Locales: []string{"en_us", "zh_cn"}, Positions: true},
 	}
 }
 
@@ -227,5 +237,7 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("crawler_lite.outage_initial_interval", def.Lite.OutageInitialInterval)
 	v.SetDefault("crawler_lite.outage_max_interval", def.Lite.OutageMaxInterval)
 	v.SetDefault("crawler_lite.outage_jitter", def.Lite.OutageJitter)
+	v.SetDefault("assets.locales", def.Assets.Locales)
+	v.SetDefault("assets.positions", def.Assets.Positions)
 	return nil
 }

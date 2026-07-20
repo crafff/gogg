@@ -54,3 +54,4 @@ coverage.html
 # ── Local dev volumes ──────────────────────────────────────
 .docker-data/
 tmp/
+data/game-assets/

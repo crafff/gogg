@@ -13,6 +13,9 @@ api:
     - http://localhost:3000
   graphql_playground: true
 
+assets:
+  root: "data/game-assets"
+
 temporal:
   host_port: localhost:7233
   namespace: default
