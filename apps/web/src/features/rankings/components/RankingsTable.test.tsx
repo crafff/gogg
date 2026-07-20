@@ -13,9 +13,9 @@ const SAMPLE: RankingRow[] = [
     games: 12500,
     wins: 6800,
     losses: 5700,
-    winRate: 0.544,
-    pickRate: 0.18,
-    banRate: 0.07,
+    winRate: 54.4,
+    pickRate: 18,
+    banRate: 7,
     kda: 2.31,
   },
 ];

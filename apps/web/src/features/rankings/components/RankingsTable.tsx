@@ -126,10 +126,8 @@ function Row({
 }
 
 function PercentCell({ value }: { value: number }) {
-  // value is a fraction in [0, 1]; format as 53.1% to match legacy.
+  // The rankings API already returns percentage points (for example 53.1).
   return (
-    <td className="px-3 py-2 text-right font-mono">
-      {(value * 100).toFixed(1)}%
-    </td>
+    <td className="px-3 py-2 text-right font-mono">{value.toFixed(1)}%</td>
   );
 }
