@@ -32,5 +32,15 @@
     "banrate": "禁用率",
     "games": "场次",
     "kda": "KDA"
+  },
+  "sort": {
+    "label": "排序",
+    "direction": "切换升降序",
+    "composite": "综合评分",
+    "winRate": "胜率",
+    "pickRate": "登场率",
+    "banRate": "禁用率",
+    "kda": "KDA",
+    "games": "场次"
   }
 }

@@ -32,5 +32,15 @@
     "banrate": "Ban rate",
     "games": "Games",
     "kda": "KDA"
+  },
+  "sort": {
+    "label": "Sort by",
+    "direction": "Toggle sort direction",
+    "composite": "Composite score",
+    "winRate": "Win rate",
+    "pickRate": "Pick rate",
+    "banRate": "Ban rate",
+    "kda": "KDA",
+    "games": "Games"
   }
 }

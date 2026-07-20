@@ -1,12 +1,17 @@
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tag } from "@shared/ui";
 import { cn } from "@shared/lib/cn";
-import type { ChampionRankingsQuery } from "@shared/api";
 import type { GameAssetManifest } from "../hooks/useGameAssets";
+import {
+  sortRankings,
+  type RankingRow,
+  type SortDirection,
+  type SortKey,
+} from "./rankingSort";
 
-export type RankingRow =
-  ChampionRankingsQuery["championRankings"]["items"][number];
+export type { RankingRow } from "./rankingSort";
 
 export interface RankingsTableProps {
   items: ReadonlyArray<RankingRow>;
@@ -25,24 +30,105 @@ export function RankingsTable({
   assetBaseURL = "",
 }: RankingsTableProps) {
   const { t } = useTranslation(["rankings", "common"]);
+  const [sortKey, setSortKey] = useState<SortKey>("composite");
+  const [direction, setDirection] = useState<SortDirection>("desc");
+  const sortedItems = useMemo(
+    () => sortRankings(items, sortKey, direction),
+    [items, sortKey, direction],
+  );
+
+  const selectSort = (next: SortKey) => {
+    if (next === sortKey) {
+      setDirection((current) => (current === "desc" ? "asc" : "desc"));
+      return;
+    }
+    setSortKey(next);
+    setDirection("desc");
+  };
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface-raised">
+      <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-2 text-sm">
+        <label htmlFor="rankings-sort" className="text-fg-muted">
+          {t("sort.label")}
+        </label>
+        <select
+          id="rankings-sort"
+          value={sortKey}
+          onChange={(event) => selectSort(event.target.value as SortKey)}
+          className="rounded border border-border bg-surface-overlay px-2 py-1 text-fg-default"
+        >
+          {(
+            [
+              "composite",
+              "winRate",
+              "pickRate",
+              "banRate",
+              "kda",
+              "games",
+            ] as const
+          ).map((key) => (
+            <option key={key} value={key}>
+              {t(`sort.${key}`)}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() =>
+            setDirection((current) => (current === "desc" ? "asc" : "desc"))
+          }
+          className="rounded border border-border px-2 py-1 text-fg-muted"
+          aria-label={t("sort.direction")}
+        >
+          {direction === "desc" ? "↓" : "↑"}
+        </button>
+      </div>
       <table className="w-full text-left text-sm">
         <thead className="bg-surface-overlay/60 text-xs uppercase tracking-wide text-fg-subtle">
           <tr>
             <Th className="w-12 text-center">{t("column.rank")}</Th>
             <Th>{t("column.champion")}</Th>
             <Th>{t("filter.position")}</Th>
-            <Th className="text-right">{t("column.winrate")}</Th>
-            <Th className="text-right">{t("column.pickrate")}</Th>
-            <Th className="text-right">{t("column.banrate")}</Th>
-            <Th className="text-right">{t("column.kda")}</Th>
-            <Th className="text-right">{t("column.games")}</Th>
+            <SortableTh
+              label={t("column.winrate")}
+              sort="winRate"
+              active={sortKey}
+              direction={direction}
+              onSort={selectSort}
+            />
+            <SortableTh
+              label={t("column.pickrate")}
+              sort="pickRate"
+              active={sortKey}
+              direction={direction}
+              onSort={selectSort}
+            />
+            <SortableTh
+              label={t("column.banrate")}
+              sort="banRate"
+              active={sortKey}
+              direction={direction}
+              onSort={selectSort}
+            />
+            <SortableTh
+              label={t("column.kda")}
+              sort="kda"
+              active={sortKey}
+              direction={direction}
+              onSort={selectSort}
+            />
+            <SortableTh
+              label={t("column.games")}
+              sort="games"
+              active={sortKey}
+              direction={direction}
+              onSort={selectSort}
+            />
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {items.map((row, index) => (
+          {sortedItems.map((row, index) => (
             <Row
               key={`${row.championId}-${row.teamPosition.join(",")}`}
               row={row}
@@ -54,6 +140,41 @@ export function RankingsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function SortableTh({
+  label,
+  sort,
+  active,
+  direction,
+  onSort,
+}: {
+  label: string;
+  sort: SortKey;
+  active: SortKey;
+  direction: SortDirection;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <th
+      className="px-3 py-2 text-right font-medium"
+      aria-sort={
+        active === sort
+          ? direction === "desc"
+            ? "descending"
+            : "ascending"
+          : "none"
+      }
+    >
+      <button
+        type="button"
+        className="whitespace-nowrap hover:text-fg-default"
+        onClick={() => onSort(sort)}
+      >
+        {label} {active === sort ? (direction === "desc" ? "↓" : "↑") : ""}
+      </button>
+    </th>
   );
 }
 

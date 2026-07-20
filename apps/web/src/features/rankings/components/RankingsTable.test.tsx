@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { RankingsTable, type RankingRow } from "./RankingsTable";
+import { sortRankings } from "./rankingSort";
 
 const SAMPLE: RankingRow[] = [
   {
@@ -30,6 +31,48 @@ describe("RankingsTable", () => {
     expect(screen.getByText("7.0%")).toBeInTheDocument();
     expect(screen.getByText("2.31")).toBeInTheDocument();
     expect(screen.getByText("12,500")).toBeInTheDocument();
+  });
+
+  it("supports composite and individual metric sorting", () => {
+    const rows: RankingRow[] = [
+      {
+        ...SAMPLE[0]!,
+        championId: 1,
+        championName: "Balanced",
+        winRate: 52,
+        pickRate: 15,
+        banRate: 12,
+        kda: 3,
+      },
+      {
+        ...SAMPLE[0]!,
+        championId: 2,
+        championName: "Win only",
+        winRate: 60,
+        pickRate: 1,
+        banRate: 1,
+        kda: 1,
+      },
+      {
+        ...SAMPLE[0]!,
+        championId: 3,
+        championName: "Popular",
+        winRate: 50,
+        pickRate: 30,
+        banRate: 20,
+        kda: 4,
+      },
+    ];
+
+    expect(sortRankings(rows, "composite", "desc")[0]!.championName).toBe(
+      "Popular",
+    );
+    expect(sortRankings(rows, "winRate", "desc")[0]!.championName).toBe(
+      "Win only",
+    );
+    expect(sortRankings(rows, "pickRate", "asc")[0]!.championName).toBe(
+      "Win only",
+    );
   });
 
   it("uses localized names and versioned images when assets are ready", () => {
