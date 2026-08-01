@@ -37,6 +37,18 @@ docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml lo
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps crawler-lite list-runs --limit 20
 ```
 
+## Logs
+
+`docker compose logs` reads Docker's container logs. With Docker's standard
+data root, the underlying files are under
+`/var/lib/docker/containers/<container-id>/`; treat that path as an
+implementation detail and use the Docker CLI rather than editing it directly.
+
+The collector Compose file explicitly uses `json-file` rotation with
+`max-size: 50m` and `max-file: 5` for PostgreSQL and each crawler. Each service
+therefore retains at most about 250 MB of container logs. This is separate from
+the permanent Riot JSON archive under `${GOGG_COLLECTOR_ROOT}/raw`.
+
 ## Daily API-key rotation
 
 Stop gracefully so the checkpoint becomes `paused`, replace the YAML file
@@ -109,6 +121,16 @@ docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml ru
   -v "$PWD/out:/out" crawler-lite bundle export --output /out/collector-bundle.tar
 ```
 
+Use a new output filename for every export; existing bundle files are never
+overwritten. A completed export is recorded in PostgreSQL, so the next normal
+export selects only responses not included in an earlier completed batch.
+Moving completed `.tar` bundles to another machine or disk is safe.
+
+Do not move or delete files directly from `${GOGG_COLLECTOR_ROOT}/raw`. A later
+timeline export may repeat that match's earlier detail file to remain
+self-contained. Removing raw files would make that export fail its source-file
+check. Raw retention and export tracking are intentionally independent.
+
 Copy the tar to the main database host. Configure `raw_archive` there as well,
 then import it using the main database DSN:
 
@@ -120,7 +142,9 @@ APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/crawler-lite \
 Import verifies the complete bundle before writing. Completed target records
 are preserved, missing detail/timeline data is inserted, and inferred tier
 metadata only fills NULL fields. Imported bundle IDs make repeated imports
-safe. After a material import, refresh the existing rollups:
+safe. Import every incremental bundle to transfer the full dataset; bundle
+order is not significant when the source raw archive has been retained. After
+a material import, refresh the existing rollups:
 
 ```bash
 make refresh-rankings

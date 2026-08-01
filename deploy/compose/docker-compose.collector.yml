@@ -15,6 +15,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   migrate:
     image: migrate/migrate:v4.18.3
@@ -49,6 +54,11 @@ services:
       - ${GOGG_COLLECTOR_CONFIG:-../../config/collector.yaml}:/run/config/collector.yaml:ro
       - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/raw:/var/lib/gogg/raw
     command: ["continue", "--profile", "daily_kr"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   crawler-lite-na:
     build:
@@ -70,3 +80,8 @@ services:
       - ${GOGG_COLLECTOR_CONFIG:-../../config/collector.yaml}:/run/config/collector.yaml:ro
       - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/raw:/var/lib/gogg/raw
     command: ["continue", "--profile", "daily_na"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
