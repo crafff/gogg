@@ -97,5 +97,5 @@ type TimelineEventDTO struct {
 func (c *Client) GetMatchTimeline(ctx context.Context, matchID string) (*TimelineDTO, error) {
 	u := fmt.Sprintf("%s/lol/match/v5/matches/%s/timeline", c.regionalURL, url.PathEscape(matchID))
 	var dto TimelineDTO
-	return &dto, c.doRequest(ctx, u, &dto)
+	return &dto, c.doRequestRecorded(ctx, u, &dto, ResponseMeta{Kind: "timeline", MatchID: matchID})
 }

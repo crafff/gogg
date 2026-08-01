@@ -102,6 +102,22 @@ func (s *Store) GetRunByID(ctx context.Context, id int) (*Run, error) {
 	return r, err
 }
 
+// GetLatestUnfinishedLiteRun returns the newest resumable lite run for a profile.
+func (s *Store) GetLatestUnfinishedLiteRun(ctx context.Context, profile string) (*Run, error) {
+	row := s.Pool.QueryRow(ctx, `
+		SELECT id, status, runner_type, profile, mode, target_tiers, rank_prefetch_tiers, queue, execution, version, region,
+		       current_phase, current_tier, current_division, current_page, pause_requested, started_at, ended_at, last_run_end,
+		       last_error, updated_at
+		FROM runs
+		WHERE runner_type='lite' AND profile=$1 AND status NOT IN ('completed','completed_with_errors')
+		ORDER BY id DESC LIMIT 1`, profile)
+	r, err := scanRun(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	return r, err
+}
+
 // ReactivateRun resets a failed/interrupted run back to 'running' for resume.
 func (s *Store) ReactivateRun(ctx context.Context, runID int) error {
 	_, err := s.Pool.Exec(ctx,

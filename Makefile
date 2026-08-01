@@ -227,6 +227,10 @@ run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
 sync-assets: ## Sync latest CommunityDragon assets; optionally pass args='--version 16.14'
 	@go run ./apps/worker/cmd/asset-sync $(args)
 
+.PHONY: refresh-rankings
+refresh-rankings: ## Rebuild rankings rollups; optionally pass args='--timeout 1h'
+	@go run ./apps/worker/cmd/rankings-rollup --database-dsn "$(DEV_PG_DSN)" $(args)
+
 .PHONY: run-crawler-lite
 run-crawler-lite: ## Run crawler-lite; pass args='run --profile daily_kr'
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \

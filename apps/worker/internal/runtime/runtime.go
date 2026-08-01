@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/crafff/gogg/apps/worker/internal/config"
+	"github.com/crafff/gogg/apps/worker/internal/rawarchive"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
 )
@@ -50,6 +51,9 @@ func Build(ctx context.Context, cfg config.Config) (*Runtime, error) {
 	for _, r := range regions {
 		key := strings.ToUpper(r.Name)
 		clients[key] = riotapi.NewClient(r.APIKey, r.BaseURL, regionalRoutingURL(r.BaseURL))
+		if cfg.RawArchive.Enabled {
+			clients[key].SetResponseRecorder(key, rawarchive.New(cfg.RawArchive.Root, cfg.RawArchive.CompressionLevel, store))
+		}
 		slog.Info("riot_client_built", "region", key, "platform", r.BaseURL)
 	}
 

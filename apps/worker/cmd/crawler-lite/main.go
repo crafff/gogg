@@ -50,6 +50,18 @@ func run() error {
 		return usage()
 	}
 	switch os.Args[1] {
+	case "bundle":
+		return runBundle(os.Args[2:])
+	case "continue":
+		fs := flag.NewFlagSet("continue", flag.ExitOnError)
+		profile := fs.String("profile", "", "run profile name")
+		if err := fs.Parse(os.Args[2:]); err != nil {
+			return err
+		}
+		if *profile == "" {
+			return fmt.Errorf("--profile is required")
+		}
+		return continueProfile(*profile)
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ExitOnError)
 		profile := fs.String("profile", "", "run profile name")
@@ -93,7 +105,44 @@ func run() error {
 }
 
 func usage() error {
-	return fmt.Errorf("usage: crawler-lite run --profile <name> | resume --run-id <id> | list-runs | show-run --run-id <id>")
+	return fmt.Errorf("usage: crawler-lite continue --profile <name> | run --profile <name> | resume --run-id <id> | bundle export|import ... | list-runs | show-run --run-id <id>")
+}
+
+func continueProfile(profileName string) error {
+	ctx, rt, err := boot()
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	run, err := rt.Store.GetLatestUnfinishedLiteRun(ctx, profileName)
+	if err != nil {
+		return err
+	}
+	if run == nil {
+		p, err := rt.Cfg.Profile(profileName)
+		if err != nil {
+			return err
+		}
+		lastRunEnd := rt.Store.GetLastCompletedRunEnd(ctx, p.Region)
+		state, err := crawler.NewLiteRunState(ctx, rt.Store, &profileName, p, lastRunEnd)
+		if err != nil {
+			return err
+		}
+		return execute(ctx, rt, state, 0, "", "")
+	}
+	if err := rt.Store.ReactivateRun(ctx, run.ID); err != nil {
+		return err
+	}
+	state := crawler.ResumeRunState(run, profileFromRun(run), rt.Store, nil)
+	tier, division := "", ""
+	if run.CurrentTier != nil {
+		tier = *run.CurrentTier
+	}
+	if run.CurrentDivision != nil {
+		division = *run.CurrentDivision
+	}
+	slog.Info("lite_run_continuing", "run_id", run.ID, "profile", profileName, "status", run.Status)
+	return execute(ctx, rt, state, run.CurrentPhase, tier, division)
 }
 
 func runProfile(profileName string) error {

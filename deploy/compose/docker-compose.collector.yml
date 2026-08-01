@@ -1,0 +1,51 @@
+name: gogg-collector
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gogg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: gogg
+    volumes:
+      - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gogg -d gogg"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    image: migrate/migrate:v4.18.3
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../../packages/sqlc/migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      - up
+
+  crawler-lite:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/worker.Dockerfile
+      args:
+        CMD_PATH: ./apps/worker/cmd/crawler-lite
+    image: gogg-crawler-lite:collector
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_CONFIG_PATH: /run/config/collector.yaml
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      GOGG_RAW_ARCHIVE_ENABLED: "true"
+      GOGG_RAW_ARCHIVE_ROOT: /var/lib/gogg/raw
+    volumes:
+      - ${GOGG_COLLECTOR_CONFIG:-../../config/collector.yaml}:/run/config/collector.yaml:ro
+      - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/raw:/var/lib/gogg/raw
+    command: ["continue", "--profile", "daily_kr"]

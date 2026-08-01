@@ -65,6 +65,11 @@ crawler_lite:
   outage_max_interval: 2m
   outage_jitter: 0.2
 
+raw_archive:
+  enabled: false
+  root: "data/riot-raw"
+  compression_level: 6
+
 regions:
   - name: KR
     base_url: https://kr.api.riotgames.com

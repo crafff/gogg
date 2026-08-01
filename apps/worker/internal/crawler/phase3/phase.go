@@ -155,6 +155,12 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 	if err != nil {
 		return err
 	}
+	return IngestMatchDetail(ctx, p.store, region, matchID, detail)
+}
+
+// IngestMatchDetail maps an already-fetched Match V5 response into the
+// relational schema. It is shared by live crawling and offline bundle import.
+func IngestMatchDetail(ctx context.Context, store *storage.Store, region string, matchID string, detail *riotapi.MatchDetailDTO) error {
 	info := &detail.Info
 
 	// Ensure all participants exist in the players table before writing FKs.
@@ -162,7 +168,7 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 		if dp.Puuid == "" {
 			continue
 		}
-		if err := p.store.UpsertPlayer(ctx, dp.Puuid, region, nil, nil); err != nil {
+		if err := store.UpsertPlayer(ctx, dp.Puuid, region, nil, nil); err != nil {
 			return err
 		}
 	}
@@ -193,7 +199,7 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 
 		// Rank inference: find closest snapshot to game start time.
 		if dp.Puuid != "" {
-			snap, _ := p.store.GetClosestSnapshot(ctx, dp.Puuid, region, gameStart)
+			snap, _ := store.GetClosestSnapshot(ctx, dp.Puuid, region, gameStart)
 			if snap != nil {
 				part.TierAtMatch = &snap.Tier
 				part.DivisionAtMatch = snap.Division
@@ -236,7 +242,7 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 		})
 	}
 
-	return p.store.SaveMatchDetail(ctx, h, participants, perks, teams)
+	return store.SaveMatchDetail(ctx, h, participants, perks, teams)
 }
 
 func participantFromDTO(matchID string, dp *riotapi.ParticipantDTO) storage.Participant {

@@ -28,14 +28,15 @@ type Config struct {
 	Temporal TemporalConfig `mapstructure:"temporal"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 
-	Riot     RiotConfig            `mapstructure:"riot"`
-	Regions  []RegionConfig        `mapstructure:"regions"`
-	Database DatabaseConfig        `mapstructure:"database"`
-	Crawler  CrawlerConfig         `mapstructure:"crawler"`
-	Assets   AssetConfig           `mapstructure:"assets"`
-	Lite     CrawlerLiteConfig     `mapstructure:"crawler_lite"`
-	Schedule []ScheduleEntry       `mapstructure:"schedule"`
-	Profiles map[string]RunProfile `mapstructure:"run_profiles"`
+	Riot       RiotConfig            `mapstructure:"riot"`
+	Regions    []RegionConfig        `mapstructure:"regions"`
+	Database   DatabaseConfig        `mapstructure:"database"`
+	Crawler    CrawlerConfig         `mapstructure:"crawler"`
+	Assets     AssetConfig           `mapstructure:"assets"`
+	Lite       CrawlerLiteConfig     `mapstructure:"crawler_lite"`
+	RawArchive RawArchiveConfig      `mapstructure:"raw_archive"`
+	Schedule   []ScheduleEntry       `mapstructure:"schedule"`
+	Profiles   map[string]RunProfile `mapstructure:"run_profiles"`
 }
 
 // AssetConfig enables the optional CommunityDragon frontend-asset publisher.
@@ -51,6 +52,7 @@ type RegionConfig = crawlercfg.RegionConfig
 type DatabaseConfig = crawlercfg.DatabaseConfig
 type CrawlerConfig = crawlercfg.CrawlerConfig
 type CrawlerLiteConfig = crawlercfg.CrawlerLiteConfig
+type RawArchiveConfig = crawlercfg.RawArchiveConfig
 type ScheduleEntry = crawlercfg.ScheduleEntry
 type RunProfile = crawlercfg.RunProfile
 type Mode = crawlercfg.Mode
@@ -103,7 +105,8 @@ func Default() Config {
 			OutageMaxInterval:     2 * time.Minute,
 			OutageJitter:          0.2,
 		},
-		Assets: AssetConfig{Locales: []string{"en_us", "zh_cn"}, Positions: true},
+		Assets:     AssetConfig{Locales: []string{"en_us", "zh_cn"}, Positions: true},
+		RawArchive: RawArchiveConfig{CompressionLevel: 6},
 	}
 }
 
@@ -187,6 +190,12 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Database.DSN) == "" {
 		errs = append(errs, fmt.Errorf("database.dsn is required"))
 	}
+	if c.RawArchive.Enabled && strings.TrimSpace(c.RawArchive.Root) == "" {
+		errs = append(errs, fmt.Errorf("raw_archive.root is required when enabled"))
+	}
+	if c.RawArchive.CompressionLevel < 0 || c.RawArchive.CompressionLevel > 9 {
+		errs = append(errs, fmt.Errorf("raw_archive.compression_level must be between 0 and 9"))
+	}
 	return errors.Join(errs...)
 }
 
@@ -237,6 +246,9 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("crawler_lite.outage_initial_interval", def.Lite.OutageInitialInterval)
 	v.SetDefault("crawler_lite.outage_max_interval", def.Lite.OutageMaxInterval)
 	v.SetDefault("crawler_lite.outage_jitter", def.Lite.OutageJitter)
+	v.SetDefault("raw_archive.compression_level", def.RawArchive.CompressionLevel)
+	v.SetDefault("raw_archive.enabled", def.RawArchive.Enabled)
+	v.SetDefault("raw_archive.root", def.RawArchive.Root)
 	v.SetDefault("assets.locales", def.Assets.Locales)
 	v.SetDefault("assets.positions", def.Assets.Positions)
 	return nil

@@ -45,6 +45,18 @@ type Client struct {
 	limiter     *RateLimiter
 	http        *http.Client
 	retry       RetryPolicy
+	region      string
+	recorder    ResponseRecorder
+}
+
+type ResponseMeta struct {
+	Region  string
+	Kind    string
+	MatchID string
+}
+
+type ResponseRecorder interface {
+	Record(context.Context, ResponseMeta, []byte) error
 }
 
 func NewClient(apiKey, platformURL, regionalURL string) *Client {
@@ -62,6 +74,12 @@ func NewClient(apiKey, platformURL, regionalURL string) *Client {
 // the caller cancels the context. Configure clients before they are shared.
 func (c *Client) EnableOutageWait() { c.retry = outageRetryPolicy }
 
+// SetResponseRecorder records decoded, successful Match V5 responses before
+// callers persist their relational representation.
+func (c *Client) SetResponseRecorder(region string, recorder ResponseRecorder) {
+	c.region, c.recorder = strings.ToUpper(region), recorder
+}
+
 func (c *Client) ConfigureOutageWait(initialInterval, maximumInterval time.Duration, jitterFraction float64) error {
 	if initialInterval <= 0 || maximumInterval < initialInterval || jitterFraction < 0 || jitterFraction > 1 {
 		return fmt.Errorf("invalid outage retry policy: initial=%s maximum=%s jitter=%v",
@@ -77,9 +95,13 @@ func (c *Client) ConfigureOutageWait(initialInterval, maximumInterval time.Durat
 }
 
 func (c *Client) doRequest(ctx context.Context, requestURL string, result any) error {
+	return c.doRequestRecorded(ctx, requestURL, result, ResponseMeta{})
+}
+
+func (c *Client) doRequestRecorded(ctx context.Context, requestURL string, result any, meta ResponseMeta) error {
 	interval := c.retry.InitialInterval
 	for attempt := 1; ; attempt++ {
-		err := c.doOnce(ctx, requestURL, result)
+		err := c.doOnce(ctx, requestURL, result, meta)
 		if err == nil {
 			if attempt > 1 {
 				slog.InfoContext(ctx, "riot_connectivity_restored", "attempt", attempt)
@@ -113,7 +135,7 @@ func (c *Client) doRequest(ctx context.Context, requestURL string, result any) e
 	}
 }
 
-func (c *Client) doOnce(ctx context.Context, requestURL string, result any) error {
+func (c *Client) doOnce(ctx context.Context, requestURL string, result any, meta ResponseMeta) error {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return err
 	}
@@ -135,8 +157,18 @@ func (c *Client) doOnce(ctx context.Context, requestURL string, result any) erro
 		_, err = io.Copy(io.Discard, resp.Body)
 		return err
 	}
-	if err := sonic.ConfigDefault.NewDecoder(resp.Body).Decode(result); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return &APIError{Kind: ErrorDecode, Retryable: true, Global: true, Cause: err}
+	}
+	if err := sonic.ConfigDefault.Unmarshal(body, result); err != nil {
+		return &APIError{Kind: ErrorDecode, Retryable: true, Global: true, Cause: err}
+	}
+	if c.recorder != nil && meta.Kind != "" {
+		meta.Region = c.region
+		if err := c.recorder.Record(ctx, meta, body); err != nil {
+			return fmt.Errorf("record Riot response: %w", err)
+		}
 	}
 	return nil
 }

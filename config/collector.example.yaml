@@ -1,0 +1,41 @@
+temporal:
+  host_port: localhost:7233
+  namespace: default
+  task_queues: [crawl-kr]
+
+logging:
+  level: info
+  format: json
+
+database:
+  dsn: postgres://gogg:CHANGE_ME@postgres:5432/gogg?sslmode=disable
+  max_open_conns: 6
+  max_idle_conns: 2
+  conn_max_lifetime_seconds: 300
+
+riot:
+  api_key: REPLACE_DAILY
+  base_url: https://kr.api.riotgames.com
+
+regions:
+  - name: KR
+    base_url: https://kr.api.riotgames.com
+
+crawler_lite:
+  outage_initial_interval: 1s
+  outage_max_interval: 2m
+  outage_jitter: 0.2
+
+raw_archive:
+  enabled: true
+  root: /var/lib/gogg/raw
+  compression_level: 6
+
+run_profiles:
+  daily_kr:
+    region: KR
+    mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline

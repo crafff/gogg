@@ -33,6 +33,13 @@ type CrawlerLiteConfig struct {
 	OutageJitter          float64       `mapstructure:"outage_jitter"`
 }
 
+// RawArchiveConfig controls durable storage of successful Match V5 payloads.
+type RawArchiveConfig struct {
+	Enabled          bool   `mapstructure:"enabled"`
+	Root             string `mapstructure:"root"`
+	CompressionLevel int    `mapstructure:"compression_level"`
+}
+
 type ScheduleEntry struct {
 	Cron    string `mapstructure:"cron"`
 	Profile string `mapstructure:"profile"`

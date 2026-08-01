@@ -44,5 +44,5 @@ func (c *Client) GetMatchIDsByPUUID(ctx context.Context, puuid string, queue int
 func (c *Client) GetMatchDetail(ctx context.Context, matchID string) (*MatchDetailDTO, error) {
 	u := fmt.Sprintf("%s/lol/match/v5/matches/%s", c.regionalURL, url.PathEscape(matchID))
 	var dto MatchDetailDTO
-	return &dto, c.doRequest(ctx, u, &dto)
+	return &dto, c.doRequestRecorded(ctx, u, &dto, ResponseMeta{Kind: "match-detail", MatchID: matchID})
 }

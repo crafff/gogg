@@ -159,14 +159,14 @@ func (p *Phase) processTimeline(ctx context.Context, matchID string) error {
 		return err
 	}
 
-	itemEvents, skillEvents, snapshots := extractTimeline(matchID, dto)
+	itemEvents, skillEvents, snapshots := ExtractTimeline(matchID, dto)
 
 	return p.store.SaveTimeline(ctx, matchID, itemEvents, skillEvents, snapshots)
 }
 
 // extractTimeline parses a TimelineDTO and returns item purchase events and
 // per-minute participant snapshots.
-func extractTimeline(matchID string, dto *riotapi.TimelineDTO) ([]storage.ItemEvent, []storage.SkillEvent, []storage.ParticipantSnapshot) {
+func ExtractTimeline(matchID string, dto *riotapi.TimelineDTO) ([]storage.ItemEvent, []storage.SkillEvent, []storage.ParticipantSnapshot) {
 	var itemEvents []storage.ItemEvent
 	var skillEvents []storage.SkillEvent
 	var snapshots []storage.ParticipantSnapshot

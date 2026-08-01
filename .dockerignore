@@ -13,6 +13,8 @@ logs/
 .pids
 tmp/
 .docker-data/
+data/
+experiments/
 
 # Env / secrets — never bake into images
 .env
