@@ -19,20 +19,21 @@ next to the compose invocation with a strong `POSTGRES_PASSWORD`. Keep
 `GOGG_COLLECTOR_ROOT` on a disk with monitoring and backups.
 
 ```bash
-docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml build crawler-lite
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml build crawler-lite crawler-lite-na
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d postgres migrate
-docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d crawler-lite
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d crawler-lite crawler-lite-na
 ```
 
-`continue --profile daily_kr` resumes the newest unfinished lite run for that
-profile. If none exists it creates one. It exits when that run completes and
-does not start another run automatically. Because the container is detached,
-closing SSH does not interrupt it.
+The two services run `daily_kr` and `daily_na` against the same database and
+raw archive. `continue` resumes the newest unfinished lite run for its profile;
+if none exists it creates one. Each service exits when that run completes and
+does not start another run automatically. Because the containers are detached,
+closing SSH does not interrupt them.
 
 Inspect it with:
 
 ```bash
-docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml logs -f crawler-lite
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml logs -f crawler-lite crawler-lite-na
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps crawler-lite list-runs --limit 20
 ```
 
@@ -44,13 +45,39 @@ atomically while preserving group-read access for the container's
 mounted file in place.
 
 ```bash
-docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml stop -t 30 crawler-lite
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml stop -t 30 crawler-lite crawler-lite-na
 sudo install -o "$USER" -g 65532 -m 640 /tmp/collector.yaml.new config/collector.yaml
-docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d crawler-lite
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d crawler-lite crawler-lite-na
 ```
 
 If the old key is rejected first, crawler-lite pauses automatically; updating
 the file and running the final command is sufficient.
+
+## Fixed patch collection
+
+Set `mode: historical` and quote the target version in a dedicated profile:
+
+```yaml
+historical_na_16_13:
+  region: NA1
+  mode: historical
+  version: "16.13"
+  target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+  rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+  queue: RANKED_SOLO_5x5
+  execution: pipeline
+```
+
+Start it manually without changing the two daily services:
+
+```bash
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps \
+  crawler-lite continue --profile historical_na_16_13
+```
+
+Historical availability is still limited by what Riot Match V5 returns for
+the players in the selected tier snapshot; specifying a patch does not make
+Riot expose matches it no longer retains.
 
 ## Offline export and import
 

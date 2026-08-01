@@ -49,3 +49,24 @@ services:
       - ${GOGG_COLLECTOR_CONFIG:-../../config/collector.yaml}:/run/config/collector.yaml:ro
       - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/raw:/var/lib/gogg/raw
     command: ["continue", "--profile", "daily_kr"]
+
+  crawler-lite-na:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/worker.Dockerfile
+      args:
+        CMD_PATH: ./apps/worker/cmd/crawler-lite
+    image: gogg-crawler-lite:collector
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_CONFIG_PATH: /run/config/collector.yaml
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      GOGG_RAW_ARCHIVE_ENABLED: "true"
+      GOGG_RAW_ARCHIVE_ROOT: /var/lib/gogg/raw
+    volumes:
+      - ${GOGG_COLLECTOR_CONFIG:-../../config/collector.yaml}:/run/config/collector.yaml:ro
+      - ${GOGG_COLLECTOR_ROOT:-/var/lib/gogg-collector}/raw:/var/lib/gogg/raw
+    command: ["continue", "--profile", "daily_na"]

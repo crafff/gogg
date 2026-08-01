@@ -20,6 +20,8 @@ riot:
 regions:
   - name: KR
     base_url: https://kr.api.riotgames.com
+  - name: NA1
+    base_url: https://na1.api.riotgames.com
 
 crawler_lite:
   outage_initial_interval: 1s
@@ -35,6 +37,33 @@ run_profiles:
   daily_kr:
     region: KR
     mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+  daily_na:
+    region: NA1
+    mode: incremental
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+  # Pin both the patch and its patch-time window for historical collection.
+  historical_kr_16_13:
+    region: KR
+    mode: historical
+    version: "16.13"
+    target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+    rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+    queue: RANKED_SOLO_5x5
+    execution: pipeline
+
+  historical_na_16_13:
+    region: NA1
+    mode: historical
+    version: "16.13"
     target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
     rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
     queue: RANKED_SOLO_5x5
