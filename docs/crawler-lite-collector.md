@@ -55,9 +55,18 @@ the file and running the final command is sufficient.
 
 ## Fixed patch collection
 
-Set `mode: historical` and quote the target version in a dedicated profile:
+Set `mode: historical` and quote the target version in one profile per region:
 
 ```yaml
+historical_kr_16_13:
+  region: KR
+  mode: historical
+  version: "16.13"
+  target_tiers: [CHALLENGER, GRANDMASTER, MASTER]
+  rank_prefetch_tiers: [CHALLENGER, GRANDMASTER, MASTER, DIAMOND]
+  queue: RANKED_SOLO_5x5
+  execution: pipeline
+
 historical_na_16_13:
   region: NA1
   mode: historical
@@ -68,12 +77,20 @@ historical_na_16_13:
   execution: pipeline
 ```
 
-Start it manually without changing the two daily services:
+Start either region manually without changing the two daily services:
 
 ```bash
+# KR 16.13
+docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps \
+  crawler-lite continue --profile historical_kr_16_13
+
+# NA1 16.13
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps \
   crawler-lite continue --profile historical_na_16_13
 ```
+
+Run both commands in separate terminals (or add `-d`) if both historical
+profiles should collect concurrently.
 
 Historical availability is still limited by what Riot Match V5 returns for
 the players in the selected tier snapshot; specifying a patch does not make
@@ -89,7 +106,7 @@ when needed so a timeline bundle remains self-contained.
 mkdir -p out
 sudo chown 65532:65532 out
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml run --rm --no-deps \
-  -v "$PWD/out:/out" crawler-lite bundle export --output /out/kr-bundle.tar
+  -v "$PWD/out:/out" crawler-lite bundle export --output /out/collector-bundle.tar
 ```
 
 Copy the tar to the main database host. Configure `raw_archive` there as well,
@@ -97,7 +114,7 @@ then import it using the main database DSN:
 
 ```bash
 APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/crawler-lite \
-  bundle import --input /path/to/kr-bundle.tar
+  bundle import --input /path/to/collector-bundle.tar
 ```
 
 Import verifies the complete bundle before writing. Completed target records
