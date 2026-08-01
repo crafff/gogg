@@ -10,7 +10,8 @@ responses are gzip-compressed and never automatically deleted.
 sudo mkdir -p /var/lib/gogg-collector/postgres /var/lib/gogg-collector/raw
 sudo chown 65532:65532 /var/lib/gogg-collector/raw
 cp config/collector.example.yaml config/collector.yaml
-chmod 600 config/collector.yaml
+sudo chgrp 65532 config/collector.yaml
+chmod 640 config/collector.yaml
 ```
 
 Set `riot.api_key` in `config/collector.yaml`, and create an untracked `.env`
@@ -38,11 +39,13 @@ docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml ru
 ## Daily API-key rotation
 
 Stop gracefully so the checkpoint becomes `paused`, replace the YAML file
-atomically, then start the same service. Do not edit the mounted file in place.
+atomically while preserving group-read access for the container's
+`65532:65532` non-root user, then start the same service. Do not edit the
+mounted file in place.
 
 ```bash
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml stop -t 30 crawler-lite
-install -m 600 /tmp/collector.yaml.new config/collector.yaml
+sudo install -o "$USER" -g 65532 -m 640 /tmp/collector.yaml.new config/collector.yaml
 docker compose --env-file .env -f deploy/compose/docker-compose.collector.yml up -d crawler-lite
 ```
 
