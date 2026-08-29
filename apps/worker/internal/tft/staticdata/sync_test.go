@@ -177,6 +177,24 @@ func TestSyncCDragonDoesNotReuseSnapshotFromRichValidatorAlone(t *testing.T) {
 	require.NotEqual(t, q.latest.Revision, q.created[0].Revision)
 }
 
+func TestSyncDDragonPublishedSnapshotIsNotRepublished(t *testing.T) {
+	q := &recordingStaticQuerier{latest: sqlcgen.TftStaticSnapshot{
+		ID: 11, Source: "ddragon", Patch: "16.17", Build: "16.17.1",
+		Locale: "en_us", Status: "published", ParserVersion: parserVersion,
+	}}
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("published DDragon snapshot must not fetch documents")
+		return nil, nil
+	})}
+
+	id, jobs, err := syncDDragon(context.Background(), q, Options{Root: t.TempDir(), Client: client}, "16.17.1", "16.17", "en_us")
+
+	require.NoError(t, err)
+	require.Zero(t, id)
+	require.Zero(t, jobs)
+	require.Empty(t, q.created)
+}
+
 func TestPatchOfPreservesMajorMinor(t *testing.T) {
 	require.Equal(t, "16.17", patchOf("16.17.1"))
 }

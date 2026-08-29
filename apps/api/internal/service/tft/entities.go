@@ -29,9 +29,10 @@ func localizedEntity(index map[string]Entity, id string) Entity {
 	return Entity{ID: id}
 }
 
-// Published snapshots cannot transition to published until every asset job is
-// complete. Reproducing the static sync's content-addressed path here therefore
-// yields only local /game-assets URLs and never a browser dependency on CDragon.
+// Published snapshots require every asset job to be completed or explicitly
+// skipped with a local placeholder. Reproducing the static sync's
+// content-addressed path here therefore yields only local /game-assets URLs and
+// never a browser dependency on CDragon.
 func localTFTIconURL(payload []byte, patch, revision string) string {
 	var object map[string]any
 	if json.Unmarshal(payload, &object) != nil {

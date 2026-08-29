@@ -69,6 +69,8 @@ type TFTConfig struct {
 	Overlap                 time.Duration `mapstructure:"overlap"`
 	StaticRoot              string        `mapstructure:"static_root"`
 	StaticLocales           []string      `mapstructure:"static_locales"`
+	StaticDownloadBatch     int           `mapstructure:"static_download_batch"`
+	StaticDownloadWorkers   int           `mapstructure:"static_download_workers"`
 }
 
 func Default() Config {
@@ -84,6 +86,7 @@ func Default() Config {
 			ScaleMasterLimit: 1000, ScaleDiamondPerDivision: 100, ScaleAfter: 48 * time.Hour,
 			ScaleBelowObservations: 10000, Window: 7 * 24 * time.Hour, WindowLag: 30 * time.Minute,
 			Overlap: 6 * time.Hour, StaticRoot: "data/game-assets", StaticLocales: []string{"en_us", "zh_cn"},
+			StaticDownloadBatch: 128, StaticDownloadWorkers: 16,
 		},
 	}
 }
@@ -155,6 +158,14 @@ func (c Config) Validate() error {
 	if !hasEnglishStatic {
 		errs = append(errs, fmt.Errorf("tft.static_locales must include en_us"))
 	}
+	if c.TFT.StaticDownloadBatch < 1 || c.TFT.StaticDownloadBatch > 1000 {
+		errs = append(errs, fmt.Errorf("tft.static_download_batch must be 1..1000"))
+	}
+	if c.TFT.StaticDownloadWorkers < 1 || c.TFT.StaticDownloadWorkers > 64 {
+		errs = append(errs, fmt.Errorf("tft.static_download_workers must be 1..64"))
+	} else if c.TFT.StaticDownloadBatch > c.TFT.StaticDownloadWorkers*8 {
+		errs = append(errs, fmt.Errorf("tft.static_download_batch must not exceed 8 times static_download_workers"))
+	}
 	if c.TFT.MatchCountPerSeed < 1 || c.TFT.MatchCountPerSeed > 100 {
 		errs = append(errs, fmt.Errorf("tft.match_count_per_seed must be 1..100"))
 	}
@@ -192,6 +203,8 @@ func bindDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("tft.overlap", d.TFT.Overlap)
 	v.SetDefault("tft.static_root", d.TFT.StaticRoot)
 	v.SetDefault("tft.static_locales", d.TFT.StaticLocales)
+	v.SetDefault("tft.static_download_batch", d.TFT.StaticDownloadBatch)
+	v.SetDefault("tft.static_download_workers", d.TFT.StaticDownloadWorkers)
 }
 
 func PlatformURL(platform string) string {

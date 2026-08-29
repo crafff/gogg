@@ -102,6 +102,8 @@ tft:
   overlap: 6h
   static_root: data/game-assets
   static_locales: [en_us, zh_cn]
+  static_download_batch: 128
+  static_download_workers: 16
   player_freshness: 10m
   player_ip_limit: 5
   player_ip_limit_window: 10m

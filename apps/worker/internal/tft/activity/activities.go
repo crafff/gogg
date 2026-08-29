@@ -817,9 +817,30 @@ func (a *Activities) SyncStatic(ctx context.Context) (staticdata.SyncResult, err
 	})
 }
 
+func (a *Activities) SyncStaticSource(ctx context.Context, input staticdata.SourceSyncInput) (staticdata.SyncResult, error) {
+	return staticdata.SyncSource(ctx, a.rt.Queries, staticdata.Options{
+		Root: a.rt.Cfg.TFT.StaticRoot, Locales: a.rt.Cfg.TFT.StaticLocales,
+		Client: &http.Client{Timeout: 90 * time.Second},
+	}, input)
+}
+
 func (a *Activities) DownloadStaticAssets(ctx context.Context, limit int) (staticdata.DownloadResult, error) {
 	return staticdata.DownloadAssets(ctx, a.rt.Queries, a.rt.Cfg.TFT.StaticRoot,
 		&http.Client{Timeout: 60 * time.Second}, activityLeaseOwner(ctx), limit)
+}
+
+func (a *Activities) DownloadStaticAssetsForSnapshots(ctx context.Context, snapshotIDs []int64) (staticdata.DownloadResult, error) {
+	result, err := staticdata.DownloadAssetsForSnapshots(ctx, a.rt.Queries, a.rt.Cfg.TFT.StaticRoot,
+		&http.Client{Timeout: 60 * time.Second}, activityLeaseOwner(ctx), staticdata.DownloadInput{
+			SnapshotIDs: snapshotIDs,
+			BatchSize:   a.rt.Cfg.TFT.StaticDownloadBatch,
+			Concurrency: a.rt.Cfg.TFT.StaticDownloadWorkers,
+		})
+	var exhausted *staticdata.ExhaustedAssetsError
+	if errors.As(err, &exhausted) {
+		return staticdata.DownloadResult{}, temporal.NewNonRetryableApplicationError(err.Error(), "STATIC_ASSET_EXHAUSTED", err)
+	}
+	return result, err
 }
 
 func (a *Activities) PublishStaticSnapshots(ctx context.Context, snapshotIDs []int64) error {

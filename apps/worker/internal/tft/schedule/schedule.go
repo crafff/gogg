@@ -12,7 +12,6 @@ import (
 	"go.temporal.io/sdk/temporal"
 
 	"github.com/crafff/gogg/apps/worker/internal/tft/config"
-	tftworkflow "github.com/crafff/gogg/apps/worker/internal/tft/workflow"
 	"github.com/crafff/gogg/packages/tftcontract"
 )
 
@@ -31,11 +30,11 @@ func BuildPlans(cfg config.Config) ([]Plan, error) {
 	}
 	return []Plan{{
 		ID: tftcontract.DefaultScheduleID, Cron: cfg.TFT.CrawlCron, TaskQueue: tftcontract.SeedTaskQueue,
-		WorkflowID: "gogg-tft-crawl", Workflow: tftworkflow.Crawl,
+		WorkflowID: "gogg-tft-crawl", Workflow: tftcontract.CrawlWorkflowName,
 		Args: []any{tftcontract.CrawlInput{ProfileName: cfg.TFT.ProfileName, Platforms: cfg.TFT.Platforms, Window: cfg.TFT.Window, WindowLag: cfg.TFT.WindowLag}},
 	}, {
 		ID: tftcontract.DefaultStaticScheduleID, Cron: cfg.TFT.StaticCron, TaskQueue: tftcontract.StaticTaskQueue,
-		WorkflowID: "gogg-tft-static", Workflow: tftworkflow.StaticSync,
+		WorkflowID: "gogg-tft-static", Workflow: tftcontract.StaticWorkflowName,
 	}}, nil
 }
 

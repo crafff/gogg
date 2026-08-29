@@ -17,6 +17,8 @@ func TestBuildPlansUsesGlobalPlatformsAndIsolatedQueue(t *testing.T) {
 	require.Len(t, plans, 2)
 	require.Equal(t, tftcontract.DefaultScheduleID, plans[0].ID)
 	require.Equal(t, tftcontract.SeedTaskQueue, plans[0].TaskQueue)
+	require.Equal(t, tftcontract.CrawlWorkflowName, plans[0].Workflow)
 	require.Equal(t, tftcontract.DefaultStaticScheduleID, plans[1].ID)
 	require.Equal(t, tftcontract.StaticTaskQueue, plans[1].TaskQueue)
+	require.Equal(t, tftcontract.StaticWorkflowName, plans[1].Workflow)
 }

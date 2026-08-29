@@ -135,6 +135,27 @@ func printStatus(ctx context.Context, c client.Client, handle client.ScheduleHan
 	}
 	fmt.Printf("schedule=%s paused=%t note=%q actions=%d running=%d\n", id, paused, note, description.Info.NumActions, len(description.Info.RunningWorkflows))
 	for _, running := range description.Info.RunningWorkflows {
+		if id == tftcontract.DefaultStaticScheduleID {
+			var status tftcontract.StaticStatus
+			value, queryErr := c.QueryWorkflow(ctx, running.WorkflowID, "", tftcontract.StaticStatusQueryName)
+			if queryErr == nil {
+				queryErr = value.Get(&status)
+			}
+			if queryErr != nil {
+				fmt.Printf("workflow=%s status=unavailable error=%q\n", running.WorkflowID, queryErr)
+				continue
+			}
+			if status.Source == "legacy-global" {
+				fmt.Printf("workflow=%s state=%s stage=%s mode=legacy-global processed_global=%d remaining_global=%d fetched=%d\n",
+					running.WorkflowID, status.State, status.Stage, status.Completed, status.Remaining, status.Fetched)
+				continue
+			}
+			fmt.Printf("workflow=%s state=%s stage=%s source=%s assets=%d/%d completed=%d skipped=%d failed=%d remaining=%d fetched=%d\n",
+				running.WorkflowID, status.State, status.Stage, status.Source,
+				status.Completed+status.Skipped, status.Total, status.Completed, status.Skipped,
+				status.Failed, status.Remaining, status.Fetched)
+			continue
+		}
 		var status tftcontract.CrawlStatus
 		value, err := c.QueryWorkflow(ctx, running.WorkflowID, "", tftcontract.CrawlStatusQueryName)
 		if err == nil {

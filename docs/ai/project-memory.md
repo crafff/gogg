@@ -116,6 +116,10 @@ stale against code and tests before relying on it.
   commonly use `nameId`. The parser version participates in the immutable
   snapshot revision so parser upgrades build a new snapshot; retries of that
   same revision merge objects idempotently and resume its static-asset jobs.
+- Static sync publishes CommunityDragon before attempting Data Dragon. Asset
+  jobs are scoped to the snapshots created by that source sync, duplicate URLs
+  across locales share one network fetch, and publication accepts only local
+  completed assets or explicitly skipped optional placeholders.
 
 ## Local development facts
 
@@ -155,6 +159,15 @@ stale against code and tests before relying on it.
   retryable 404 handling caused long stalls in real testing.
 - Keep workflow progress monotonic and useful even when individual match
   details are missing or skipped.
+- Releasing an unfinished static-asset lease must also undo the claim attempt.
+  Otherwise cancellation can create `pending` rows that have exhausted their
+  attempt count, remain visible as work, and hot-loop without being claimable.
+- Persist static-asset retry eligibility in PostgreSQL and make both claims and
+  progress timers honor it. Do not consume all attempts in a tight workflow
+  loop after a transient resource failure.
+- Temporal schedules persist workflow type strings. Register legacy Go function
+  names for replay compatibility, but write stable contract aliases into all
+  new schedule actions.
 - Do not replace a stale TFT Riot-ID-to-PUUID mapping with a DELETE CTE followed
   by INSERT. PostgreSQL's same-statement snapshot can still trip the expression
   unique index; perform the delete and PUUID upsert as two statements in one

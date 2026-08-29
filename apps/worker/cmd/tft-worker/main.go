@@ -57,12 +57,12 @@ func run() error {
 	for _, queue := range queues {
 		w := worker.New(temporalClient, queue.name, worker.Options{MaxConcurrentActivityExecutionSize: queue.concurrency})
 		if queue.name == tftcontract.SeedTaskQueue {
-			w.RegisterWorkflowWithOptions(tftworkflow.Crawl, workflowRegisterOptions())
-			w.RegisterWorkflowWithOptions(tftworkflow.PlatformSeed, workflow.RegisterOptions{Name: tftcontract.PlatformWorkflowName})
-			w.RegisterWorkflowWithOptions(tftworkflow.RouteDispatch, workflow.RegisterOptions{Name: tftcontract.RouteWorkflowName})
-			w.RegisterWorkflowWithOptions(tftworkflow.PlayerLookup, workflow.RegisterOptions{Name: tftcontract.PlayerLookupWorkflowName})
+			registerWorkflowCompat(w, tftworkflow.Crawl, tftcontract.CrawlWorkflowName)
+			registerWorkflowCompat(w, tftworkflow.PlatformSeed, tftcontract.PlatformWorkflowName)
+			registerWorkflowCompat(w, tftworkflow.RouteDispatch, tftcontract.RouteWorkflowName)
+			registerWorkflowCompat(w, tftworkflow.PlayerLookup, tftcontract.PlayerLookupWorkflowName)
 		} else if queue.name == tftcontract.StaticTaskQueue {
-			w.RegisterWorkflowWithOptions(tftworkflow.StaticSync, workflow.RegisterOptions{Name: tftcontract.StaticWorkflowName})
+			registerWorkflowCompat(w, tftworkflow.StaticSync, tftcontract.StaticWorkflowName)
 		}
 		w.RegisterActivityWithOptions(activities, temporalactivity.RegisterOptions{Name: "Activities."})
 		if err := w.Start(); err != nil {
@@ -86,8 +86,12 @@ func run() error {
 	return nil
 }
 
-func workflowRegisterOptions() workflow.RegisterOptions {
-	return workflow.RegisterOptions{Name: tftcontract.CrawlWorkflowName}
+func registerWorkflowCompat(w worker.Worker, workflowFunc any, stableName string) {
+	// Schedules created by the first TFT release persisted Go function names
+	// such as "StaticSync". Keep those names registered while all new starts use
+	// the stable contract aliases.
+	w.RegisterWorkflow(workflowFunc)
+	w.RegisterWorkflowWithOptions(workflowFunc, workflow.RegisterOptions{Name: stableName})
 }
 func stopWorkers(workers []worker.Worker) {
 	for i := len(workers) - 1; i >= 0; i-- {

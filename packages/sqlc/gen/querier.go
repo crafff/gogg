@@ -16,8 +16,10 @@ type Querier interface {
 	AcquireOAuthIdentityLock(ctx context.Context, provider string, providerUserID string) error
 	BackfillSummonerLookupParticipantRank(ctx context.Context, arg BackfillSummonerLookupParticipantRankParams) error
 	ClaimTFTMatchJobs(ctx context.Context, arg ClaimTFTMatchJobsParams) ([]TftMatchJob, error)
+	ClaimTFTStaticAssetGroups(ctx context.Context, arg ClaimTFTStaticAssetGroupsParams) ([]ClaimTFTStaticAssetGroupsRow, error)
 	ClaimTFTStaticAssetJobs(ctx context.Context, leaseOwner *string, leaseSeconds int32, rowLimit int32) ([]TftStaticAssetJob, error)
 	CompleteTFTMatchJob(ctx context.Context, arg CompleteTFTMatchJobParams) (int64, error)
+	CompleteTFTStaticAssetGroup(ctx context.Context, arg CompleteTFTStaticAssetGroupParams) (int64, error)
 	CompleteTFTStaticAssetJob(ctx context.Context, arg CompleteTFTStaticAssetJobParams) (int64, error)
 	ConsumeOAuthLoginAttempt(ctx context.Context, stateHash []byte, provider string, browserBindingHash []byte) (OauthLoginAttempt, error)
 	CountTFTEligibleObservations(ctx context.Context, platform string, patch string) (int64, error)
@@ -53,6 +55,7 @@ type Querier interface {
 	EnqueueTFTMatchJob(ctx context.Context, routingRegion string, matchID string, platform string) (int64, error)
 	EnqueueTFTStaticAsset(ctx context.Context, arg EnqueueTFTStaticAssetParams) (int64, error)
 	FailStaleTFTRuns(ctx context.Context, arg FailStaleTFTRunsParams) (int64, error)
+	FailTFTStaticAssetGroup(ctx context.Context, arg FailTFTStaticAssetGroupParams) (int64, error)
 	FailTFTStaticAssetJob(ctx context.Context, arg FailTFTStaticAssetJobParams) (int64, error)
 	FindActiveSummonerLookupJob(ctx context.Context, region string, gameNameNorm string, tagLineNorm string) (SummonerLookupJob, error)
 	FindActiveTFTPlayerLookupJob(ctx context.Context, platform string, gameNameNorm string, tagLineNorm string) (TftPlayerLookupJob, error)
@@ -88,6 +91,7 @@ type Querier interface {
 	GetTFTPlayerMatchSync(ctx context.Context, platform string, puuid string, queueType string) (TftPlayerMatchSync, error)
 	GetTFTRunByWorkflowRunID(ctx context.Context, workflowRunID string) (TftCrawlRun, error)
 	GetTFTStaticAssetQueueState(ctx context.Context) (GetTFTStaticAssetQueueStateRow, error)
+	GetTFTStaticAssetQueueStateForSnapshots(ctx context.Context, snapshotIds []int64) (GetTFTStaticAssetQueueStateForSnapshotsRow, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	// Find the gogg user bound to an external identity. Used on every
 	// OAuth callback: if the (provider, provider_user_id) tuple is known,
@@ -166,6 +170,8 @@ type Querier interface {
 	RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error
 	RevokeUserSessionByHash(ctx context.Context, tokenHash []byte) (int64, error)
 	SetTFTSeedSelected(ctx context.Context, selected bool, iD int64) error
+	SkipTFTStaticAssetGroup(ctx context.Context, arg SkipTFTStaticAssetGroupParams) (int64, error)
+	SkipTFTStaticAssetJob(ctx context.Context, arg SkipTFTStaticAssetJobParams) (int64, error)
 	TouchUserLastLogin(ctx context.Context, id pgtype.UUID) error
 	UpdateSummonerLookupJobProgress(ctx context.Context, arg UpdateSummonerLookupJobProgressParams) error
 	UpdateTFTPlayerLookupJobProgress(ctx context.Context, arg UpdateTFTPlayerLookupJobProgressParams) error

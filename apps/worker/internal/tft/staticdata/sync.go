@@ -3,6 +3,7 @@ package staticdata
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,14 +15,21 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 )
 
 const parserVersion = "tft-static-v2"
+
+const (
+	maxDocumentBody = 128 << 20
+	maxAssetBody    = 32 << 20
+)
 
 var ddragonCategories = []string{
 	"tft-arena", "tft-augments", "tft-champion", "tft-item",
@@ -40,9 +48,19 @@ type Querier interface {
 type AssetQuerier interface {
 	ClaimTFTStaticAssetJobs(context.Context, *string, int32, int32) ([]sqlcgen.TftStaticAssetJob, error)
 	CompleteTFTStaticAssetJob(context.Context, sqlcgen.CompleteTFTStaticAssetJobParams) (int64, error)
+	SkipTFTStaticAssetJob(context.Context, sqlcgen.SkipTFTStaticAssetJobParams) (int64, error)
 	FailTFTStaticAssetJob(context.Context, sqlcgen.FailTFTStaticAssetJobParams) (int64, error)
 	ReleaseTFTStaticAssetLeases(context.Context, *string) error
 	GetTFTStaticAssetQueueState(context.Context) (sqlcgen.GetTFTStaticAssetQueueStateRow, error)
+}
+
+type ScopedAssetQuerier interface {
+	ClaimTFTStaticAssetGroups(context.Context, sqlcgen.ClaimTFTStaticAssetGroupsParams) ([]sqlcgen.ClaimTFTStaticAssetGroupsRow, error)
+	CompleteTFTStaticAssetGroup(context.Context, sqlcgen.CompleteTFTStaticAssetGroupParams) (int64, error)
+	FailTFTStaticAssetGroup(context.Context, sqlcgen.FailTFTStaticAssetGroupParams) (int64, error)
+	SkipTFTStaticAssetGroup(context.Context, sqlcgen.SkipTFTStaticAssetGroupParams) (int64, error)
+	ReleaseTFTStaticAssetLeases(context.Context, *string) error
+	GetTFTStaticAssetQueueStateForSnapshots(context.Context, []int64) (sqlcgen.GetTFTStaticAssetQueueStateForSnapshotsRow, error)
 }
 
 type Options struct {
@@ -51,10 +69,24 @@ type Options struct {
 	Client                               *http.Client
 }
 
+type SnapshotRef struct {
+	ID        int64
+	Source    string
+	Locale    string
+	AssetJobs int
+}
+
 type SyncResult struct {
 	Build, Patch string
 	SnapshotIDs  []int64
+	Snapshots    []SnapshotRef
 	AssetJobs    int
+}
+
+type SourceSyncInput struct {
+	Source string
+	Build  string
+	Patch  string
 }
 
 type document struct {
@@ -63,6 +95,66 @@ type document struct {
 }
 
 func Sync(ctx context.Context, q Querier, opts Options) (SyncResult, error) {
+	opts = defaultOptions(opts)
+	build, patch, err := resolveBuild(ctx, opts)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	result := SyncResult{Build: build, Patch: patch}
+	for _, localeValue := range opts.Locales {
+		locale := strings.ToLower(localeValue)
+		id, jobs, err := syncDDragon(ctx, q, opts, build, patch, locale)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		appendSnapshot(&result, id, jobs, "ddragon", locale)
+		id, jobs, err = syncCDragon(ctx, q, opts, build, patch, locale)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		appendSnapshot(&result, id, jobs, "cdragon", locale)
+	}
+	return result, nil
+}
+
+// SyncSource isolates each provider so the workflow can publish the CDragon
+// catalog required by match ingestion before attempting optional DDragon data.
+func SyncSource(ctx context.Context, q Querier, opts Options, input SourceSyncInput) (SyncResult, error) {
+	opts = defaultOptions(opts)
+	if input.Source != "cdragon" && input.Source != "ddragon" {
+		return SyncResult{}, fmt.Errorf("unsupported TFT static source %q", input.Source)
+	}
+	build, patch := input.Build, input.Patch
+	if build == "" {
+		var err error
+		build, patch, err = resolveBuild(ctx, opts)
+		if err != nil {
+			return SyncResult{}, err
+		}
+	} else if patch == "" {
+		patch = patchOf(build)
+	}
+	result := SyncResult{Build: build, Patch: patch}
+	for _, localeValue := range opts.Locales {
+		locale := strings.ToLower(localeValue)
+		var id int64
+		var jobs int
+		var err error
+		switch input.Source {
+		case "cdragon":
+			id, jobs, err = syncCDragon(ctx, q, opts, build, patch, locale)
+		case "ddragon":
+			id, jobs, err = syncDDragon(ctx, q, opts, build, patch, locale)
+		}
+		if err != nil {
+			return SyncResult{}, err
+		}
+		appendSnapshot(&result, id, jobs, input.Source, locale)
+	}
+	return result, nil
+}
+
+func defaultOptions(opts Options) Options {
 	if opts.Client == nil {
 		opts.Client = &http.Client{Timeout: 90 * time.Second}
 	}
@@ -75,40 +167,33 @@ func Sync(ctx context.Context, q Querier, opts Options) (SyncResult, error) {
 	if len(opts.Locales) == 0 {
 		opts.Locales = []string{"en_us", "zh_cn"}
 	}
+	return opts
+}
+
+func resolveBuild(ctx context.Context, opts Options) (string, string, error) {
 	var versions []string
 	if err := getJSON(ctx, opts.Client, strings.TrimRight(opts.DDragonBaseURL, "/")+"/api/versions.json", &versions); err != nil {
-		return SyncResult{}, fmt.Errorf("probe Data Dragon versions: %w", err)
+		return "", "", fmt.Errorf("probe Data Dragon versions: %w", err)
 	}
 	if len(versions) == 0 {
-		return SyncResult{}, errors.New("Data Dragon versions list is empty")
+		return "", "", errors.New("Data Dragon versions list is empty")
 	}
-	build, patch := versions[0], patchOf(versions[0])
-	result := SyncResult{Build: build, Patch: patch}
-	for _, localeValue := range opts.Locales {
-		locale := strings.ToLower(localeValue)
-		id, jobs, err := syncDDragon(ctx, q, opts, build, patch, locale)
-		if err != nil {
-			return SyncResult{}, err
-		}
-		if id > 0 {
-			result.SnapshotIDs = append(result.SnapshotIDs, id)
-			result.AssetJobs += jobs
-		}
-		id, jobs, err = syncCDragon(ctx, q, opts, build, patch, locale)
-		if err != nil {
-			return SyncResult{}, err
-		}
-		if id > 0 {
-			result.SnapshotIDs = append(result.SnapshotIDs, id)
-			result.AssetJobs += jobs
-		}
+	build := versions[0]
+	return build, patchOf(build), nil
+}
+
+func appendSnapshot(result *SyncResult, id int64, jobs int, source, locale string) {
+	if id <= 0 {
+		return
 	}
-	return result, nil
+	result.SnapshotIDs = append(result.SnapshotIDs, id)
+	result.Snapshots = append(result.Snapshots, SnapshotRef{ID: id, Source: source, Locale: locale, AssetJobs: jobs})
+	result.AssetJobs += jobs
 }
 
 func syncDDragon(ctx context.Context, q Querier, opts Options, build, patch, locale string) (int64, int, error) {
 	if latest, err := q.GetLatestTFTStaticSnapshotAnyStatus(ctx, "ddragon", locale); err == nil && latest.Build == build && latest.ParserVersion == parserVersion && latest.Status == "published" {
-		return latest.ID, 0, nil
+		return 0, 0, nil
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return 0, 0, err
 	}
@@ -155,7 +240,7 @@ func syncCDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 	}
 	revision := documentsSHA(parserVersion, docs)
 	if latestErr == nil && latest.Status == "published" && latest.Patch == patch && latest.ParserVersion == parserVersion && latest.Revision == revision {
-		return latest.ID, 0, nil
+		return 0, 0, nil
 	}
 	snapshot, err := q.CreateTFTStaticSnapshot(ctx, sqlcgen.CreateTFTStaticSnapshotParams{Source: "cdragon", Patch: patch, Build: build, Revision: revision, Locale: locale, Etag: optional(etag), LastModified: optional(modified), SourceUrl: richURL, ParserVersion: parserVersion})
 	if err != nil {
@@ -552,7 +637,22 @@ func getJSON(ctx context.Context, client *http.Client, url string, target any) e
 	}
 	return json.Unmarshal(body, target)
 }
+
+type HTTPStatusError struct {
+	URL        string
+	Status     string
+	StatusCode int
+}
+
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("GET %s: %s", e.URL, e.Status)
+}
+
 func get(ctx context.Context, client *http.Client, url string) ([]byte, string, string, error) {
+	return getWithLimit(ctx, client, url, maxDocumentBody)
+}
+
+func getWithLimit(ctx context.Context, client *http.Client, url string, maxBody int64) ([]byte, string, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", "", err
@@ -563,14 +663,13 @@ func get(ctx context.Context, client *http.Client, url string) ([]byte, string, 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return nil, "", "", fmt.Errorf("GET %s: %s", url, resp.Status)
+		return nil, "", "", &HTTPStatusError{URL: url, Status: resp.Status, StatusCode: resp.StatusCode}
 	}
-	const maxBody = 128 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
 	if err != nil {
 		return nil, "", "", err
 	}
-	if len(body) > maxBody {
+	if int64(len(body)) > maxBody {
 		return nil, "", "", fmt.Errorf("GET %s: response exceeds %d bytes", url, maxBody)
 	}
 	return body, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), nil
@@ -608,9 +707,30 @@ func writeAtomic(path string, body []byte, mode os.FileMode) error {
 
 type DownloadResult struct {
 	Processed      int
+	Fetched        int
+	Completed      int64
+	Skipped        int64
+	Failed         int64
+	Total          int64
 	Remaining      int64
 	NextEligibleAt time.Time
 	HasMore        bool
+}
+
+type DownloadInput struct {
+	SnapshotIDs []int64
+	BatchSize   int
+	Concurrency int
+}
+
+type ExhaustedAssetsError struct {
+	Count int64
+}
+
+var errAssetDownloadDeferred = errors.New("TFT static asset download deferred for retry")
+
+func (e *ExhaustedAssetsError) Error() string {
+	return fmt.Sprintf("%d TFT static asset jobs exhausted their retries", e.Count)
 }
 
 func DownloadAssets(ctx context.Context, q AssetQuerier, root string, client *http.Client, owner string, limit int) (DownloadResult, error) {
@@ -624,8 +744,24 @@ func DownloadAssets(ctx context.Context, q AssetQuerier, root string, client *ht
 	ownerRef := &owner
 	defer func() { _ = q.ReleaseTFTStaticAssetLeases(context.WithoutCancel(ctx), ownerRef) }()
 	for _, job := range jobs {
-		body, _, _, err := get(ctx, client, job.SourceUrl)
+		body, _, _, err := getWithLimit(ctx, client, job.SourceUrl, maxAssetBody)
 		if err != nil {
+			if isOptionalMissingPNG(job.SourceUrl, err) {
+				path := filepath.Join(root, filepath.FromSlash(job.RelativePath))
+				if writeErr := writeAtomic(path, transparentPNG, 0o640); writeErr != nil {
+					return DownloadResult{}, writeErr
+				}
+				digest := sha256.Sum256(transparentPNG)
+				message := err.Error()
+				rows, skipErr := q.SkipTFTStaticAssetJob(ctx, sqlcgen.SkipTFTStaticAssetJobParams{
+					LastError: &message, TargetSnapshotID: job.SnapshotID, TargetAssetKey: job.AssetKey,
+					LeaseOwnerFilter: ownerRef, Sha256: hex.EncodeToString(digest[:]),
+				})
+				if updateErr := requireAssetLeaseUpdate("skip TFT static asset job", rows, skipErr); updateErr != nil {
+					return DownloadResult{}, updateErr
+				}
+				continue
+			}
 			message := err.Error()
 			rows, failErr := q.FailTFTStaticAssetJob(ctx, sqlcgen.FailTFTStaticAssetJobParams{LastError: &message, TargetSnapshotID: job.SnapshotID, TargetAssetKey: job.AssetKey, LeaseOwnerFilter: ownerRef})
 			if updateErr := requireAssetLeaseUpdate("fail TFT static asset job", rows, failErr); updateErr != nil {
@@ -658,6 +794,186 @@ func DownloadAssets(ctx context.Context, q AssetQuerier, root string, client *ht
 	}
 	return result, nil
 }
+
+func DownloadAssetsForSnapshots(ctx context.Context, q ScopedAssetQuerier, root string, client *http.Client, owner string, input DownloadInput) (DownloadResult, error) {
+	input.SnapshotIDs = uniqueSnapshotIDs(input.SnapshotIDs)
+	if len(input.SnapshotIDs) == 0 {
+		return DownloadResult{}, errors.New("TFT static snapshot IDs are required")
+	}
+	if input.BatchSize < 1 || input.BatchSize > 1000 {
+		return DownloadResult{}, fmt.Errorf("TFT static download batch must be 1..1000, got %d", input.BatchSize)
+	}
+	if input.Concurrency < 1 || input.Concurrency > 64 {
+		return DownloadResult{}, fmt.Errorf("TFT static download concurrency must be 1..64, got %d", input.Concurrency)
+	}
+	if input.BatchSize > input.Concurrency*8 {
+		return DownloadResult{}, fmt.Errorf("TFT static download batch %d exceeds safe limit %d for concurrency %d", input.BatchSize, input.Concurrency*8, input.Concurrency)
+	}
+	if client == nil {
+		client = &http.Client{Timeout: 60 * time.Second}
+	}
+	ownerRef := &owner
+	jobs, err := q.ClaimTFTStaticAssetGroups(ctx, sqlcgen.ClaimTFTStaticAssetGroupsParams{
+		SnapshotIds: input.SnapshotIDs,
+		RowLimit:    int32(input.BatchSize), LeaseOwner: ownerRef, LeaseSeconds: 660,
+	})
+	if err != nil {
+		return DownloadResult{}, err
+	}
+	defer func() { _ = q.ReleaseTFTStaticAssetLeases(context.WithoutCancel(ctx), ownerRef) }()
+
+	groups := groupClaimedAssets(jobs)
+	var processed, fetched atomic.Int64
+	var downloads errgroup.Group
+	downloads.SetLimit(input.Concurrency)
+	for _, jobsForURL := range groups {
+		jobsForURL := jobsForURL
+		downloads.Go(func() error {
+			fetched.Add(1)
+			if err := downloadAssetGroup(ctx, q, root, client, ownerRef, input.SnapshotIDs, jobsForURL); err != nil {
+				if errors.Is(err, errAssetDownloadDeferred) {
+					return nil
+				}
+				return err
+			}
+			processed.Add(int64(len(jobsForURL)))
+			return nil
+		})
+	}
+	if err := downloads.Wait(); err != nil {
+		return DownloadResult{}, err
+	}
+	queue, err := q.GetTFTStaticAssetQueueStateForSnapshots(ctx, input.SnapshotIDs)
+	if err != nil {
+		return DownloadResult{}, err
+	}
+	if queue.Exhausted > 0 {
+		return DownloadResult{}, &ExhaustedAssetsError{Count: queue.Exhausted}
+	}
+	result := DownloadResult{
+		Processed: int(processed.Load()), Fetched: int(fetched.Load()),
+		Completed: queue.Completed, Skipped: queue.Skipped, Failed: queue.Failed,
+		Total: queue.Total, Remaining: queue.Remaining, HasMore: queue.Remaining > 0,
+	}
+	if queue.NextEligibleAt.Valid {
+		result.NextEligibleAt = queue.NextEligibleAt.Time
+	}
+	return result, nil
+}
+
+func uniqueSnapshotIDs(ids []int64) []int64 {
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+func groupClaimedAssets(jobs []sqlcgen.ClaimTFTStaticAssetGroupsRow) [][]sqlcgen.ClaimTFTStaticAssetGroupsRow {
+	byKey := make(map[string][]sqlcgen.ClaimTFTStaticAssetGroupsRow, len(jobs))
+	keys := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		if _, exists := byKey[job.AssetKey]; !exists {
+			keys = append(keys, job.AssetKey)
+		}
+		byKey[job.AssetKey] = append(byKey[job.AssetKey], job)
+	}
+	sort.Strings(keys)
+	out := make([][]sqlcgen.ClaimTFTStaticAssetGroupsRow, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+func downloadAssetGroup(ctx context.Context, q ScopedAssetQuerier, root string, client *http.Client, owner *string, snapshotIDs []int64, jobs []sqlcgen.ClaimTFTStaticAssetGroupsRow) error {
+	if len(jobs) == 0 {
+		return nil
+	}
+	assetKey, sourceURL := jobs[0].AssetKey, jobs[0].SourceUrl
+	for _, job := range jobs[1:] {
+		if job.AssetKey != assetKey || job.SourceUrl != sourceURL {
+			return failAssetGroup(ctx, q, snapshotIDs, assetKey, owner, errors.New("TFT static asset group has inconsistent source URLs"), len(jobs))
+		}
+	}
+	body, _, _, err := getWithLimit(ctx, client, sourceURL, maxAssetBody)
+	if err != nil {
+		if isOptionalMissingPNG(sourceURL, err) {
+			if writeErr := writeAssetGroup(root, jobs, transparentPNG); writeErr != nil {
+				return failAssetGroup(ctx, q, snapshotIDs, assetKey, owner, writeErr, len(jobs))
+			}
+			digest := sha256.Sum256(transparentPNG)
+			message := err.Error()
+			rows, skipErr := q.SkipTFTStaticAssetGroup(ctx, sqlcgen.SkipTFTStaticAssetGroupParams{
+				LastError: &message, SnapshotIds: snapshotIDs, AssetKey: assetKey,
+				LeaseOwner: owner, Sha256: hex.EncodeToString(digest[:]),
+			})
+			return requireAssetGroupLeaseUpdate("skip TFT static asset group", rows, int64(len(jobs)), skipErr)
+		}
+		return failAssetGroup(ctx, q, snapshotIDs, assetKey, owner, err, len(jobs))
+	}
+	if err := writeAssetGroup(root, jobs, body); err != nil {
+		return failAssetGroup(ctx, q, snapshotIDs, assetKey, owner, err, len(jobs))
+	}
+	digest := sha256.Sum256(body)
+	rows, err := q.CompleteTFTStaticAssetGroup(ctx, sqlcgen.CompleteTFTStaticAssetGroupParams{
+		SnapshotIds: snapshotIDs, AssetKey: assetKey, LeaseOwner: owner,
+		Sha256: hex.EncodeToString(digest[:]),
+	})
+	return requireAssetGroupLeaseUpdate("complete TFT static asset group", rows, int64(len(jobs)), err)
+}
+
+func writeAssetGroup(root string, jobs []sqlcgen.ClaimTFTStaticAssetGroupsRow, body []byte) error {
+	for _, job := range jobs {
+		if err := writeAtomic(filepath.Join(root, filepath.FromSlash(job.RelativePath)), body, 0o640); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func failAssetGroup(ctx context.Context, q ScopedAssetQuerier, snapshotIDs []int64, assetKey string, owner *string, cause error, expected int) error {
+	message := cause.Error()
+	rows, err := q.FailTFTStaticAssetGroup(ctx, sqlcgen.FailTFTStaticAssetGroupParams{
+		LastError: &message, SnapshotIds: snapshotIDs, AssetKey: assetKey, LeaseOwner: owner,
+	})
+	if updateErr := requireAssetGroupLeaseUpdate("fail TFT static asset group", rows, int64(expected), err); updateErr != nil {
+		return errors.Join(cause, updateErr)
+	}
+	return fmt.Errorf("%w: %v", errAssetDownloadDeferred, cause)
+}
+
+func requireAssetGroupLeaseUpdate(action string, rows, expected int64, err error) error {
+	if err != nil {
+		return err
+	}
+	if rows != expected {
+		return fmt.Errorf("%s: lease was lost for %d of %d jobs", action, expected-rows, expected)
+	}
+	return nil
+}
+
+func isOptionalMissingPNG(sourceURL string, err error) bool {
+	var status *HTTPStatusError
+	if !errors.As(err, &status) || (status.StatusCode != http.StatusForbidden && status.StatusCode != http.StatusNotFound) {
+		return false
+	}
+	path := strings.ToLower(strings.Split(sourceURL, "?")[0])
+	return strings.Contains(path, "/img/tft-queue-type/") && strings.HasSuffix(path, ".png")
+}
+
+var transparentPNG = func() []byte {
+	body, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		panic(err)
+	}
+	return body
+}()
 
 func requireAssetLeaseUpdate(action string, rows int64, err error) error {
 	if err != nil {

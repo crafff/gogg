@@ -48,6 +48,24 @@ tftctl enable --schedule gogg-tft-static
 tftctl trigger --schedule gogg-tft-static
 ```
 
+`status` reports `syncing`, `downloading`, and `publishing`, the current source,
+and exact snapshot-scoped asset counts. New runs synchronize, download, and
+publish CommunityDragon before fetching Data Dragon catalogs or assets, so a
+failure in those later stages does not withhold the catalog required by match
+ingestion. Resolving the target patch still requires Data Dragon's
+`versions.json`. Historical runs that predate scoped accounting print
+`mode=legacy-global` with global processed and remaining counts instead of a
+misleading percentage.
+
+Static assets are claimed by unique URL across both locales and downloaded with
+bounded concurrency. This avoids downloading the much larger full Data Dragon
+archive while still removing duplicate locale requests. The defaults are 128
+unique URLs per activity and 16 concurrent requests; the batch may not exceed
+eight times the worker count. Transient failures use persisted exponential
+backoff. Known missing Data Dragon queue-mode icons are recorded as `skipped`
+and receive a valid local transparent PNG placeholder; other 403/404 responses
+remain failures.
+
 Each crawl freezes its target to an already published English CommunityDragon
 snapshot. It fails fast with `MISSING_STATIC` if none exists. A seven-day match
 window can cross a patch boundary; those non-target matches are still archived

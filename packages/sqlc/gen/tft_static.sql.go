@@ -11,11 +11,94 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimTFTStaticAssetGroups = `-- name: ClaimTFTStaticAssetGroups :many
+WITH candidate_keys AS (
+    SELECT jobs.asset_key, MIN(jobs.updated_at) AS oldest
+    FROM tft_static_asset_jobs jobs
+    WHERE jobs.snapshot_id = ANY($1::bigint[])
+      AND (((jobs.status = 'pending' OR (jobs.status = 'failed' AND jobs.attempt < 5))
+              AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at <= now()))
+           OR (jobs.status = 'leased' AND jobs.lease_expires_at <= now()))
+    GROUP BY jobs.asset_key
+    ORDER BY oldest, jobs.asset_key
+    LIMIT $2
+), claimed AS (
+    UPDATE tft_static_asset_jobs jobs
+    SET status = 'leased', lease_owner = $3,
+        lease_expires_at = now() + make_interval(secs => $4::int),
+        attempt = jobs.attempt + 1, updated_at = now()
+    FROM candidate_keys candidates
+    WHERE jobs.snapshot_id = ANY($1::bigint[])
+      AND jobs.asset_key = candidates.asset_key
+      AND (((jobs.status = 'pending' OR (jobs.status = 'failed' AND jobs.attempt < 5))
+              AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at <= now()))
+           OR (jobs.status = 'leased' AND jobs.lease_expires_at <= now()))
+    RETURNING jobs.snapshot_id, jobs.asset_key, jobs.source_url, jobs.relative_path, jobs.status, jobs.attempt, jobs.lease_owner, jobs.lease_expires_at, jobs.last_error, jobs.updated_at
+)
+SELECT snapshot_id, asset_key, source_url, relative_path, status, attempt, lease_owner, lease_expires_at, last_error, updated_at FROM claimed ORDER BY asset_key, snapshot_id
+`
+
+type ClaimTFTStaticAssetGroupsParams struct {
+	SnapshotIds  []int64
+	RowLimit     int32
+	LeaseOwner   *string
+	LeaseSeconds int32
+}
+
+type ClaimTFTStaticAssetGroupsRow struct {
+	SnapshotID     int64
+	AssetKey       string
+	SourceUrl      string
+	RelativePath   string
+	Status         string
+	Attempt        int32
+	LeaseOwner     *string
+	LeaseExpiresAt pgtype.Timestamptz
+	LastError      *string
+	UpdatedAt      pgtype.Timestamptz
+}
+
+func (q *Queries) ClaimTFTStaticAssetGroups(ctx context.Context, arg ClaimTFTStaticAssetGroupsParams) ([]ClaimTFTStaticAssetGroupsRow, error) {
+	rows, err := q.db.Query(ctx, claimTFTStaticAssetGroups,
+		arg.SnapshotIds,
+		arg.RowLimit,
+		arg.LeaseOwner,
+		arg.LeaseSeconds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimTFTStaticAssetGroupsRow{}
+	for rows.Next() {
+		var i ClaimTFTStaticAssetGroupsRow
+		if err := rows.Scan(
+			&i.SnapshotID,
+			&i.AssetKey,
+			&i.SourceUrl,
+			&i.RelativePath,
+			&i.Status,
+			&i.Attempt,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
+			&i.LastError,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimTFTStaticAssetJobs = `-- name: ClaimTFTStaticAssetJobs :many
 WITH candidates AS (
     SELECT snapshot_id, asset_key
     FROM tft_static_asset_jobs
-    WHERE ((status IN ('pending','failed') AND attempt < 5
+    WHERE (((status = 'pending' OR (status = 'failed' AND attempt < 5))
               AND (lease_expires_at IS NULL OR lease_expires_at <= now()))
            OR (status = 'leased' AND lease_expires_at <= now()))
     ORDER BY updated_at, snapshot_id, asset_key
@@ -60,6 +143,47 @@ func (q *Queries) ClaimTFTStaticAssetJobs(ctx context.Context, leaseOwner *strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const completeTFTStaticAssetGroup = `-- name: CompleteTFTStaticAssetGroup :execrows
+WITH saved AS (
+    INSERT INTO tft_static_assets (snapshot_id, asset_key, relative_path, sha256)
+    SELECT jobs.snapshot_id, jobs.asset_key, jobs.relative_path, $4
+    FROM tft_static_asset_jobs jobs
+    WHERE jobs.snapshot_id = ANY($1::bigint[])
+      AND jobs.asset_key = $2
+      AND jobs.lease_owner = $3
+      AND jobs.lease_expires_at > now()
+    ON CONFLICT (snapshot_id, asset_key) DO UPDATE
+    SET relative_path = EXCLUDED.relative_path, sha256 = EXCLUDED.sha256
+)
+UPDATE tft_static_asset_jobs jobs
+SET status = 'completed', lease_owner = NULL, lease_expires_at = NULL,
+    last_error = NULL, updated_at = now()
+WHERE jobs.snapshot_id = ANY($1::bigint[])
+  AND jobs.asset_key = $2
+  AND jobs.lease_owner = $3
+  AND jobs.lease_expires_at > now()
+`
+
+type CompleteTFTStaticAssetGroupParams struct {
+	SnapshotIds []int64
+	AssetKey    string
+	LeaseOwner  *string
+	Sha256      string
+}
+
+func (q *Queries) CompleteTFTStaticAssetGroup(ctx context.Context, arg CompleteTFTStaticAssetGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, completeTFTStaticAssetGroup,
+		arg.SnapshotIds,
+		arg.AssetKey,
+		arg.LeaseOwner,
+		arg.Sha256,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const completeTFTStaticAssetJob = `-- name: CompleteTFTStaticAssetJob :execrows
@@ -162,16 +286,24 @@ ON CONFLICT (snapshot_id, asset_key) DO UPDATE
 SET source_url = EXCLUDED.source_url,
     relative_path = EXCLUDED.relative_path,
     status = CASE
-      WHEN tft_static_asset_jobs.status = 'failed' AND tft_static_asset_jobs.attempt >= 5 THEN 'pending'
+      WHEN tft_static_asset_jobs.status IN ('pending','failed') AND tft_static_asset_jobs.attempt >= 5 THEN 'pending'
       ELSE tft_static_asset_jobs.status
     END,
     attempt = CASE
-      WHEN tft_static_asset_jobs.status = 'failed' AND tft_static_asset_jobs.attempt >= 5 THEN 0
+      WHEN tft_static_asset_jobs.status IN ('pending','failed') AND tft_static_asset_jobs.attempt >= 5 THEN 0
       ELSE tft_static_asset_jobs.attempt
     END,
     last_error = CASE
-      WHEN tft_static_asset_jobs.status = 'failed' AND tft_static_asset_jobs.attempt >= 5 THEN NULL
+      WHEN tft_static_asset_jobs.status IN ('pending','failed') AND tft_static_asset_jobs.attempt >= 5 THEN NULL
       ELSE tft_static_asset_jobs.last_error
+    END,
+    lease_owner = CASE
+      WHEN tft_static_asset_jobs.status IN ('pending','failed') AND tft_static_asset_jobs.attempt >= 5 THEN NULL
+      ELSE tft_static_asset_jobs.lease_owner
+    END,
+    lease_expires_at = CASE
+      WHEN tft_static_asset_jobs.status IN ('pending','failed') AND tft_static_asset_jobs.attempt >= 5 THEN NULL
+      ELSE tft_static_asset_jobs.lease_expires_at
     END,
     updated_at = now()
 `
@@ -196,9 +328,46 @@ func (q *Queries) EnqueueTFTStaticAsset(ctx context.Context, arg EnqueueTFTStati
 	return result.RowsAffected(), nil
 }
 
+const failTFTStaticAssetGroup = `-- name: FailTFTStaticAssetGroup :execrows
+UPDATE tft_static_asset_jobs jobs
+SET status = 'failed', lease_owner = NULL,
+    lease_expires_at = now() + make_interval(
+        secs => LEAST(300, 5 * (1 << LEAST(GREATEST(jobs.attempt - 1, 0), 6)))
+    ),
+    last_error = $1, updated_at = now()
+WHERE jobs.snapshot_id = ANY($2::bigint[])
+  AND jobs.asset_key = $3
+  AND jobs.lease_owner = $4
+  AND jobs.lease_expires_at > now()
+`
+
+type FailTFTStaticAssetGroupParams struct {
+	LastError   *string
+	SnapshotIds []int64
+	AssetKey    string
+	LeaseOwner  *string
+}
+
+func (q *Queries) FailTFTStaticAssetGroup(ctx context.Context, arg FailTFTStaticAssetGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failTFTStaticAssetGroup,
+		arg.LastError,
+		arg.SnapshotIds,
+		arg.AssetKey,
+		arg.LeaseOwner,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failTFTStaticAssetJob = `-- name: FailTFTStaticAssetJob :execrows
 UPDATE tft_static_asset_jobs jobs
-SET status = 'failed', lease_owner = NULL, lease_expires_at = NULL, last_error = $1, updated_at = now()
+SET status = 'failed', lease_owner = NULL,
+    lease_expires_at = now() + make_interval(
+        secs => LEAST(300, 5 * (1 << LEAST(GREATEST(jobs.attempt - 1, 0), 6)))
+    ),
+    last_error = $1, updated_at = now()
 WHERE jobs.snapshot_id = $2 AND jobs.asset_key = $3
   AND jobs.lease_owner = $4 AND jobs.lease_expires_at > now()
 `
@@ -309,7 +478,11 @@ func (q *Queries) GetLatestTFTStaticSnapshotAnyStatus(ctx context.Context, sourc
 
 const getTFTStaticAssetQueueState = `-- name: GetTFTStaticAssetQueueState :one
 SELECT COUNT(*)::bigint AS remaining,
-       MIN(CASE WHEN status = 'leased' THEN lease_expires_at ELSE now() END)::timestamptz AS next_eligible_at
+       MIN(
+           CASE WHEN status IN ('leased','failed') THEN COALESCE(lease_expires_at, now())
+                ELSE now()
+           END
+       )::timestamptz AS next_eligible_at
 FROM tft_static_asset_jobs
 WHERE status = 'pending'
    OR (status = 'failed' AND attempt < 5)
@@ -325,6 +498,56 @@ func (q *Queries) GetTFTStaticAssetQueueState(ctx context.Context) (GetTFTStatic
 	row := q.db.QueryRow(ctx, getTFTStaticAssetQueueState)
 	var i GetTFTStaticAssetQueueStateRow
 	err := row.Scan(&i.Remaining, &i.NextEligibleAt)
+	return i, err
+}
+
+const getTFTStaticAssetQueueStateForSnapshots = `-- name: GetTFTStaticAssetQueueStateForSnapshots :one
+SELECT COUNT(*)::bigint AS total,
+       COUNT(*) FILTER (WHERE status = 'completed')::bigint AS completed,
+       COUNT(*) FILTER (WHERE status = 'skipped')::bigint AS skipped,
+       COUNT(*) FILTER (WHERE status = 'failed')::bigint AS failed,
+       COUNT(*) FILTER (WHERE status = 'failed' AND attempt >= 5)::bigint AS exhausted,
+       COUNT(*) FILTER (
+           WHERE status = 'pending'
+              OR (status = 'failed' AND attempt < 5)
+              OR status = 'leased'
+       )::bigint AS remaining,
+       MIN(
+           CASE WHEN status IN ('leased','failed') THEN COALESCE(lease_expires_at, now())
+                ELSE now()
+           END
+       )
+           FILTER (
+               WHERE status = 'pending'
+                  OR (status = 'failed' AND attempt < 5)
+                  OR status = 'leased'
+           )::timestamptz AS next_eligible_at
+FROM tft_static_asset_jobs
+WHERE snapshot_id = ANY($1::bigint[])
+`
+
+type GetTFTStaticAssetQueueStateForSnapshotsRow struct {
+	Total          int64
+	Completed      int64
+	Skipped        int64
+	Failed         int64
+	Exhausted      int64
+	Remaining      int64
+	NextEligibleAt pgtype.Timestamptz
+}
+
+func (q *Queries) GetTFTStaticAssetQueueStateForSnapshots(ctx context.Context, snapshotIds []int64) (GetTFTStaticAssetQueueStateForSnapshotsRow, error) {
+	row := q.db.QueryRow(ctx, getTFTStaticAssetQueueStateForSnapshots, snapshotIds)
+	var i GetTFTStaticAssetQueueStateForSnapshotsRow
+	err := row.Scan(
+		&i.Total,
+		&i.Completed,
+		&i.Skipped,
+		&i.Failed,
+		&i.Exhausted,
+		&i.Remaining,
+		&i.NextEligibleAt,
+	)
 	return i, err
 }
 
@@ -370,7 +593,7 @@ SET status = 'published', published_at = now()
 WHERE id = $1
   AND NOT EXISTS (
       SELECT 1 FROM tft_static_asset_jobs
-      WHERE snapshot_id = tft_static_snapshots.id AND status <> 'completed'
+      WHERE snapshot_id = tft_static_snapshots.id AND status NOT IN ('completed','skipped')
   )
 `
 
@@ -384,13 +607,100 @@ func (q *Queries) PublishTFTStaticSnapshot(ctx context.Context, id int64) (int64
 
 const releaseTFTStaticAssetLeases = `-- name: ReleaseTFTStaticAssetLeases :exec
 UPDATE tft_static_asset_jobs
-SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+SET status = 'pending', attempt = GREATEST(attempt - 1, 0),
+    lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
 WHERE lease_owner = $1 AND status = 'leased'
 `
 
 func (q *Queries) ReleaseTFTStaticAssetLeases(ctx context.Context, leaseOwner *string) error {
 	_, err := q.db.Exec(ctx, releaseTFTStaticAssetLeases, leaseOwner)
 	return err
+}
+
+const skipTFTStaticAssetGroup = `-- name: SkipTFTStaticAssetGroup :execrows
+WITH saved AS (
+    INSERT INTO tft_static_assets (snapshot_id, asset_key, relative_path, sha256)
+    SELECT jobs.snapshot_id, jobs.asset_key, jobs.relative_path, $5
+    FROM tft_static_asset_jobs jobs
+    WHERE jobs.snapshot_id = ANY($2::bigint[])
+      AND jobs.asset_key = $3
+      AND jobs.lease_owner = $4
+      AND jobs.lease_expires_at > now()
+    ON CONFLICT (snapshot_id, asset_key) DO UPDATE
+    SET relative_path = EXCLUDED.relative_path, sha256 = EXCLUDED.sha256
+)
+UPDATE tft_static_asset_jobs jobs
+SET status = 'skipped', lease_owner = NULL, lease_expires_at = NULL,
+    last_error = $1, updated_at = now()
+WHERE jobs.snapshot_id = ANY($2::bigint[])
+  AND jobs.asset_key = $3
+  AND jobs.lease_owner = $4
+  AND jobs.lease_expires_at > now()
+`
+
+type SkipTFTStaticAssetGroupParams struct {
+	LastError   *string
+	SnapshotIds []int64
+	AssetKey    string
+	LeaseOwner  *string
+	Sha256      string
+}
+
+func (q *Queries) SkipTFTStaticAssetGroup(ctx context.Context, arg SkipTFTStaticAssetGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, skipTFTStaticAssetGroup,
+		arg.LastError,
+		arg.SnapshotIds,
+		arg.AssetKey,
+		arg.LeaseOwner,
+		arg.Sha256,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const skipTFTStaticAssetJob = `-- name: SkipTFTStaticAssetJob :execrows
+WITH saved AS (
+    INSERT INTO tft_static_assets (snapshot_id, asset_key, relative_path, sha256)
+    SELECT jobs.snapshot_id, jobs.asset_key, jobs.relative_path, $5
+    FROM tft_static_asset_jobs jobs
+    WHERE jobs.snapshot_id = $2
+      AND jobs.asset_key = $3
+      AND jobs.lease_owner = $4
+      AND jobs.lease_expires_at > now()
+    ON CONFLICT (snapshot_id, asset_key) DO UPDATE
+    SET relative_path = EXCLUDED.relative_path, sha256 = EXCLUDED.sha256
+)
+UPDATE tft_static_asset_jobs jobs
+SET status = 'skipped', lease_owner = NULL, lease_expires_at = NULL,
+    last_error = $1, updated_at = now()
+WHERE jobs.snapshot_id = $2
+  AND jobs.asset_key = $3
+  AND jobs.lease_owner = $4
+  AND jobs.lease_expires_at > now()
+`
+
+type SkipTFTStaticAssetJobParams struct {
+	LastError        *string
+	TargetSnapshotID int64
+	TargetAssetKey   string
+	LeaseOwnerFilter *string
+	Sha256           string
+}
+
+func (q *Queries) SkipTFTStaticAssetJob(ctx context.Context, arg SkipTFTStaticAssetJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, skipTFTStaticAssetJob,
+		arg.LastError,
+		arg.TargetSnapshotID,
+		arg.TargetAssetKey,
+		arg.LeaseOwnerFilter,
+		arg.Sha256,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertTFTStaticObject = `-- name: UpsertTFTStaticObject :exec
