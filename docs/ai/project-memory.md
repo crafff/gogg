@@ -172,6 +172,10 @@ stale against code and tests before relying on it.
 - Temporal schedules persist workflow type strings. Register legacy Go function
   names for replay compatibility, but write stable contract aliases into all
   new schedule actions.
+- Inside `workflow.Go`, derive child options and execute every blocking call
+  from the callback context. Reusing a parent coroutine's context in
+  `Future.Get` panics live Workflow Tasks with an already-blocked-coroutine
+  error; keep shared cancellation on the context passed into `workflow.Go`.
 - Do not replace a stale TFT Riot-ID-to-PUUID mapping with a DELETE CTE followed
   by INSERT. PostgreSQL's same-statement snapshot can still trip the expression
   unique index; perform the delete and PUUID upsert as two statements in one

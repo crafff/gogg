@@ -76,6 +76,63 @@ func TestCrawlUsesExecutionRunIDForDatabaseRunIdentity(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+func TestRunPlatformStageUsesCoroutineContext(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.OnWorkflow(PlatformSeed, mock.Anything, mock.Anything).After(time.Second).Return(nil).Twice()
+
+	env.ExecuteWorkflow(platformStageContextTestWorkflow)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var status tftcontract.CrawlStatus
+	require.NoError(t, env.GetWorkflowResult(&status))
+	require.Equal(t, 2, status.StageCompleted)
+	require.Equal(t, 2, status.StageTotal)
+	env.AssertExpectations(t)
+}
+
+func TestRunRouteStageUsesCoroutineContext(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.OnWorkflow(RouteDispatch, mock.Anything, mock.Anything).After(time.Second).Return(nil).Times(4)
+
+	env.ExecuteWorkflow(routeStageContextTestWorkflow)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var status tftcontract.CrawlStatus
+	require.NoError(t, env.GetWorkflowResult(&status))
+	require.Equal(t, 4, status.StageCompleted)
+	require.Equal(t, 4, status.StageTotal)
+	env.AssertExpectations(t)
+}
+
+func TestRunAnalysisStageUsesCoroutineContext(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterActivityWithOptions(activity.New(nil), temporalactivity.RegisterOptions{Name: "Activities."})
+	targets := []activity.AnalysisTarget{
+		{Platform: "NA1", Patch: "16.17", SetNumber: 15, QueueID: 1100},
+		{Platform: "KR", Patch: "16.17", SetNumber: 15, QueueID: 1100},
+	}
+	env.OnActivity("Activities.ListAnalysisTargets", mock.Anything, mock.Anything).Return(targets, nil).Once()
+	env.OnActivity("Activities.PublishAnalysis", mock.Anything, mock.Anything).
+		After(time.Second).
+		Return(activity.PublishAnalysisResult{}, nil).
+		Times(8)
+
+	env.ExecuteWorkflow(analysisStageContextTestWorkflow)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var status tftcontract.CrawlStatus
+	require.NoError(t, env.GetWorkflowResult(&status))
+	require.Equal(t, 2, status.StageCompleted)
+	require.Equal(t, 2, status.StageTotal)
+	env.AssertExpectations(t)
+}
+
 func TestWaitStageExposesCompletedUnits(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
@@ -138,4 +195,29 @@ func stageFailureProgressTestWorkflow(ctx temporalworkflow.Context) (tftcontract
 	_, cancel := temporalworkflow.WithCancel(ctx)
 	_, _, _ = waitStage(ctx, control, results, 2, cancel, &state)
 	return state, nil
+}
+
+func platformStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract.CrawlStatus, error) {
+	state := tftcontract.CrawlStatus{State: "running", Stage: "seed_and_discover"}
+	control := temporalworkflow.GetSignalChannel(ctx, "platform-stage-context-test-control")
+	_, _, err := runPlatformStage(ctx, control, tftcontract.CrawlInput{Platforms: []string{"NA1", "KR"}}, 42, &state)
+	return state, err
+}
+
+func routeStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract.CrawlStatus, error) {
+	state := tftcontract.CrawlStatus{State: "running", Stage: "match_detail"}
+	control := temporalworkflow.GetSignalChannel(ctx, "route-stage-context-test-control")
+	_, _, err := runRouteStage(ctx, control, 42, "16.17", &state)
+	return state, err
+}
+
+func analysisStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract.CrawlStatus, error) {
+	windowEnd := time.Date(2026, 8, 29, 18, 0, 0, 0, time.UTC)
+	state := tftcontract.CrawlStatus{State: "running", Stage: "analysis"}
+	control := temporalworkflow.GetSignalChannel(ctx, "analysis-stage-context-test-control")
+	_, _, err := runAnalysisStage(withCrawlActivityOptions(ctx), control, tftcontract.CrawlInput{
+		WindowStart: windowEnd.Add(-7 * 24 * time.Hour),
+		WindowEnd:   windowEnd,
+	}, 42, &state)
+	return state, err
 }

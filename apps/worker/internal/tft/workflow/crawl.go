@@ -168,11 +168,11 @@ func runAnalysisStage(ctx workflow.Context, control workflow.ReceiveChannel, in 
 		return false, false, nil
 	}
 	state.StageCompleted, state.StageTotal = 0, len(targets)
-	activityCtx, cancelActivities := workflow.WithCancel(ctx)
+	stageCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(targets))
 	for _, targetValue := range targets {
 		target := targetValue
-		workflow.Go(ctx, func(gctx workflow.Context) {
+		workflow.Go(stageCtx, func(gctx workflow.Context) {
 			var stageErr error
 			for _, cohort := range []string{"MASTER_PLUS", "DIAMOND"} {
 				for _, windowKind := range []string{"THREE_DAYS", "PATCH"} {
@@ -184,7 +184,7 @@ func runAnalysisStage(ctx workflow.Context, control workflow.ReceiveChannel, in 
 						start = in.WindowEnd.Add(-72 * time.Hour)
 					}
 					var result activity.PublishAnalysisResult
-					stageErr = workflow.ExecuteActivity(activityCtx, "Activities.PublishAnalysis", activity.PublishAnalysisInput{Target: target, Cohort: cohort, WindowKind: windowKind, WindowStart: start, WindowEnd: in.WindowEnd}).Get(activityCtx, &result)
+					stageErr = workflow.ExecuteActivity(gctx, "Activities.PublishAnalysis", activity.PublishAnalysisInput{Target: target, Cohort: cohort, WindowKind: windowKind, WindowStart: start, WindowEnd: in.WindowEnd}).Get(gctx, &result)
 					if stageErr != nil {
 						break
 					}
@@ -206,16 +206,16 @@ type stageResult struct {
 
 func runPlatformStage(ctx workflow.Context, control workflow.ReceiveChannel, in tftcontract.CrawlInput, runID int64, state *tftcontract.CrawlStatus) (bool, bool, error) {
 	state.StageCompleted, state.StageTotal = 0, len(in.Platforms)
-	activityCtx, cancelActivities := workflow.WithCancel(ctx)
+	stageCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(in.Platforms))
 	for _, platformValue := range in.Platforms {
 		platform := strings.ToUpper(platformValue)
-		workflow.Go(ctx, func(gctx workflow.Context) {
-			childCtx := workflow.WithChildOptions(activityCtx, workflow.ChildWorkflowOptions{
+		workflow.Go(stageCtx, func(gctx workflow.Context) {
+			childCtx := workflow.WithChildOptions(gctx, workflow.ChildWorkflowOptions{
 				WorkflowID: fmt.Sprintf("tft-platform-%d-%s", runID, strings.ToLower(platform)),
 				TaskQueue:  tftcontract.SeedTaskQueue, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_TERMINATE,
 			})
-			err := workflow.ExecuteChildWorkflow(childCtx, PlatformSeed, tftcontract.PlatformInput{CrawlInput: in, RunID: runID, Platform: platform}).Get(childCtx, nil)
+			err := workflow.ExecuteChildWorkflow(childCtx, PlatformSeed, tftcontract.PlatformInput{CrawlInput: in, RunID: runID, Platform: platform}).Get(gctx, nil)
 			results.Send(gctx, stageResult{Key: platform, Err: err})
 		})
 	}
@@ -266,16 +266,16 @@ func seedAndDiscover(ctx workflow.Context, in tftcontract.CrawlInput, runID int6
 func runRouteStage(ctx workflow.Context, control workflow.ReceiveChannel, runID int64, patch string, state *tftcontract.CrawlStatus) (bool, bool, error) {
 	routes := []string{"AMERICAS", "ASIA", "EUROPE", "SEA"}
 	state.StageCompleted, state.StageTotal = 0, len(routes)
-	activityCtx, cancelActivities := workflow.WithCancel(ctx)
+	stageCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(routes))
 	for _, routeValue := range routes {
 		route := routeValue
-		workflow.Go(ctx, func(gctx workflow.Context) {
-			childCtx := workflow.WithChildOptions(activityCtx, workflow.ChildWorkflowOptions{
+		workflow.Go(stageCtx, func(gctx workflow.Context) {
+			childCtx := workflow.WithChildOptions(gctx, workflow.ChildWorkflowOptions{
 				WorkflowID: fmt.Sprintf("tft-route-%d-%s", runID, strings.ToLower(route)),
 				TaskQueue:  tftcontract.SeedTaskQueue, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_TERMINATE,
 			})
-			stageErr := workflow.ExecuteChildWorkflow(childCtx, RouteDispatch, tftcontract.RouteInput{RunID: runID, RoutingRegion: route, Patch: patch}).Get(childCtx, nil)
+			stageErr := workflow.ExecuteChildWorkflow(childCtx, RouteDispatch, tftcontract.RouteInput{RunID: runID, RoutingRegion: route, Patch: patch}).Get(gctx, nil)
 			results.Send(gctx, stageResult{Key: route, Err: stageErr})
 		})
 	}
