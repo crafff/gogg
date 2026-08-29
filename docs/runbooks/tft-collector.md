@@ -82,6 +82,25 @@ tftctl enable --schedule gogg-tft-crawl-global
 tftctl trigger --schedule gogg-tft-crawl-global
 ```
 
+The crawl status command combines Temporal's live control state with a
+read-only, repeatable-read PostgreSQL snapshot. It reports completed platform
+children, selected seeds, unique run-scoped matches, terminal outcomes,
+pending/retry/leased/not-enqueued work, and a four-routing-region breakdown.
+`global_queue_remaining` is deliberately separate because route workers may
+also be draining jobs discovered by older scheduled runs. During seed
+discovery the match total is still growing, so no percentage is claimed; once
+the workflow reaches match detail the total is stable. A reliable ETA is not
+shown until run-scoped throughput samples exist. When no workflow is active,
+the same command prints the latest persisted run instead of returning only
+`running=0`. If the latest Temporal action failed before database run creation,
+it is reported as `persisted_run=none` and is not silently replaced by an older
+successful run.
+
+Local `go run` commands default to the development PostgreSQL port. Other
+deployments should set `GOGG_DATABASE_DSN` or pass `--database-dsn`; database
+failure degrades only the persisted progress section and leaves the Temporal
+schedule/control state visible.
+
 `enable` and `trigger` refuse to proceed unless Temporal reports the required
 workflow poller and all four regional activity pollers. This prevents a run
 from being scheduled into an unserved queue.

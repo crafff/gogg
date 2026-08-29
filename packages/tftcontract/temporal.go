@@ -64,10 +64,12 @@ type ControlCommand struct {
 }
 
 type CrawlStatus struct {
-	State        string
-	Stage        string
-	RunID        int64
-	PausePending bool
+	State          string
+	Stage          string
+	RunID          int64
+	PausePending   bool
+	StageCompleted int
+	StageTotal     int
 }
 
 type StaticStatus struct {

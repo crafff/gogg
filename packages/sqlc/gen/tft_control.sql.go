@@ -244,6 +244,48 @@ func (q *Queries) FailStaleTFTRuns(ctx context.Context, arg FailStaleTFTRunsPara
 	return result.RowsAffected(), nil
 }
 
+const getLatestTFTRunByScheduleID = `-- name: GetLatestTFTRunByScheduleID :one
+SELECT id, workflow_id, workflow_run_id, schedule_id, profile_name, platform, routing_region, queue_type, queue_id, status, desired_state, stage, target_patch, target_set, window_start, window_end, config, discovered_seeds, discovered_matches, completed_matches, terminal_matches, last_error, started_at, ended_at, created_at, updated_at
+FROM tft_crawl_runs
+WHERE schedule_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestTFTRunByScheduleID(ctx context.Context, scheduleID string) (TftCrawlRun, error) {
+	row := q.db.QueryRow(ctx, getLatestTFTRunByScheduleID, scheduleID)
+	var i TftCrawlRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.WorkflowRunID,
+		&i.ScheduleID,
+		&i.ProfileName,
+		&i.Platform,
+		&i.RoutingRegion,
+		&i.QueueType,
+		&i.QueueID,
+		&i.Status,
+		&i.DesiredState,
+		&i.Stage,
+		&i.TargetPatch,
+		&i.TargetSet,
+		&i.WindowStart,
+		&i.WindowEnd,
+		&i.Config,
+		&i.DiscoveredSeeds,
+		&i.DiscoveredMatches,
+		&i.CompletedMatches,
+		&i.TerminalMatches,
+		&i.LastError,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTFTCheckpoint = `-- name: GetTFTCheckpoint :one
 SELECT run_id, stage, scope_key, cursor, processed, next_eligible_at, lease_owner, lease_expires_at, attempt, updated_at FROM tft_crawl_checkpoints
 WHERE run_id = $1 AND stage = $2 AND scope_key = $3
@@ -307,6 +349,44 @@ func (q *Queries) GetTFTPlayerMatchSync(ctx context.Context, platform string, pu
 	return i, err
 }
 
+const getTFTRunByID = `-- name: GetTFTRunByID :one
+SELECT id, workflow_id, workflow_run_id, schedule_id, profile_name, platform, routing_region, queue_type, queue_id, status, desired_state, stage, target_patch, target_set, window_start, window_end, config, discovered_seeds, discovered_matches, completed_matches, terminal_matches, last_error, started_at, ended_at, created_at, updated_at FROM tft_crawl_runs WHERE id = $1
+`
+
+func (q *Queries) GetTFTRunByID(ctx context.Context, id int64) (TftCrawlRun, error) {
+	row := q.db.QueryRow(ctx, getTFTRunByID, id)
+	var i TftCrawlRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.WorkflowRunID,
+		&i.ScheduleID,
+		&i.ProfileName,
+		&i.Platform,
+		&i.RoutingRegion,
+		&i.QueueType,
+		&i.QueueID,
+		&i.Status,
+		&i.DesiredState,
+		&i.Stage,
+		&i.TargetPatch,
+		&i.TargetSet,
+		&i.WindowStart,
+		&i.WindowEnd,
+		&i.Config,
+		&i.DiscoveredSeeds,
+		&i.DiscoveredMatches,
+		&i.CompletedMatches,
+		&i.TerminalMatches,
+		&i.LastError,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTFTRunByWorkflowRunID = `-- name: GetTFTRunByWorkflowRunID :one
 SELECT id, workflow_id, workflow_run_id, schedule_id, profile_name, platform, routing_region, queue_type, queue_id, status, desired_state, stage, target_patch, target_set, window_start, window_end, config, discovered_seeds, discovered_matches, completed_matches, terminal_matches, last_error, started_at, ended_at, created_at, updated_at FROM tft_crawl_runs WHERE workflow_run_id = $1
 `
@@ -342,6 +422,40 @@ func (q *Queries) GetTFTRunByWorkflowRunID(ctx context.Context, workflowRunID st
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getTFTRunProgress = `-- name: GetTFTRunProgress :one
+SELECT
+    (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id) AS discovered_seeds,
+    (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id AND selected) AS selected_seeds,
+    (
+        SELECT COUNT(*)::bigint
+        FROM tft_crawl_checkpoints checkpoints
+        WHERE checkpoints.run_id = run.id
+          AND checkpoints.stage = 'match_discovery'
+          AND checkpoints.processed >= (
+              SELECT COUNT(*)
+              FROM tft_seed_snapshots seeds
+              WHERE seeds.run_id = run.id
+                AND seeds.platform = checkpoints.scope_key
+                AND seeds.selected
+          )
+    ) AS completed_platforms
+FROM tft_crawl_runs run
+WHERE run.id = $1
+`
+
+type GetTFTRunProgressRow struct {
+	DiscoveredSeeds    int64
+	SelectedSeeds      int64
+	CompletedPlatforms int64
+}
+
+func (q *Queries) GetTFTRunProgress(ctx context.Context, runID int64) (GetTFTRunProgressRow, error) {
+	row := q.db.QueryRow(ctx, getTFTRunProgress, runID)
+	var i GetTFTRunProgressRow
+	err := row.Scan(&i.DiscoveredSeeds, &i.SelectedSeeds, &i.CompletedPlatforms)
 	return i, err
 }
 
@@ -502,6 +616,105 @@ func (q *Queries) ListSelectedTFTSeedsPage(ctx context.Context, arg ListSelected
 	return items, nil
 }
 
+const listTFTRunRouteProgress = `-- name: ListTFTRunRouteProgress :many
+WITH routes AS (
+    SELECT 'AMERICAS'::text AS routing_region
+    UNION ALL SELECT 'ASIA'::text
+    UNION ALL SELECT 'EUROPE'::text
+    UNION ALL SELECT 'SEA'::text
+), discovered AS (
+    SELECT DISTINCT routing_region, match_id
+    FROM tft_match_discoveries
+    WHERE run_id = $1
+), run_counts AS (
+    SELECT
+        discovered.routing_region,
+        COUNT(*)::bigint AS discovered_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'completed')::bigint AS completed_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'terminal')::bigint AS terminal_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'pending')::bigint AS pending_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'retry')::bigint AS retry_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'leased')::bigint AS leased_matches,
+        COUNT(*) FILTER (WHERE jobs.match_id IS NULL)::bigint AS not_enqueued_matches
+    FROM discovered
+    LEFT JOIN tft_match_jobs jobs
+      ON jobs.routing_region = discovered.routing_region
+     AND jobs.match_id = discovered.match_id
+    GROUP BY discovered.routing_region
+), global_counts AS (
+    SELECT
+        routing_region,
+        COUNT(*) FILTER (WHERE status = 'pending')::bigint AS global_pending_matches,
+        COUNT(*) FILTER (WHERE status = 'retry')::bigint AS global_retry_matches,
+        COUNT(*) FILTER (WHERE status = 'leased')::bigint AS global_leased_matches
+    FROM tft_match_jobs
+    WHERE status IN ('pending', 'retry', 'leased')
+    GROUP BY routing_region
+)
+SELECT
+    routes.routing_region,
+    COALESCE(run_counts.discovered_matches, 0)::bigint AS discovered_matches,
+    COALESCE(run_counts.completed_matches, 0)::bigint AS completed_matches,
+    COALESCE(run_counts.terminal_matches, 0)::bigint AS terminal_matches,
+    COALESCE(run_counts.pending_matches, 0)::bigint AS pending_matches,
+    COALESCE(run_counts.retry_matches, 0)::bigint AS retry_matches,
+    COALESCE(run_counts.leased_matches, 0)::bigint AS leased_matches,
+    COALESCE(run_counts.not_enqueued_matches, 0)::bigint AS not_enqueued_matches,
+    COALESCE(global_counts.global_pending_matches, 0)::bigint AS global_pending_matches,
+    COALESCE(global_counts.global_retry_matches, 0)::bigint AS global_retry_matches,
+    COALESCE(global_counts.global_leased_matches, 0)::bigint AS global_leased_matches
+FROM routes
+LEFT JOIN run_counts USING (routing_region)
+LEFT JOIN global_counts USING (routing_region)
+ORDER BY 1
+`
+
+type ListTFTRunRouteProgressRow struct {
+	RoutingRegion        string
+	DiscoveredMatches    int64
+	CompletedMatches     int64
+	TerminalMatches      int64
+	PendingMatches       int64
+	RetryMatches         int64
+	LeasedMatches        int64
+	NotEnqueuedMatches   int64
+	GlobalPendingMatches int64
+	GlobalRetryMatches   int64
+	GlobalLeasedMatches  int64
+}
+
+func (q *Queries) ListTFTRunRouteProgress(ctx context.Context, runID int64) ([]ListTFTRunRouteProgressRow, error) {
+	rows, err := q.db.Query(ctx, listTFTRunRouteProgress, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTFTRunRouteProgressRow{}
+	for rows.Next() {
+		var i ListTFTRunRouteProgressRow
+		if err := rows.Scan(
+			&i.RoutingRegion,
+			&i.DiscoveredMatches,
+			&i.CompletedMatches,
+			&i.TerminalMatches,
+			&i.PendingMatches,
+			&i.RetryMatches,
+			&i.LeasedMatches,
+			&i.NotEnqueuedMatches,
+			&i.GlobalPendingMatches,
+			&i.GlobalRetryMatches,
+			&i.GlobalLeasedMatches,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTFTSeedsForSampling = `-- name: ListTFTSeedsForSampling :many
 SELECT id, run_id, platform, queue_type, cohort, tier, division, puuid, league_id, league_points, wins, losses, sample_bucket, selected, captured_at FROM tft_seed_snapshots
 WHERE run_id = $1
@@ -550,17 +763,19 @@ SET discovered_seeds = (
         SELECT COUNT(*) FROM tft_seed_snapshots seeds WHERE seeds.run_id = run.id
     ),
     discovered_matches = (
-        SELECT COUNT(*) FROM tft_match_discoveries discoveries WHERE discoveries.run_id = run.id
+        SELECT COUNT(DISTINCT (discoveries.routing_region, discoveries.match_id))
+        FROM tft_match_discoveries discoveries
+        WHERE discoveries.run_id = run.id
     ),
     completed_matches = (
-        SELECT COUNT(DISTINCT jobs.match_id)
+        SELECT COUNT(DISTINCT (jobs.routing_region, jobs.match_id))
         FROM tft_match_discoveries discoveries
         JOIN tft_match_jobs jobs
           ON jobs.routing_region = discoveries.routing_region AND jobs.match_id = discoveries.match_id
         WHERE discoveries.run_id = run.id AND jobs.status = 'completed'
     ),
     terminal_matches = (
-        SELECT COUNT(DISTINCT jobs.match_id)
+        SELECT COUNT(DISTINCT (jobs.routing_region, jobs.match_id))
         FROM tft_match_discoveries discoveries
         JOIN tft_match_jobs jobs
           ON jobs.routing_region = discoveries.routing_region AND jobs.match_id = discoveries.match_id

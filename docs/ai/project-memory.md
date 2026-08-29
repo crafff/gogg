@@ -120,6 +120,10 @@ stale against code and tests before relying on it.
   jobs are scoped to the snapshots created by that source sync, duplicate URLs
   across locales share one network fetch, and publication accepts only local
   completed assets or explicitly skipped optional placeholders.
+- TFT crawl progress is run-scoped by unique `(routing_region, match_id)` and
+  must remain distinct from the shared global routing queues. Operator status
+  reads a consistent PostgreSQL snapshot, exposes not-yet-enqueued discoveries,
+  and falls back to the latest persisted run after the Temporal execution ends.
 
 ## Local development facts
 

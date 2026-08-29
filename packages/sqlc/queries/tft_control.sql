@@ -13,6 +13,88 @@ RETURNING *;
 -- name: GetTFTRunByWorkflowRunID :one
 SELECT * FROM tft_crawl_runs WHERE workflow_run_id = $1;
 
+-- name: GetTFTRunByID :one
+SELECT * FROM tft_crawl_runs WHERE id = $1;
+
+-- name: GetLatestTFTRunByScheduleID :one
+SELECT *
+FROM tft_crawl_runs
+WHERE schedule_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetTFTRunProgress :one
+SELECT
+    (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id) AS discovered_seeds,
+    (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id AND selected) AS selected_seeds,
+    (
+        SELECT COUNT(*)::bigint
+        FROM tft_crawl_checkpoints checkpoints
+        WHERE checkpoints.run_id = run.id
+          AND checkpoints.stage = 'match_discovery'
+          AND checkpoints.processed >= (
+              SELECT COUNT(*)
+              FROM tft_seed_snapshots seeds
+              WHERE seeds.run_id = run.id
+                AND seeds.platform = checkpoints.scope_key
+                AND seeds.selected
+          )
+    ) AS completed_platforms
+FROM tft_crawl_runs run
+WHERE run.id = @run_id;
+
+-- name: ListTFTRunRouteProgress :many
+WITH routes AS (
+    SELECT 'AMERICAS'::text AS routing_region
+    UNION ALL SELECT 'ASIA'::text
+    UNION ALL SELECT 'EUROPE'::text
+    UNION ALL SELECT 'SEA'::text
+), discovered AS (
+    SELECT DISTINCT routing_region, match_id
+    FROM tft_match_discoveries
+    WHERE run_id = @run_id
+), run_counts AS (
+    SELECT
+        discovered.routing_region,
+        COUNT(*)::bigint AS discovered_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'completed')::bigint AS completed_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'terminal')::bigint AS terminal_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'pending')::bigint AS pending_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'retry')::bigint AS retry_matches,
+        COUNT(*) FILTER (WHERE jobs.status = 'leased')::bigint AS leased_matches,
+        COUNT(*) FILTER (WHERE jobs.match_id IS NULL)::bigint AS not_enqueued_matches
+    FROM discovered
+    LEFT JOIN tft_match_jobs jobs
+      ON jobs.routing_region = discovered.routing_region
+     AND jobs.match_id = discovered.match_id
+    GROUP BY discovered.routing_region
+), global_counts AS (
+    SELECT
+        routing_region,
+        COUNT(*) FILTER (WHERE status = 'pending')::bigint AS global_pending_matches,
+        COUNT(*) FILTER (WHERE status = 'retry')::bigint AS global_retry_matches,
+        COUNT(*) FILTER (WHERE status = 'leased')::bigint AS global_leased_matches
+    FROM tft_match_jobs
+    WHERE status IN ('pending', 'retry', 'leased')
+    GROUP BY routing_region
+)
+SELECT
+    routes.routing_region,
+    COALESCE(run_counts.discovered_matches, 0)::bigint AS discovered_matches,
+    COALESCE(run_counts.completed_matches, 0)::bigint AS completed_matches,
+    COALESCE(run_counts.terminal_matches, 0)::bigint AS terminal_matches,
+    COALESCE(run_counts.pending_matches, 0)::bigint AS pending_matches,
+    COALESCE(run_counts.retry_matches, 0)::bigint AS retry_matches,
+    COALESCE(run_counts.leased_matches, 0)::bigint AS leased_matches,
+    COALESCE(run_counts.not_enqueued_matches, 0)::bigint AS not_enqueued_matches,
+    COALESCE(global_counts.global_pending_matches, 0)::bigint AS global_pending_matches,
+    COALESCE(global_counts.global_retry_matches, 0)::bigint AS global_retry_matches,
+    COALESCE(global_counts.global_leased_matches, 0)::bigint AS global_leased_matches
+FROM routes
+LEFT JOIN run_counts USING (routing_region)
+LEFT JOIN global_counts USING (routing_region)
+ORDER BY 1;
+
 -- name: FailStaleTFTRuns :execrows
 UPDATE tft_crawl_runs
 SET status = 'failed', desired_state = 'running', stage = 'reconciled',
@@ -50,17 +132,19 @@ SET discovered_seeds = (
         SELECT COUNT(*) FROM tft_seed_snapshots seeds WHERE seeds.run_id = run.id
     ),
     discovered_matches = (
-        SELECT COUNT(*) FROM tft_match_discoveries discoveries WHERE discoveries.run_id = run.id
+        SELECT COUNT(DISTINCT (discoveries.routing_region, discoveries.match_id))
+        FROM tft_match_discoveries discoveries
+        WHERE discoveries.run_id = run.id
     ),
     completed_matches = (
-        SELECT COUNT(DISTINCT jobs.match_id)
+        SELECT COUNT(DISTINCT (jobs.routing_region, jobs.match_id))
         FROM tft_match_discoveries discoveries
         JOIN tft_match_jobs jobs
           ON jobs.routing_region = discoveries.routing_region AND jobs.match_id = discoveries.match_id
         WHERE discoveries.run_id = run.id AND jobs.status = 'completed'
     ),
     terminal_matches = (
-        SELECT COUNT(DISTINCT jobs.match_id)
+        SELECT COUNT(DISTINCT (jobs.routing_region, jobs.match_id))
         FROM tft_match_discoveries discoveries
         JOIN tft_match_jobs jobs
           ON jobs.routing_region = discoveries.routing_region AND jobs.match_id = discoveries.match_id

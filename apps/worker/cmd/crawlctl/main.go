@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -38,8 +39,13 @@ func run(args []string) error {
 	product := flags.String("product", "tft", "product weight: lol or tft")
 	weight := flags.Int("weight", 1, "positive scheduler weight")
 	redisURL := flags.String("redis", envOr("GOGG_REDIS_URL", "redis://localhost:6379/0"), "Redis URL")
+	databaseDSN := flags.String("database-dsn", "", "PostgreSQL DSN used by status (defaults to GOGG_DATABASE_DSN or local development)")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
+	}
+	resolvedDatabaseDSN := *databaseDSN
+	if resolvedDatabaseDSN == "" {
+		resolvedDatabaseDSN = envOr("GOGG_DATABASE_DSN", "postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable")
 	}
 	if command == "set-weight" {
 		return setWeight(*redisURL, *product, *weight)
@@ -54,7 +60,7 @@ func run(args []string) error {
 	handle := c.ScheduleClient().GetHandle(ctx, *scheduleID)
 	switch command {
 	case "status":
-		return printStatus(ctx, c, handle, *scheduleID)
+		return printStatus(ctx, c, handle, *scheduleID, resolvedDatabaseDSN, os.Stdout)
 	case "enable":
 		if err := ensurePollers(ctx, c, *scheduleID); err != nil {
 			return err
@@ -124,7 +130,7 @@ func ensurePollers(ctx context.Context, c client.Client, scheduleID string) erro
 	return nil
 }
 
-func printStatus(ctx context.Context, c client.Client, handle client.ScheduleHandle, id string) error {
+func printStatus(ctx context.Context, c client.Client, handle client.ScheduleHandle, id, databaseDSN string, output io.Writer) error {
 	description, err := handle.Describe(ctx)
 	if err != nil {
 		return err
@@ -133,39 +139,29 @@ func printStatus(ctx context.Context, c client.Client, handle client.ScheduleHan
 	if description.Schedule.State != nil {
 		paused, note = description.Schedule.State.Paused, description.Schedule.State.Note
 	}
-	fmt.Printf("schedule=%s paused=%t note=%q actions=%d running=%d\n", id, paused, note, description.Info.NumActions, len(description.Info.RunningWorkflows))
+	fmt.Fprintf(output, "schedule=%s paused=%t note=%q actions=%d running=%d\n", id, paused, note, description.Info.NumActions, len(description.Info.RunningWorkflows))
+	if id != tftcontract.DefaultStaticScheduleID {
+		return printCrawlProgress(ctx, c, description, id, databaseDSN, output)
+	}
 	for _, running := range description.Info.RunningWorkflows {
-		if id == tftcontract.DefaultStaticScheduleID {
-			var status tftcontract.StaticStatus
-			value, queryErr := c.QueryWorkflow(ctx, running.WorkflowID, "", tftcontract.StaticStatusQueryName)
-			if queryErr == nil {
-				queryErr = value.Get(&status)
-			}
-			if queryErr != nil {
-				fmt.Printf("workflow=%s status=unavailable error=%q\n", running.WorkflowID, queryErr)
-				continue
-			}
-			if status.Source == "legacy-global" {
-				fmt.Printf("workflow=%s state=%s stage=%s mode=legacy-global processed_global=%d remaining_global=%d fetched=%d\n",
-					running.WorkflowID, status.State, status.Stage, status.Completed, status.Remaining, status.Fetched)
-				continue
-			}
-			fmt.Printf("workflow=%s state=%s stage=%s source=%s assets=%d/%d completed=%d skipped=%d failed=%d remaining=%d fetched=%d\n",
-				running.WorkflowID, status.State, status.Stage, status.Source,
-				status.Completed+status.Skipped, status.Total, status.Completed, status.Skipped,
-				status.Failed, status.Remaining, status.Fetched)
+		var status tftcontract.StaticStatus
+		value, queryErr := c.QueryWorkflow(ctx, running.WorkflowID, "", tftcontract.StaticStatusQueryName)
+		if queryErr == nil {
+			queryErr = value.Get(&status)
+		}
+		if queryErr != nil {
+			fmt.Fprintf(output, "workflow=%s status=unavailable error=%q\n", running.WorkflowID, queryErr)
 			continue
 		}
-		var status tftcontract.CrawlStatus
-		value, err := c.QueryWorkflow(ctx, running.WorkflowID, "", tftcontract.CrawlStatusQueryName)
-		if err == nil {
-			err = value.Get(&status)
-		}
-		if err != nil {
-			fmt.Printf("workflow=%s status=unavailable error=%q\n", running.WorkflowID, err)
+		if status.Source == "legacy-global" {
+			fmt.Fprintf(output, "workflow=%s state=%s stage=%s mode=legacy-global processed_global=%d remaining_global=%d fetched=%d\n",
+				running.WorkflowID, status.State, status.Stage, status.Completed, status.Remaining, status.Fetched)
 			continue
 		}
-		fmt.Printf("workflow=%s run_id=%d state=%s stage=%s pause_pending=%t\n", running.WorkflowID, status.RunID, status.State, status.Stage, status.PausePending)
+		fmt.Fprintf(output, "workflow=%s state=%s stage=%s source=%s assets=%d/%d completed=%d skipped=%d failed=%d remaining=%d fetched=%d\n",
+			running.WorkflowID, status.State, status.Stage, status.Source,
+			status.Completed+status.Skipped, status.Total, status.Completed, status.Skipped,
+			status.Failed, status.Remaining, status.Fetched)
 	}
 	return nil
 }

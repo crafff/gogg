@@ -53,11 +53,14 @@ services:
     image: gogg-crawlctl:prod
     profiles: ["tft-ops"]
     depends_on:
+      postgres:
+        condition: service_healthy
       temporal:
         condition: service_healthy
       riot-quota-redis:
         condition: service_healthy
     environment:
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
       GOGG_TEMPORAL_HOST_PORT: temporal:7233
       GOGG_REDIS_URL: redis://riot-quota-redis:6379/0
     networks: [gogg]

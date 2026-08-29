@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS tft_match_discoveries_run_route_match;

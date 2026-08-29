@@ -303,6 +303,7 @@ func (a *Activities) FinishPlayerLookup(ctx context.Context, in FinishPlayerLook
 type StartRunInput struct {
 	WorkflowID, WorkflowRunID, ScheduleID, ProfileName, Patch, Set string
 	WindowStart, WindowEnd                                         time.Time
+	Platforms                                                      []string
 }
 
 func (a *Activities) StartRun(ctx context.Context, in StartRunInput) (int64, error) {
@@ -317,8 +318,12 @@ func (a *Activities) StartRun(ctx context.Context, in StartRunInput) (int64, err
 	}); err != nil {
 		return 0, fmt.Errorf("reconcile stale TFT crawl runs: %w", err)
 	}
+	platforms := in.Platforms
+	if len(platforms) == 0 {
+		platforms = a.rt.Cfg.TFT.Platforms
+	}
 	cfg, _ := json.Marshal(map[string]any{
-		"platforms": a.rt.Cfg.TFT.Platforms, "queue_type": "RANKED_TFT", "queue_id": 1100,
+		"platforms": platforms, "queue_type": "RANKED_TFT", "queue_id": 1100,
 		"master_limit": a.rt.Cfg.TFT.MasterLimit, "diamond_per_division": a.rt.Cfg.TFT.DiamondPerDivision,
 		"match_count_per_seed": a.rt.Cfg.TFT.MatchCountPerSeed,
 	})

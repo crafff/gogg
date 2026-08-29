@@ -72,6 +72,7 @@ type Querier interface {
 	GetLatestGameVersion(ctx context.Context) (GetLatestGameVersionRow, error)
 	GetLatestPublishedTFTStaticSnapshot(ctx context.Context, source string, patch string, locale string) (TftStaticSnapshot, error)
 	GetLatestPublishedTFTStaticSnapshotAnyPatch(ctx context.Context, source string, locale string) (TftStaticSnapshot, error)
+	GetLatestTFTRunByScheduleID(ctx context.Context, scheduleID string) (TftCrawlRun, error)
 	GetLatestTFTStaticSnapshotAnyStatus(ctx context.Context, source string, locale string) (TftStaticSnapshot, error)
 	// Look up a refresh token by its hash. Caller is responsible for
 	// checking revoked_at and expires_at; we keep both so audit queries
@@ -89,7 +90,9 @@ type Querier interface {
 	GetTFTPlayerIdentity(ctx context.Context, platform string, gameName string, tagLine string) (TftPlayerIdentity, error)
 	GetTFTPlayerLookupJob(ctx context.Context, id string) (TftPlayerLookupJob, error)
 	GetTFTPlayerMatchSync(ctx context.Context, platform string, puuid string, queueType string) (TftPlayerMatchSync, error)
+	GetTFTRunByID(ctx context.Context, id int64) (TftCrawlRun, error)
 	GetTFTRunByWorkflowRunID(ctx context.Context, workflowRunID string) (TftCrawlRun, error)
+	GetTFTRunProgress(ctx context.Context, runID int64) (GetTFTRunProgressRow, error)
 	GetTFTStaticAssetQueueState(ctx context.Context) (GetTFTStaticAssetQueueStateRow, error)
 	GetTFTStaticAssetQueueStateForSnapshots(ctx context.Context, snapshotIds []int64) (GetTFTStaticAssetQueueStateForSnapshotsRow, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
@@ -143,6 +146,7 @@ type Querier interface {
 	ListTFTMatchUnitsForHistory(ctx context.Context, matchIds []string) ([]TftMatchUnit, error)
 	ListTFTPlayerMatches(ctx context.Context, arg ListTFTPlayerMatchesParams) ([]ListTFTPlayerMatchesRow, error)
 	ListTFTPurchasableUnits(ctx context.Context, snapshotID int64) ([]ListTFTPurchasableUnitsRow, error)
+	ListTFTRunRouteProgress(ctx context.Context, runID int64) ([]ListTFTRunRouteProgressRow, error)
 	ListTFTSeedsForSampling(ctx context.Context, runID int64) ([]TftSeedSnapshot, error)
 	ListUserOAuthIdentities(ctx context.Context, userID pgtype.UUID) ([]UserOauthIdentity, error)
 	// Only expose versions that can answer the statistics queries powered by this

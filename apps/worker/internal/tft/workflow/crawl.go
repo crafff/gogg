@@ -59,6 +59,7 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 	if err := workflow.ExecuteActivity(base, "Activities.StartRun", activity.StartRunInput{
 		WorkflowID: info.WorkflowExecution.ID, WorkflowRunID: info.WorkflowExecution.RunID, ScheduleID: tftcontract.DefaultScheduleID,
 		ProfileName: in.ProfileName, Patch: in.Patch, Set: in.Set, WindowStart: in.WindowStart, WindowEnd: in.WindowEnd,
+		Platforms: append([]string(nil), in.Platforms...),
 	}).Get(ctx, &runID); err != nil {
 		return err
 	}
@@ -158,6 +159,7 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 }
 
 func runAnalysisStage(ctx workflow.Context, control workflow.ReceiveChannel, in tftcontract.CrawlInput, runID int64, state *tftcontract.CrawlStatus) (bool, bool, error) {
+	state.StageCompleted, state.StageTotal = 0, 0
 	var targets []activity.AnalysisTarget
 	if err := workflow.ExecuteActivity(ctx, "Activities.ListAnalysisTargets", in.WindowStart).Get(ctx, &targets); err != nil {
 		return false, false, err
@@ -165,6 +167,7 @@ func runAnalysisStage(ctx workflow.Context, control workflow.ReceiveChannel, in 
 	if len(targets) == 0 {
 		return false, false, nil
 	}
+	state.StageCompleted, state.StageTotal = 0, len(targets)
 	activityCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(targets))
 	for _, targetValue := range targets {
@@ -202,6 +205,7 @@ type stageResult struct {
 }
 
 func runPlatformStage(ctx workflow.Context, control workflow.ReceiveChannel, in tftcontract.CrawlInput, runID int64, state *tftcontract.CrawlStatus) (bool, bool, error) {
+	state.StageCompleted, state.StageTotal = 0, len(in.Platforms)
 	activityCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(in.Platforms))
 	for _, platformValue := range in.Platforms {
@@ -261,6 +265,7 @@ func seedAndDiscover(ctx workflow.Context, in tftcontract.CrawlInput, runID int6
 
 func runRouteStage(ctx workflow.Context, control workflow.ReceiveChannel, runID int64, patch string, state *tftcontract.CrawlStatus) (bool, bool, error) {
 	routes := []string{"AMERICAS", "ASIA", "EUROPE", "SEA"}
+	state.StageCompleted, state.StageTotal = 0, len(routes)
 	activityCtx, cancelActivities := workflow.WithCancel(ctx)
 	results := workflow.NewBufferedChannel(ctx, len(routes))
 	for _, routeValue := range routes {
@@ -310,16 +315,18 @@ func withCrawlActivityOptions(ctx workflow.Context) workflow.Context {
 }
 
 func waitStage(ctx workflow.Context, control, results workflow.ReceiveChannel, total int, cancel workflow.CancelFunc, state *tftcontract.CrawlStatus) (bool, bool, error) {
-	completed := 0
+	settled := 0
 	pause, cancelled := false, false
 	var firstErr error
-	for completed < total {
+	for settled < total {
 		selector := workflow.NewSelector(ctx)
 		selector.AddReceive(results, func(ch workflow.ReceiveChannel, _ bool) {
 			var result stageResult
 			ch.Receive(ctx, &result)
-			completed++
-			if result.Err != nil && !pause && !cancelled {
+			settled++
+			if result.Err == nil {
+				state.StageCompleted++
+			} else if !pause && !cancelled {
 				if firstErr == nil || isApplicationErrorType(result.Err, "RIOT_AUTH") {
 					firstErr = result.Err
 				}
