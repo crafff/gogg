@@ -21,12 +21,18 @@ database:
 redis:
   url: redis://localhost:6379/0
 
+tft:
+  player_freshness: 10m
+  player_ip_limit: 5
+  player_ip_limit_window: 10m
+
 logging:
   level: info
   format: json
 
 auth:
-  jwt_secret: change-me-in-dev
+  # Optional non-browser Bearer JWT secret; at least 32 random bytes if set.
+  jwt_secret: ""
   issuer: gogg.local
   access_ttl: 15m
   refresh_ttl: 720h
@@ -41,4 +47,6 @@ oauth:
   google:
     client_id: ""
     client_secret: ""
+    # Local example: http://localhost:5173/oauth/callback/google
+    # Production must use the exact HTTPS URI registered in Google Cloud.
     redirect_url: ""

@@ -12,7 +12,13 @@ package resolver
 import (
 	"context"
 
+	"github.com/google/uuid"
+
+	"github.com/crafff/gogg/apps/api/internal/service/champion"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	summonersvc "github.com/crafff/gogg/apps/api/internal/service/summoner"
+	tftsvc "github.com/crafff/gogg/apps/api/internal/service/tft"
+	usersvc "github.com/crafff/gogg/apps/api/internal/service/user"
 )
 
 // CatalogService is the narrow surface the catalog resolvers need.
@@ -31,10 +37,37 @@ type RankingsService interface {
 	GetByPosition(ctx context.Context, f rankings.Filter) (rankings.Result, error)
 }
 
+type ChampionService interface {
+	Get(ctx context.Context, championID int, f champion.Filter) (*champion.Result, error)
+}
+
+type SummonerService interface {
+	Get(context.Context, summonersvc.Identity, summonersvc.PageRequest) (*summonersvc.Result, error)
+	Refresh(context.Context, summonersvc.Identity, string) (summonersvc.RefreshResult, error)
+	GetJob(context.Context, string) (*summonersvc.Job, error)
+}
+
+type UserService interface {
+	Providers() []string
+	CurrentUser(context.Context, uuid.UUID) (*usersvc.CurrentUser, error)
+}
+
+type TFTService interface {
+	Catalog(context.Context) ([]tftsvc.CatalogEntry, error)
+	Lineups(context.Context, tftsvc.Filter) (tftsvc.Result, error)
+	History(context.Context, tftsvc.HistoryFilter) (*tftsvc.HistoryResult, error)
+	Refresh(context.Context, tftsvc.Identity, string) (tftsvc.RefreshResult, error)
+	GetJob(context.Context, string) (*tftsvc.Job, error)
+}
+
 // Resolver is the root dependency container the executable schema is
 // constructed with. main.go builds one and hands it to
 // gqlgenerated.NewExecutableSchema.
 type Resolver struct {
-	Catalog  CatalogService
-	Rankings RankingsService
+	Catalog   CatalogService
+	Rankings  RankingsService
+	Champion  ChampionService
+	Summoners SummonerService
+	Users     UserService
+	TFT       TFTService
 }

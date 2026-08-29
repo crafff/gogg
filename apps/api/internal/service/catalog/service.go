@@ -1,5 +1,5 @@
 // Package catalog exposes the small read-only "catalog" surface of
-// the API — versions and regions for which we have ingested data.
+// the API — versions and regions with published statistics rollups.
 // These power the dropdowns in the rankings UI's filter panel.
 //
 // Catalog data is a few rows that change once per patch (versions)
@@ -32,8 +32,10 @@ func New(q Querier) *Service {
 	return &Service{q: q}
 }
 
-// ListVersionsWithData returns the distinct match-processing versions
-// with completed matches, newest first. Always returns a non-nil slice
+// ListVersionsWithData returns the distinct statistics-ready versions,
+// newest first. Raw-only match versions are intentionally excluded so the
+// rankings UI cannot select a version whose aggregate response is empty.
+// Always returns a non-nil slice
 // (possibly empty) so JSON encoding produces [] not null — the legacy
 // /api/versions handler does the same coalescing, and we preserve
 // byte-equality for parity testing.

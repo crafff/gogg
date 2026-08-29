@@ -1,0 +1,19 @@
+query Me {
+  me {
+    id
+    displayName
+    email
+    avatarUrl
+    locale
+    identities {
+      provider
+      username
+    }
+  }
+}
+
+query AuthProviders {
+  authProviders {
+    id
+  }
+}

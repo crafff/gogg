@@ -12,6 +12,7 @@ LEFTHOOK_VERSION      ?= v1.10.0
 DEV_PG_DSN  ?= postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
 DEV_REDIS   ?= redis://localhost:6379/0
 DEV_TEMPORAL ?= localhost:7233
+GOGG_DB_ROOT ?= /mnt/gogg-db
 PERF_SCENARIO ?= rankings_graphql
 PERF_VUS      ?= 20
 PERF_DURATION ?= 1m
@@ -19,9 +20,11 @@ PERF_DIR      ?= tmp/performance
 PERF_VARIANT  ?= baseline
 PERF_DB_CONTAINER ?= gogg-perf-postgres
 GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
+GO_LINT_DIRS = $(shell go list -f '{{.Dir}}' ./... | grep -v '/node_modules/' | sed 's#^$(CURDIR)/#./#')
 
 # ── Compose ─────────────────────────────────────────────────
 COMPOSE_FILE ?= deploy/compose/docker-compose.dev.yml
+export GOGG_DB_ROOT
 
 .PHONY: help
 help: ## Show this help
@@ -29,8 +32,12 @@ help: ## Show this help
 		/^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ── Local dev ───────────────────────────────────────────────
+.PHONY: dev-storage-check
+dev-storage-check: ## Verify the external ext4 database VHDX is mounted safely
+	@GOGG_DB_ROOT="$(GOGG_DB_ROOT)" bash scripts/gogg-db-preflight.sh
+
 .PHONY: dev
-dev: ## Bring up the local dev stack (postgres + redis + temporal)
+dev: dev-storage-check ## Bring up the local dev stack (postgres + redis + temporal)
 	docker compose -f $(COMPOSE_FILE) up -d
 	@echo "Postgres: $(DEV_PG_DSN)"
 	@echo "Redis:    $(DEV_REDIS)"
@@ -45,7 +52,7 @@ dev-reset: ## Tear down AND drop all volumes (data loss!)
 	docker compose -f $(COMPOSE_FILE) down -v
 
 .PHONY: observability
-observability: ## Start Prometheus, Grafana, and DB/cache exporters
+observability: dev-storage-check ## Start Prometheus, Grafana, and DB/cache exporters
 	docker compose -f $(COMPOSE_FILE) --profile observability up -d --build postgres redis api-observed postgres-exporter redis-exporter prometheus grafana
 	docker compose -f $(COMPOSE_FILE) exec -T postgres psql -U gogg -d gogg -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
 	@echo "Grafana:    http://localhost:3001 (admin/admin)"
@@ -76,7 +83,7 @@ perf-cold: ## Flush local Compose Redis, then run the k6 baseline
 		bash tests/performance/run-api-performance.sh cold
 
 .PHONY: perf-env-up
-perf-env-up: ## Start the fixed mobile-drive database and observed API
+perf-env-up: dev-storage-check ## Start the fixed mobile-drive database and observed API
 	tests/performance/perf-drive.sh up
 	PERF_API_DATABASE_DSN='postgres://gogg:goggpass@host.docker.internal:55434/gogg?sslmode=disable' \
 	PERF_EXPORTER_DATABASE_DSN='postgresql://gogg:goggpass@host.docker.internal:55434/gogg?sslmode=disable' \
@@ -87,7 +94,7 @@ perf-env-up: ## Start the fixed mobile-drive database and observed API
 # ── Quality gates ───────────────────────────────────────────
 .PHONY: lint
 lint: ## Run all linters (go + web)
-	golangci-lint run $(GO_PACKAGES)
+	golangci-lint run $(GO_LINT_DIRS)
 	@if [ -f apps/web/package.json ]; then cd apps/web && npm run lint --if-present; fi
 
 .PHONY: fmt
@@ -164,7 +171,7 @@ migrate-new: ## Create a new migration; usage: make migrate-new name=add_users
 
 # ── Build ───────────────────────────────────────────────────
 .PHONY: build
-build: build-api build-worker build-crawler-lite ## Build all binaries
+build: build-api build-worker build-tft-worker build-crawlctl build-tft-quota-probe build-crawler-lite ## Build all binaries
 
 .PHONY: build-api
 build-api:
@@ -186,6 +193,21 @@ build-crawler-lite:
 	@if [ -d apps/worker/cmd/crawler-lite ] && [ -f apps/worker/cmd/crawler-lite/main.go ]; then \
 		go build -trimpath -o bin/gogg-crawler-lite ./apps/worker/cmd/crawler-lite; \
 	else echo "apps/worker/cmd/crawler-lite/main.go not present yet"; fi
+
+.PHONY: build-tft-worker
+build-tft-worker:
+	@mkdir -p bin
+	go build -trimpath -o bin/gogg-tft-worker ./apps/worker/cmd/tft-worker
+
+.PHONY: build-crawlctl
+build-crawlctl:
+	@mkdir -p bin
+	go build -trimpath -o bin/gogg-crawlctl ./apps/worker/cmd/crawlctl
+
+.PHONY: build-tft-quota-probe
+build-tft-quota-probe:
+	@mkdir -p bin
+	go build -trimpath -o bin/gogg-tft-quota-probe ./apps/worker/cmd/tft-quota-probe
 
 .PHONY: run-api
 run-api: ## Run gogg-api locally with SOPS or config/dev.yaml
@@ -223,13 +245,45 @@ run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
 		exit 1; \
 	fi
 
+.PHONY: run-tft-worker
+run-tft-worker: ## Run the isolated TFT worker; schedules are created paused
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-tft-worker.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/tft-worker; \
+	elif [ -f config/dev.yaml ]; then \
+		APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/tft-worker; \
+	else \
+		echo "missing config/dev.yaml; copy config/dev.example.yaml and fill riot.api_key"; \
+		exit 1; \
+	fi
+
 .PHONY: sync-assets
 sync-assets: ## Sync latest CommunityDragon assets; optionally pass args='--version 16.14'
 	@go run ./apps/worker/cmd/asset-sync $(args)
 
+.PHONY: refresh-champion-detail
+refresh-champion-detail: ## Rebuild champion detail rollups; optionally pass args='--timeout 1h'
+	@go run ./apps/worker/cmd/champion-detail-rollup --database-dsn "$(DEV_PG_DSN)" $(args)
+
 .PHONY: refresh-rankings
 refresh-rankings: ## Rebuild rankings rollups; optionally pass args='--timeout 1h'
 	@go run ./apps/worker/cmd/rankings-rollup --database-dsn "$(DEV_PG_DSN)" $(args)
+
+.PHONY: backfill-perks
+backfill-perks: ## Repair historical six-rune data; pass args='--dry-run' or '--region KR'
+	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
+		tmp=$$(mktemp -t gogg-perk-backfill.XXXXXX.yaml); \
+		trap "rm -f $$tmp" EXIT; \
+		sops --decrypt deploy/secrets/dev.enc.yaml > $$tmp; \
+		APP_CONFIG_PATH=$$tmp go run ./apps/worker/cmd/perk-backfill $(args); \
+	elif [ -f config/dev.yaml ]; then \
+		APP_CONFIG_PATH=config/dev.yaml go run ./apps/worker/cmd/perk-backfill $(args); \
+	else \
+		echo "missing config/dev.yaml or decryptable deploy/secrets/dev.enc.yaml"; \
+		exit 1; \
+	fi
 
 .PHONY: run-crawler-lite
 run-crawler-lite: ## Run crawler-lite; pass args='run --profile daily_kr'

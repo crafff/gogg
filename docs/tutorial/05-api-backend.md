@@ -265,20 +265,19 @@ ls apps/api/internal/auth/
 ls apps/api/internal/auth/provider/
 ```
 
-- `auth/jwt.go` — issues + validates HS256 JWT pairs (15-min access, 30-day refresh).
-- `auth/provider/{discord,google}.go` — OAuth providers.
-- `auth/provider/riot_rso.go` — Riot RSO, behind a build tag.
+- `auth/jwt.go` — validates optional Bearer JWTs for non-browser clients and hashes opaque secrets.
+- `auth/provider/google.go` — the Google OAuth provider with S256 PKCE.
+- `service/user/service.go` — one-shot OAuth attempts, identity binding, and opaque browser sessions.
 
 The transport side is `apps/api/internal/transport/rest/auth/auth.go` — mounts:
 
 ```
-GET  /oauth/start/{provider}    → redirect to provider
-GET  /oauth/callback/{provider} → exchange code for tokens, issue JWT
-POST /auth/refresh              → rotate refresh token, issue new access
-POST /auth/logout               → revoke refresh token
+GET  /oauth/start/google        → store one-shot attempt and redirect to Google
+GET  /oauth/callback/google     → exchange code and set opaque session cookie
+POST /auth/logout               → revoke browser session
 ```
 
-We'll dive deep in Chapter 08. For now: the **Bearer middleware** is optional — it attaches a `*User` to the request context if present, doesn't reject if absent. Endpoints that *require* auth check for the user in their handler.
+We'll dive deep in Chapter 08. Browser requests restore identity through the session middleware and the nullable GraphQL `Me` query. The Bearer middleware remains optional compatibility for non-browser clients.
 
 ## Cache layer
 

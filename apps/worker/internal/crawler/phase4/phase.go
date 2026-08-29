@@ -96,7 +96,7 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 		})
 
 		for idx, matchID := range ids {
-			if err := p.computeAndStore(ctx, matchID, thresholds); err != nil {
+			if err := p.ComputeAndStore(ctx, matchID, thresholds); err != nil {
 				phaselog.Warn(meta, "match_failed", "match_id", matchID, "err", err)
 			}
 			total++
@@ -116,7 +116,11 @@ func (p *Phase) Run(ctx context.Context, state *crawler.RunState) error {
 	return nil
 }
 
-func (p *Phase) computeAndStore(ctx context.Context, matchID string, thresholds storage.ApexThresholds) error {
+// ComputeAndStore calculates one match's average rank from its available
+// participant snapshots. It is exported so lookup-scoped enrichment can reuse
+// the exact same scoring rules without scanning every pending match in a
+// region/version crawl partition.
+func (p *Phase) ComputeAndStore(ctx context.Context, matchID string, thresholds storage.ApexThresholds) error {
 	rows, err := p.store.GetParticipantTiersForMatch(ctx, matchID)
 	if err != nil {
 		return err

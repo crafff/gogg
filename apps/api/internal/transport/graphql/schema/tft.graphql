@@ -1,0 +1,198 @@
+enum TFTCohort { MASTER_PLUS DIAMOND }
+enum TFTWindow { THREE_DAYS PATCH }
+
+input TFTLineupsFilter {
+  platform: String!
+  patch: String = "latest"
+  setNumber: Int!
+  cohort: TFTCohort = MASTER_PLUS
+  window: TFTWindow = PATCH
+  locale: String = "en_us"
+  minSamples: Int = 200
+  limit: Int = 50
+}
+
+type TFTAnalysisCatalogEntry {
+  platform: String!
+  patch: String!
+  setNumber: Int!
+  queueId: Int!
+  cohort: TFTCohort!
+  window: TFTWindow!
+  publishedAt: String!
+  sourceMatches: Int!
+  sourceParticipants: Int!
+  coverage: TFTAnalysisCoverage!
+}
+
+type TFTAnalysisCoverage {
+  windowStart: String!
+  windowEnd: String!
+  exactLineups: Int!
+  familyThreshold: Int!
+}
+
+type TFTEntity { id: String! name: String iconUrl: String }
+type TFTEntityCount { entity: TFTEntity! count: Int! rate: Float! }
+type TFTLineupMetrics {
+  sampleSize: Int!
+  lobbyCount: Int!
+  pickRate: Float!
+  avgPlacement: Float!
+  firstRate: Float!
+  top4Rate: Float!
+  contestedRate: Float!
+}
+type TFTLineup {
+  id: ID!
+  coreUnits: [TFTEntity!]!
+  commonItems: [TFTEntityCount!]!
+  commonAugments: [TFTEntityCount!]!
+  commonTraits: [TFTEntityCount!]!
+  metrics: TFTLineupMetrics!
+}
+type TFTLineupsResult {
+  platform: String!
+  patch: String!
+  setNumber: Int!
+  queueId: Int!
+  cohort: TFTCohort!
+  window: TFTWindow!
+  locale: String!
+  algorithmVersion: String!
+  publishedAt: String!
+  sourceMatches: Int!
+  sourceParticipants: Int!
+  coverage: TFTAnalysisCoverage!
+  items: [TFTLineup!]!
+}
+
+extend type Query {
+  tftAnalysisCatalog: [TFTAnalysisCatalogEntry!]!
+  tftLineups(filter: TFTLineupsFilter!): TFTLineupsResult!
+  tftMatchHistory(input: TFTHistoryInput!): TFTHistoryResult
+  tftLookupJob(id: ID!): TFTLookupJob
+}
+
+enum TFTLookupStatus { QUEUED RUNNING COMPLETED PARTIAL FAILED }
+enum TFTLookupStage { QUEUED RESOLVE_ACCOUNT FETCH_MATCH_IDS FETCH_MATCHES FINALIZE }
+
+input TFTIdentityInput {
+  platform: String!
+  gameName: String!
+  tagLine: String!
+}
+
+input TFTHistoryInput {
+  platform: String!
+  gameName: String!
+  tagLine: String!
+  queueId: Int = 1100
+  first: Int = 20
+  after: String
+  locale: String = "en_us"
+}
+
+type TFTPlayerProfile {
+  platform: String!
+  gameName: String!
+  tagLine: String!
+  lastRefreshedAt: String
+  isStale: Boolean!
+}
+
+type TFTHistoryTrait {
+  entity: TFTEntity!
+  numUnits: Int!
+  style: Int!
+  tierCurrent: Int!
+  tierTotal: Int!
+}
+
+type TFTHistoryUnit {
+  entity: TFTEntity!
+  rarity: Int!
+  tier: Int!
+  items: [TFTEntity!]!
+}
+
+type TFTHistoryParticipant {
+  puuid: String!
+  gameName: String!
+  tagLine: String!
+  isCurrentPlayer: Boolean!
+  placement: Int!
+  level: Int!
+  goldLeft: Int!
+  lastRound: Int!
+  playersEliminated: Int!
+  timeEliminatedSeconds: Float!
+  totalDamageToPlayers: Int!
+  companionContentId: String!
+  companionItemId: Int!
+  companionSkinId: Int!
+  companionSpecies: String!
+  abnormal: Boolean!
+  augments: [TFTEntity!]!
+  traits: [TFTHistoryTrait!]!
+  units: [TFTHistoryUnit!]!
+}
+
+type TFTHistoryMatch {
+  matchId: ID!
+  platform: String!
+  routingRegion: String!
+  queueId: Int!
+  gameVersion: String!
+  patch: String!
+  gameDatetime: String!
+  gameLengthSeconds: Float!
+  mapId: Int!
+  tftGameType: String!
+  setCoreName: String!
+  setNumber: Int!
+  endOfGameResult: String!
+  participantCount: Int!
+  eligible: Boolean!
+  exclusionReason: String!
+  participant: TFTHistoryParticipant!
+  participants: [TFTHistoryParticipant!]!
+}
+
+type TFTMatchPageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  returned: Int!
+}
+
+type TFTHistoryResult {
+  profile: TFTPlayerProfile!
+  matches: [TFTHistoryMatch!]!
+  pageInfo: TFTMatchPageInfo!
+}
+
+type TFTLookupJob {
+  id: ID!
+  platform: String!
+  gameName: String!
+  tagLine: String!
+  status: TFTLookupStatus!
+  stage: TFTLookupStage!
+  scannedCount: Int!
+  fetchedCount: Int!
+  failedCount: Int!
+  errorCode: String
+  createdAt: String!
+  updatedAt: String!
+  completedAt: String
+}
+
+type TFTRefreshResult {
+  fresh: Boolean!
+  reused: Boolean!
+  job: TFTLookupJob
+}
+
+extend type Mutation {
+  refreshTFTPlayer(identity: TFTIdentityInput!): TFTRefreshResult!
+}

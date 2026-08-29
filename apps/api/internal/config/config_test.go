@@ -24,6 +24,19 @@ func TestValidate_catchesProblems(t *testing.T) {
 		{"bad log level", func(c *Config) { c.Logging.Level = "trace" }, "logging.level"},
 		{"bad log format", func(c *Config) { c.Logging.Format = "csv" }, "logging.format"},
 		{"zero read timeout", func(c *Config) { c.API.ReadTimeout = 0 }, "api.read_timeout"},
+		{"zero browser session ttl", func(c *Config) { c.Auth.RefreshTTL = 0 }, "auth.refresh_ttl"},
+		{"short jwt secret", func(c *Config) { c.Auth.JWTSecret = "too-short" }, "at least 32 bytes"},
+		{"partial google config", func(c *Config) { c.OAuth.Google.ClientID = "client" }, "configured together"},
+		{"insecure remote callback", func(c *Config) {
+			c.OAuth.Google = OAuthProviderConfig{
+				ClientID: "client", ClientSecret: "secret", RedirectURL: "http://example.com/oauth/callback/google",
+			}
+		}, "must use https"},
+		{"https callback without secure cookie", func(c *Config) {
+			c.OAuth.Google = OAuthProviderConfig{
+				ClientID: "client", ClientSecret: "secret", RedirectURL: "https://gogg.example/oauth/callback/google",
+			}
+		}, "cookie_secure"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,6 +50,32 @@ func TestValidate_catchesProblems(t *testing.T) {
 				t.Errorf("error %q should mention %q", err.Error(), tc.want)
 			}
 		})
+	}
+}
+
+func TestValidate_acceptsLocalAndHTTPSOAuthCallbacks(t *testing.T) {
+	for _, redirectURL := range []string{
+		"http://localhost:5173/oauth/callback/google",
+		"http://127.0.0.1:5173/oauth/callback/google",
+	} {
+		t.Run(redirectURL, func(t *testing.T) {
+			cfg := Default()
+			cfg.OAuth.Google = OAuthProviderConfig{
+				ClientID: "client", ClientSecret: "secret", RedirectURL: redirectURL,
+			}
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+		})
+	}
+
+	cfg := Default()
+	cfg.Auth.CookieSecure = true
+	cfg.OAuth.Google = OAuthProviderConfig{
+		ClientID: "client", ClientSecret: "secret", RedirectURL: "https://gogg.example/oauth/callback/google",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("secure production callback: Validate() error = %v", err)
 	}
 }
 

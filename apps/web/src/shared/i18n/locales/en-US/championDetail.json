@@ -1,0 +1,18 @@
+{
+  "eyebrow": "Champion detail",
+  "version": "Data patch {{version}}",
+  "summary": "{{games}} eligible games · Patch {{version}}",
+  "runes": "Runes",
+  "primaryRunes": "Primary",
+  "secondaryRunes": "Secondary",
+  "statShards": "Stat shards",
+  "spells": "Summoner spells",
+  "starter": "Starting items",
+  "boots": "Boots",
+  "items": "{{count}} items",
+  "rates": "Pick {{pick}}% · Win {{win}}%",
+  "sample": "{{games}} / {{total}} games",
+  "empty": "No data for these filters",
+  "invalid": "Invalid champion ID",
+  "notFound": "Champion not found"
+}

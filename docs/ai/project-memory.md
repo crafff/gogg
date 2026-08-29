@@ -1,0 +1,174 @@
+# GOGG durable project memory
+
+Last evidence review: 2026-08-28.
+
+This file records stable project facts and proven lessons for future human and
+agent sessions. It is not a task tracker. Validate any fact that may have gone
+stale against code and tests before relying on it.
+
+## Product and architecture
+
+- GOGG is a production-oriented modular monolith for League of Legends
+  champion statistics and summoner match history.
+- KR and NA1 are the initial regions. The UI supports zh-CN and en-US.
+- The runtime is split into a React/Vite frontend, a Go API, and Go Temporal
+  workers, backed by PostgreSQL and Redis.
+- The API owns synchronous product contracts. Temporal owns durable crawl and
+  enrichment work. PostgreSQL is the durable source of truth; Redis is a cache
+  and coordination layer, not the sole record of user-visible job state.
+- Summoner match history reuses the collected match dataset and adds
+  query-oriented tables/indexes and job metadata instead of maintaining a
+  second duplicate match database.
+- The rankings version/region catalog exposes only slices with non-empty
+  published rollups. Raw-only versions remain valid in summoner history but do
+  not appear as empty choices in statistics filters; `latest` follows the
+  newest published rollup rather than the newest raw match.
+- Champion-detail rune signatures preserve two style IDs, all six selected
+  perk IDs, and three stat-shard IDs. Do not omit `perk5` when rebuilding the
+  rollup or shift the API slice boundaries back to the old ten-field shape.
+
+## Current summoner-history contract
+
+- The initial queue filters are Draft Pick (`400`), Ranked Solo/Duo (`420`),
+  Ranked Flex (`440`), and Swiftplay (`480`). `ALL` is the union of those four.
+- Each returned history match includes its ten participants so the match card
+  can expand into blue-team and red-team player details without per-row API
+  requests. Older collected matches may not have Riot ID labels; the combat
+  facts remain available and the UI falls back to participant numbers.
+- Match history exposes participant rank snapshots plus the match average tier
+  and coverage when enrichment data exists. These are nearest available
+  snapshots rather than guaranteed game-start ranks, so the UI marks them with
+  an approximation indicator and keeps missing values explicit as pending.
+- On-demand summoner refreshes enrich distinct participants only within the
+  lookup job, using ranked-solo entries, then recompute those matches' average
+  tiers before finalizing the job. Participant-scoped terminal rank failures
+  leave only those rows pending and make the completed job partial.
+- The browser keeps the five most recent summoner searches in local storage,
+  deduplicated by region and Riot ID, and exposes an explicit clear action.
+- A lookup is a long-running server-side operation. The UI must be able to
+  reconnect to an existing job after reload, navigation, or a repeated search.
+- Duplicate requests for the same Riot ID must return the active or recent job
+  rather than start duplicate Temporal workflows.
+- Temporal workflow IDs are stable per lookup job. Activities own Riot and
+  database side effects and must be retry-safe.
+- Riot ID not found in a selected region is a terminal domain result. It must
+  not become a retry storm or a misleading refresh-rate-limit response.
+- A rate limit may delay new work, but it must not hide an already running or
+  terminal job that the client should reconnect to.
+
+## Current browser-auth contract
+
+- Browser login initially enables Google only. Discord remains dormant, and
+  Riot RSO remains a separate approval-gated integration.
+- Google authorization uses one-shot database-backed state, S256 PKCE, and a
+  short-lived HttpOnly browser-binding cookie. Provider exchange and user-info
+  calls happen outside database transactions.
+- The React application never receives or persists Google tokens or GOGG JWTs.
+  It receives only an opaque HttpOnly application-session cookie; PostgreSQL
+  stores the SHA-256 digest and owns expiry and revocation.
+- The nullable GraphQL `Me` query is the frontend session source of truth.
+  TanStack Query restores it on reload; protected routes distinguish anonymous
+  results from session-service failures.
+- Cookie-authenticated unsafe requests require `X-GOGG-CSRF: 1`. Logout revokes
+  the server session before clearing the cookie. Production callbacks and
+  cookies require HTTPS; local Vite development proxies `/oauth` and `/auth` to
+  the API on port 8080.
+- OAuth starts use the shared Redis fixed-window limiter when Redis is
+  configured. Login start also removes expired OAuth attempts and browser
+  sessions, so the public entrypoint cannot grow those tables without bounds.
+
+## Asset contract
+
+- CommunityDragon game assets are synchronized into `data/game-assets/` and
+  served locally through `/game-assets`.
+- Item synchronization includes valid icon-bearing entries even when
+  CommunityDragon marks them `inStore=false`; transformed items, quest rewards,
+  and consumables can still appear in a participant's final inventory.
+- The frontend should not depend on CommunityDragon availability during normal
+  page rendering.
+- Missing versioned assets may be fetched and cached by the local API/worker
+  path, with tests covering routing and fallback behavior.
+
+## Current TFT product contract
+
+- TFT collection runs in its own Temporal worker and task queues across all 15
+  supported platforms, while Redis coordinates the Riot quota shared with LoL.
+  Scheduled crawl and static-data schedules are deployed paused and controlled
+  independently from LoL work.
+- Standard ranked analysis uses immutable published lineup datasets. The React
+  `/tft` page reads only catalog-backed filter combinations through
+  `tftAnalysisCatalog` and `tftLineups`; URLs preserve the selected platform,
+  patch, set, cohort, window, and sample threshold.
+- TFT player history has a separate 15-platform identity and lookup-job model.
+  `/tft/player/:platform/:gameName/:tagLine` reconnects to stable Temporal jobs,
+  polls their persisted status, and reads canonical match facts with cursor
+  pagination through `tftMatchHistory`.
+- On-demand player matches remain outside analysis cohorts. Account, platform
+  profile, match-list, and match-detail responses use the same raw-first archive
+  as scheduled collection; activities are retry-safe and terminal Riot 404
+  outcomes are persisted without retry storms.
+- TFT entity images are served only from published local `/game-assets` static
+  snapshots. Entity names and image paths are resolved per match patch so a
+  cross-patch history page cannot mix versions.
+
+## Local development facts
+
+- `make dev` starts PostgreSQL, Redis, Temporal, Temporal UI, and supporting
+  local services.
+- On the primary Windows workstation, application and Temporal PostgreSQL data
+  live in the ext4 filesystem inside `F:\gogg-data\gogg-db.vhdx`. Ubuntu
+  mounts filesystem UUID `3f631b73-56a3-4767-9728-92ecd0445366` at
+  `/mnt/gogg-db`; Compose bind-mounts `app-postgres` and
+  `temporal-postgres` from that root.
+- `make dev` fails closed unless the external database filesystem has the
+  expected UUID, ext4 type, read-write state, marker, ownership, and modes.
+  Ubuntu startup is configured to request an on-demand elevated Windows task
+  to attach the VHDX, then mount it inside the normal Ubuntu session. Windows
+  logon does not start WSL for this storage path. Keep attachment and mounting
+  separate; do not combine them in one elevated WSL mount namespace.
+- Verified pre-migration logical backups exist on separate physical disks at
+  `F:\gogg-backups\pre-migration-20260828T162134Z` and
+  `D:\gogg-backups\pre-migration-20260828T162134Z`. The obsolete Docker named
+  volumes `gogg-dev_pg_data` and `gogg-dev_temporal_pg_data` were removed only
+  after offline-copy, SQL, Temporal, and cold-mount verification passed.
+- API: `http://localhost:8080`; web: `http://localhost:5173`; Temporal UI:
+  `http://localhost:8233`; local PostgreSQL is exposed on port `55433`.
+- API and worker must point at the same database during summoner-flow testing.
+- A PostgreSQL DSN is one uninterrupted URL. A newline between `?` and
+  `sslmode=disable` creates an invalid control character and prevents startup.
+- After API or worker code changes, restart the corresponding long-running
+  process; Vite handles normal frontend hot reload.
+
+## Proven failure modes and guardrails
+
+- Browser state alone is insufficient for a long lookup. Persist the job
+  identity server-side and make status queryable by the stable player identity.
+- Apply active-job lookup before refresh throttling. Otherwise reloads and
+  duplicate searches surface “too many requests” instead of progress.
+- Mark terminal Riot outcomes non-retryable at the worker boundary. Generic
+  retryable 404 handling caused long stalls in real testing.
+- Keep workflow progress monotonic and useful even when individual match
+  details are missing or skipped.
+- Do not replace a stale TFT Riot-ID-to-PUUID mapping with a DELETE CTE followed
+  by INSERT. PostgreSQL's same-statement snapshot can still trip the expression
+  unique index; perform the delete and PUUID upsert as two statements in one
+  transaction.
+- Never invoke the region-wide phase 3.5 backlog scan from a single summoner
+  lookup; rank enrichment must remain scoped by the lookup job's match set.
+- Never use `make dev-reset` as an automatic recovery step; it deletes local
+  volumes.
+- Do not move live PostgreSQL data directories onto exFAT. If storage migration
+  is revisited, use a database-supported filesystem or logical backup/restore.
+
+## How to update this memory
+
+Add an entry only when at least one of these is true:
+
+- code and tests establish a stable product contract;
+- the user accepts a durable architectural decision;
+- a real failure reveals a reusable guardrail;
+- environment behavior is repeatedly needed across sessions.
+
+Remove or revise stale entries in the same change that invalidates them. Never
+store secrets, access tokens, private user data, raw chat transcripts, temporary
+plans, or unverified guesses.

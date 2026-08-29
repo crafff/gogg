@@ -1,0 +1,152 @@
+name: gogg-prod
+
+networks:
+  gogg:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gogg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: gogg
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1536MB
+      - -c
+      - effective_cache_size=4GB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=60
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+    volumes:
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gogg -d gogg"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 2500m
+    networks: [gogg]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 384m
+    networks: [gogg]
+
+  temporal-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: temporal
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=80"]
+    volumes:
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/temporal-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    networks: [gogg]
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    restart: unless-stopped
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: temporal-postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
+      interval: 15s
+      timeout: 8s
+      retries: 30
+    mem_limit: 1536m
+    networks: [gogg]
+
+  api:
+    image: gogg-api:prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_CONFIG_PATH: /run/secrets/gogg-config.yaml
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      GOGG_DATABASE_MAX_OPEN_CONNS: "10"
+      GOGG_REDIS_URL: redis://redis:6379/0
+      GOGG_API_GRAPHQL_PLAYGROUND: "false"
+      GOGG_AUTH_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      GOGG_AUTH_ISSUER: http://135.232.215.174
+      # Public Google login requires TLS termination in front of this service.
+      GOGG_AUTH_COOKIE_SECURE: "true"
+      GOGG_ASSETS_ROOT: /srv/game-assets
+    volumes:
+      - ./config/prod.yaml:/run/secrets/gogg-config.yaml:ro
+      - ./game-assets:/srv/game-assets:ro
+    healthcheck:
+      test: ["CMD", "/app/gogg-api", "healthcheck"]
+      disable: true
+    mem_limit: 768m
+    networks: [gogg]
+
+  worker:
+    image: gogg-worker:prod
+    restart: unless-stopped
+    profiles: ["worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      APP_CONFIG_PATH: /run/secrets/gogg-config.yaml
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      GOGG_DATABASE_MAX_OPEN_CONNS: "6"
+      GOGG_DATABASE_MAX_IDLE_CONNS: "2"
+      GOGG_TEMPORAL_HOST_PORT: temporal:7233
+      GOGG_ASSETS_ROOT: ""
+    volumes:
+      - ./config/prod.yaml:/run/secrets/gogg-config.yaml:ro
+    mem_limit: 1536m
+    networks: [gogg]
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./web-dist:/usr/share/nginx/html:ro
+      - ./nginx.ip.conf:/etc/nginx/conf.d/default.conf:ro
+    mem_limit: 128m
+    networks: [gogg]

@@ -22,6 +22,14 @@ temporal:
   task_queues:
     - crawl-kr
     - crawl-na1
+  region_task_queues:
+    KR: crawl-kr
+    NA1: crawl-na1
+
+summoner:
+  freshness: 5m
+  ip_limit: 5
+  ip_limit_window: 10m
 
 database:
   dsn: postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
@@ -39,7 +47,9 @@ logging:
   format: json
 
 auth:
-  jwt_secret: change-me-in-dev
+  # Browser Google login does not need JWT. Leave blank unless a non-browser
+  # Bearer client is enabled; then use at least 32 random bytes.
+  jwt_secret: ""
   issuer: gogg.local
   access_ttl: 15m
   refresh_ttl: 720h
@@ -54,6 +64,8 @@ oauth:
   google:
     client_id: ""
     client_secret: ""
+    # When enabled, register and use this exact local URI:
+    # http://localhost:5173/oauth/callback/google
     redirect_url: ""
 
 riot:
@@ -69,6 +81,30 @@ raw_archive:
   enabled: false
   root: "data/riot-raw"
   compression_level: 6
+
+tft:
+  # One global workflow fans out across all current TFT platform routes.
+  # Both crawl and static schedules are always created paused; use crawlctl
+  # after deploying the worker and checking the task-queue pollers.
+  platforms: [NA1, BR1, LA1, LA2, KR, JP1, EUN1, EUW1, TR1, ME1, RU, OC1, SG2, TW2, VN2]
+  crawl_cron: "17 */3 * * *"
+  static_cron: "7 */6 * * *"
+  profile_name: global_high_tier
+  match_count_per_seed: 20
+  master_limit: 500
+  diamond_per_division: 50
+  scale_master_limit: 1000
+  scale_diamond_per_division: 100
+  scale_after: 48h
+  scale_below_observations: 10000
+  window: 168h
+  window_lag: 30m
+  overlap: 6h
+  static_root: data/game-assets
+  static_locales: [en_us, zh_cn]
+  player_freshness: 10m
+  player_ip_limit: 5
+  player_ip_limit_window: 10m
 
 regions:
   - name: KR

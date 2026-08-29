@@ -1,53 +1,30 @@
 # Chapter 08 · Auth + secrets
 
-> Goal: by the end of this chapter you can explain the OAuth flow that lights up the "Sign in with Discord" link, you understand JWT access vs refresh tokens, and you can decrypt + edit + re-encrypt the SOPS secrets file without leaking anything to git.
+> Goal: by the end of this chapter you can explain GOGG's Google OAuth browser flow, its server-side session boundary, and how to decrypt + edit + re-encrypt the SOPS secrets file without leaking anything to git.
 
 ## Part A — Auth
 
-### Why two tokens?
+### Browser session model
 
-When a user signs in, they expect to stay signed in for weeks without re-authenticating. But every request shouldn't carry a 30-day session token over the wire — if it's stolen, the attacker has long-term access.
+The React application never receives a Google access token, GOGG JWT, or refresh token. After Google authenticates the user, the API creates a random opaque session secret, stores only its SHA-256 digest in PostgreSQL, and sends the cleartext only as an HttpOnly cookie.
 
-The standard trade is:
+- The development cookie is `gogg_session`.
+- HTTPS deployments use the `__Host-gogg_session` prefix.
+- The cookie is host-only, `Path=/`, `HttpOnly`, and `SameSite=Strict`.
+- The server resolves the session on each authenticated request; TanStack Query's nullable `Me` result is the frontend session state.
+- `POST /auth/logout` revokes the server row before clearing the cookie.
 
-- **Access token** — short-lived (15 min). Carried in every request as `Authorization: Bearer <token>`. If stolen, expires fast.
-- **Refresh token** — long-lived (30 days). Stored in an HttpOnly cookie or sent only over `/auth/refresh`. Used to mint new access tokens when the current one expires. Revocable.
-
-Both are JSON Web Tokens (JWT) — Base64-encoded triples of `header.payload.signature`. The signature is HS256 (HMAC-SHA-256) with a server-side secret. Anyone can read the payload (it's not encrypted), but only the server can produce a valid signature.
-
-### Read the issuer
-
-```bash
-cat apps/api/internal/auth/jwt.go | head -80
-```
-
-`Issuer` has two main methods:
-
-- `IssuePair(userID)` → returns `{Access, Refresh}` JWT strings.
-- `Verify(token)` → parses + validates a token, returns the claims or an error.
-
-Inside `IssuePair`:
-
-1. Generate a random `jti` (JWT ID) for the refresh token. This is the revocation handle.
-2. Build the access token: claims `{sub, iat, exp (now + 15m), iss}`. Sign with HS256.
-3. Build the refresh token: claims `{sub, jti, iat, exp (now + 30d), iss}`. Sign.
-4. Persist the refresh `jti` into `user_refresh_tokens` so we can revoke it later.
-
-The signing secret is loaded from config (originally `deploy/secrets/dev.enc.yaml`'s `jwt_secret` field) and must be at least 32 bytes. The test secret in `jwt_test.go` is `"not-a-real-secret-for-tests-only!"` — exactly 32 ASCII bytes, low-entropy, with `//gitleaks:allow` so the secret scanner stops complaining.
+The existing JWT issuer remains available for explicitly authenticated non-browser clients, but the web login flow does not issue or store browser JWTs.
 
 ### The OAuth flow
 
-We have three OAuth providers planned:
+Google is the only provider registered in the first browser-login release. The provider abstraction still leaves room for Discord later; Riot RSO remains separate and requires Riot approval.
 
-- **Discord** (live in Phase B chunk 6)
-- **Google** (live in Phase B chunk 6)
-- **Riot RSO** (build-tag-gated, gated on Riot approval; expected in Phase E)
-
-All three implement the same `Provider` interface. Look:
+Look at the provider boundary:
 
 ```bash
 ls apps/api/internal/auth/provider/
-cat apps/api/internal/auth/provider/discord.go | head -60
+cat apps/api/internal/auth/provider/google.go | head -80
 ```
 
 The interface:
@@ -55,12 +32,12 @@ The interface:
 ```go
 type Provider interface {
     Name() string
-    AuthorizeURL(state string) string
-    Exchange(ctx context.Context, code string) (*Profile, error)
+    AuthCodeURL(state, codeVerifier string) string
+    Exchange(ctx context.Context, code, codeVerifier string) (UserInfo, error)
 }
 ```
 
-Three methods. `AuthorizeURL` builds the provider's `/authorize` URL. `Exchange` swaps the OAuth `code` for a profile (using the provider's token + user-info endpoints).
+`AuthCodeURL` includes a one-shot state value and an S256 PKCE challenge. `Exchange` sends the matching verifier while swapping the authorization code, then reads Google's user-info endpoint. The OAuth access token stays inside that server-side request.
 
 ### The HTTP surface
 
@@ -68,63 +45,43 @@ Three methods. `AuthorizeURL` builds the provider's `/authorize` URL. `Exchange`
 cat apps/api/internal/transport/rest/auth/auth.go | head -80
 ```
 
-Four routes:
+Three routes plus two GraphQL queries:
 
 ```
-GET  /oauth/start/{provider}     → 302 to provider's authorize URL, sets state cookie
-GET  /oauth/callback/{provider}  → exchanges code, upserts user + identity, issues JWT pair
-POST /auth/refresh               → rotates refresh, issues new access
-POST /auth/logout                → revokes refresh (deletes row)
+GET  /oauth/start/google         → stores state + PKCE attempt, 302 to Google
+GET  /oauth/callback/google      → consumes attempt, upserts identity, sets session cookie
+POST /auth/logout                → revokes the current browser session
+query Me                         → nullable current user for session restoration
+query AuthProviders              → providers enabled in this deployment
 ```
 
 ### Trace one sign-in, end-to-end
 
-User clicks "Sign in with Discord" in the UI (currently the placeholder LoginPage links to `/oauth/start/discord`):
+User clicks “Continue with Google”:
 
-1. Browser GETs `/oauth/start/discord`.
-2. Handler generates a random `state`, sets it as an HttpOnly cookie (`oauth_state`), redirects to `https://discord.com/api/oauth2/authorize?client_id=...&redirect_uri=...&state=<state>&scope=identify+email`.
-3. User authorizes on Discord's page.
-4. Discord redirects back: `GET /oauth/callback/discord?code=ABC&state=<state>`.
-5. Handler verifies the `state` cookie matches, then calls `provider.Exchange(ctx, code)`:
-   - POST `https://discord.com/api/oauth2/token` with `code` → `{access_token, refresh_token, expires_in}`.
-   - GET `https://discord.com/api/users/@me` with that token → `{id, username, email}`.
-   - Returns a `Profile{ID: "discord-user-id", Email: "...", Name: "..."}`.
-6. Handler looks up `users` by the OAuth identity:
-   ```sql
-   SELECT u.* FROM users u
-   JOIN user_oauth_identities i ON i.user_id = u.id
-   WHERE i.provider = 'discord' AND i.subject = 'discord-user-id';
-   ```
-7. If found, that's the user. If not, INSERT a new `users` row + `user_oauth_identities` row.
-8. Call `Issuer.IssuePair(user.ID)` → access + refresh tokens.
-9. Set the refresh as an HttpOnly cookie, return JSON `{accessToken: "..."}` to the browser.
-10. Frontend stores the access token (in memory or sessionStorage, NOT localStorage) and uses it in `Authorization` headers.
+1. The browser opens `/oauth/start/google?returnTo=/me`.
+2. The API generates random state, PKCE verifier, and a browser-binding secret. It stores only state/binding hashes plus the verifier in `oauth_login_attempts`, then redirects to Google with the state and S256 challenge.
+3. Google redirects to `/oauth/callback/google?code=...&state=...`.
+4. The API atomically consumes the unexpired attempt using state, provider, and browser-binding hash. A replay returns an expired/invalid result.
+5. The API exchanges the code with the PKCE verifier and fetches the stable Google subject plus verified basic profile.
+6. A short database transaction serializes the provider identity, creates or updates the GOGG user, and creates `user_sessions`.
+7. The callback sends the opaque HttpOnly session cookie and redirects only to a validated local path. No token is written into redirect parameters, HTML, React state, `sessionStorage`, or `localStorage`.
 
-### Refresh flow
-
-Access token expires after 15 min. The frontend sees a 401 from `/graphql` or `/api/v1/...`, posts to `/auth/refresh` (the browser auto-sends the refresh cookie), gets a new access token, retries the original request.
-
-If the refresh token has been revoked (the `jti` is gone from `user_refresh_tokens`), `/auth/refresh` returns 401 and the frontend bounces the user to `/login`.
+When Redis is configured, `/oauth/start/google` is limited per client IP. Each
+start also removes expired attempts and sessions. The callback uses
+`Referrer-Policy: no-referrer`, and production nginx does not access-log the
+authorization-code query string.
 
 ### Logout
 
-`POST /auth/logout` reads the refresh cookie, parses out the `jti`, deletes the matching row from `user_refresh_tokens`, clears the cookie. All future `/auth/refresh` calls with that token fail.
+The web app sends `POST /auth/logout` with `X-GOGG-CSRF: 1`. Unsafe requests carrying the session cookie require this custom header. The API marks the matching session revoked and only then expires the browser cookie.
 
 ### Try this
 
-🛠️ **Exercise**: hit `/oauth/start/discord` in your browser. You'll get a 302 to Discord with a `state` query param. Without a registered Discord app, the actual sign-in won't work, but you can:
-
-1. Inspect the cookie set in the 302 response — it's named `oauth_state` and matches the URL's `state` param.
-2. Visit `/oauth/callback/discord?code=fake&state=<the-cookie-value>` manually — the handler should fail with "discord exchange failed" because there's no real OAuth code, but it proves the route is wired.
-
-🛠️ **Exercise**: with no real auth set up, you can still play with JWT manually:
-
-```bash
-# Decode a JWT (no verification — just base64 decode)
-echo 'eyJhbGc...' | cut -d. -f2 | base64 -d
-```
-
-That shows you the claims. Anyone can read them; they're not encrypted. Only the signature step needs the secret.
+1. Create a Google OAuth web client and register `http://localhost:5173/oauth/callback/google` for local development.
+2. Configure `oauth.google.client_id`, `client_secret`, and `redirect_url` together. The API rejects partial provider configuration at startup.
+3. Keep `cookie_secure: false` only for local HTTP. Production callbacks must use HTTPS and production cookies must set `cookie_secure: true`.
+4. Run the migration and both services, then open `http://localhost:5173/login`.
 
 ---
 

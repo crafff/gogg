@@ -20,6 +20,23 @@ func (s *Store) UpsertPlayer(ctx context.Context, puuid, region string, gameName
 	return upsertPlayerTx(ctx, s.Pool, puuid, region, gameName, tagLine)
 }
 
+// UpsertPlayerFromMatch fills missing identity fields but never replaces an
+// identity already learned from Account-V1 or a current rank snapshot. Match
+// details preserve the Riot ID used when that historical game was played, so
+// treating them as current can make a renamed player temporarily unsearchable.
+func (s *Store) UpsertPlayerFromMatch(ctx context.Context, puuid, region string, gameName, tagLine *string) error {
+	_, err := s.Pool.Exec(ctx, `
+		INSERT INTO players (puuid, region, game_name, tag_line)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (puuid) DO UPDATE
+		SET region     = EXCLUDED.region,
+		    game_name  = COALESCE(players.game_name, EXCLUDED.game_name),
+		    tag_line   = COALESCE(players.tag_line, EXCLUDED.tag_line),
+		    updated_at = now()`,
+		puuid, region, gameName, tagLine)
+	return err
+}
+
 func upsertPlayerTx(ctx context.Context, exec execer, puuid, region string, gameName, tagLine *string) error {
 	_, err := exec.Exec(ctx, `
 		INSERT INTO players (puuid, region, game_name, tag_line)
@@ -58,12 +75,19 @@ func (s *Store) SetPlayerSyncTime(ctx context.Context, puuid, region string, t t
 
 // SavePlayerMatchIDs atomically records collected match IDs and only then
 // advances the player's sync watermark.
-func (s *Store) SavePlayerMatchIDs(ctx context.Context, puuid, region, version string, ids []string, syncedAt time.Time) error {
+func (s *Store) SavePlayerMatchIDs(ctx context.Context, runID int, puuid, region, version string, ids []string, syncedAt time.Time) error {
 	return s.WithTx(ctx, func(tx pgx.Tx) error {
 		for _, id := range ids {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO matches (match_id, region, version) VALUES ($1, $2, $3)
 				ON CONFLICT (match_id) DO NOTHING`, id, region, version); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO statistics_match_membership (dataset_key, match_id, run_id)
+				VALUES ('ranked-solo-v1', $1, $2)
+				ON CONFLICT (dataset_key, match_id) DO UPDATE
+				SET run_id = COALESCE(statistics_match_membership.run_id, EXCLUDED.run_id)`, id, runID); err != nil {
 				return err
 			}
 		}

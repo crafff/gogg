@@ -20,13 +20,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
 
 	"github.com/crafff/gogg/apps/api/internal/auth"
 	"github.com/crafff/gogg/apps/api/internal/auth/provider"
 	"github.com/crafff/gogg/apps/api/internal/cache"
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
+	"github.com/crafff/gogg/apps/api/internal/service/champion"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
+	summonersvc "github.com/crafff/gogg/apps/api/internal/service/summoner"
+	tftsvc "github.com/crafff/gogg/apps/api/internal/service/tft"
 	usersvc "github.com/crafff/gogg/apps/api/internal/service/user"
 	gqlserver "github.com/crafff/gogg/apps/api/internal/transport/graphql"
 	"github.com/crafff/gogg/apps/api/internal/transport/graphql/resolver"
@@ -35,6 +41,7 @@ import (
 	restauth "github.com/crafff/gogg/apps/api/internal/transport/rest/auth"
 	v1 "github.com/crafff/gogg/apps/api/internal/transport/rest/v1"
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
+	"github.com/crafff/gogg/packages/tftcontract"
 )
 
 // Build metadata injected via -ldflags at compile time; defaults make
@@ -98,8 +105,14 @@ func run() error {
 		pingCancel()
 		logger.Info("redis_connected")
 	}
+	temporalClient, err := client.Dial(client.Options{HostPort: cfg.Temporal.HostPort, Namespace: cfg.Temporal.Namespace})
+	if err != nil {
+		return fmt.Errorf("connect temporal: %w", err)
+	}
+	defer temporalClient.Close()
+	logger.Info("temporal_connected", "host", cfg.Temporal.HostPort, "namespace", cfg.Temporal.Namespace)
 
-	handler := buildRouter(cfg, logger, pool, redisClient)
+	handler := buildRouter(cfg, logger, pool, redisClient, temporalWorkflowStarter{client: temporalClient})
 	srv := &http.Server{
 		Addr:              ":" + strconv.Itoa(cfg.API.Port),
 		Handler:           handler,
@@ -135,13 +148,20 @@ func run() error {
 	return nil
 }
 
-func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, redisClient *cache.Redis) http.Handler {
-	r := chi.NewRouter()
+type workflowStarter interface {
+	summonersvc.WorkflowStarter
+	tftsvc.WorkflowStarter
+}
 
-	// Auth is optional in V1: if no jwt secret is set, the API runs
-	// without /oauth, /auth, or claims middleware — useful for local
-	// debugging of the public-read endpoints. Production configs
-	// always supply a secret.
+func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, redisClient *cache.Redis, workflowStarter workflowStarter) http.Handler {
+	r := chi.NewRouter()
+	queries := sqlcgen.New(pool)
+	providers := configuredProviders(cfg.OAuth, logger)
+	userService := usersvc.New(pool, queries, cfg.Auth.RefreshTTL, providers...)
+	sessionCookieName := restauth.SessionCookieName(cfg.Auth.CookieSecure)
+
+	// Bearer JWT remains optional for non-browser clients. Browser login is a
+	// separate opaque-session path and never exposes JWTs to the SPA.
 	var issuer *auth.Issuer
 	if cfg.Auth.JWTSecret != "" {
 		var err error
@@ -177,12 +197,15 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	// middleware.ClaimsFromContext themselves.
 	r.Use(middleware.Recover)
 	r.Use(middleware.RequestID)
+	r.Use(middleware.ClientIP)
 	r.Use(middleware.Logger(logger))
 	r.Use(metrics.Middleware)
 	r.Use(middleware.CORS(cfg.API.AllowedOrigins))
 	if issuer != nil {
 		r.Use(middleware.Auth(issuer))
 	}
+	r.Use(middleware.SessionAuth(userService, sessionCookieName))
+	r.Use(middleware.CookieCSRF(sessionCookieName, restauth.CSRFHeader))
 
 	r.Get("/healthz", rest.LivenessHandler())
 
@@ -202,9 +225,16 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 
 	// /api/v1 is the legacy-shape REST compatibility layer; deleted
 	// when Phase D's new web app cuts over per ADR-0003.
-	queries := sqlcgen.New(pool)
 	catalogSvc := catalog.New(queries)
 	baseRankings := rankings.New(queries, versionResolverAdapter{queries: queries})
+	championSvc := champion.New(queries, versionResolverAdapter{queries: queries})
+	summonerSvc := summonersvc.New(queries, redisClient, workflowStarter, summonersvc.Config{
+		Freshness: cfg.Summoner.Freshness, IPLimit: cfg.Summoner.IPLimit, IPWindow: cfg.Summoner.IPLimitWindow,
+		RegionTaskQueues: cfg.Temporal.RegionTaskQueues,
+	})
+	tftService := tftsvc.New(queries, redisClient, workflowStarter, tftsvc.RuntimeConfig{
+		Freshness: cfg.TFT.PlayerFreshness, IPLimit: cfg.TFT.PlayerIPLimit, IPWindow: cfg.TFT.PlayerIPLimitWindow,
+	})
 
 	// Wrap rankings in the cache decorator when Redis is configured.
 	// Service layer doesn't know whether it's cached; transport
@@ -222,29 +252,54 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	// stays mounted until the Phase D frontend cuts over. Resolvers
 	// reuse the same service instances — caching applies to /graphql
 	// requests for free.
-	gqlRoot := &resolver.Resolver{Catalog: catalogSvc, Rankings: rankingsSvc}
+	gqlRoot := &resolver.Resolver{Catalog: catalogSvc, Rankings: rankingsSvc, Champion: championSvc, Summoners: summonerSvc, Users: userService, TFT: tftService}
 	r.Handle("/graphql", gqlserver.NewHandler(gqlRoot))
 	if cfg.API.GraphQLPlayground {
 		r.Handle("/graphql/playground", gqlserver.NewPlaygroundHandler("/graphql"))
 		logger.Info("graphql_playground_enabled", "path", "/graphql/playground")
 	}
 
-	// OAuth + /auth endpoints land only when a jwt secret is configured.
-	if issuer != nil {
-		providers := configuredProviders(cfg.OAuth, logger)
-		userService := usersvc.New(queries, issuer, providers...)
-		authCfg := restauth.Config{
-			CookieDomain: cfg.Auth.CookieDomain,
-			CookieSecure: cfg.Auth.CookieSecure,
-		}
-		r.Mount("/", restauth.Routes(userService, authCfg))
-		names := make([]string, 0, len(providers))
-		for _, p := range providers {
-			names = append(names, p.Name())
-		}
-		logger.Info("oauth_providers_registered", "providers", names)
+	// Browser OAuth is mounted independently of the optional JWT issuer. An
+	// environment with no configured Google client exposes no login provider,
+	// while logout remains idempotently available.
+	r.Mount("/", restauth.Routes(userService, restauth.Config{
+		CookieSecure: cfg.Auth.CookieSecure,
+		Limiter:      redisClient,
+	}))
+	names := make([]string, 0, len(providers))
+	for _, p := range providers {
+		names = append(names, p.Name())
 	}
+	logger.Info("oauth_providers_registered", "providers", names)
 	return r
+}
+
+type temporalWorkflowStarter struct{ client client.Client }
+
+func (s temporalWorkflowStarter) StartSummonerWorkflow(ctx context.Context, workflowID, taskQueue string, input summonersvc.WorkflowInput) error {
+	_, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID: workflowID, TaskQueue: taskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+	}, "EnrichSummonerWorkflow", input)
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &alreadyStarted) {
+		return nil
+	}
+	return err
+}
+
+func (s temporalWorkflowStarter) StartTFTPlayerWorkflow(ctx context.Context, workflowID string, input tftsvc.WorkflowInput) error {
+	_, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID: workflowID, TaskQueue: tftcontract.SeedTaskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY,
+	}, tftcontract.PlayerLookupWorkflowName, tftcontract.PlayerLookupInput{
+		JobID: input.JobID, Platform: input.Platform, GameName: input.GameName, TagLine: input.TagLine,
+	})
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &alreadyStarted) {
+		return nil
+	}
+	return err
 }
 
 // configuredProviders returns only the providers that have a non-empty
@@ -253,16 +308,12 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 // where only one provider is wired up.
 func configuredProviders(cfg config.OAuthConfig, logger *slog.Logger) []provider.Provider {
 	var out []provider.Provider
-	if isProviderConfigured(cfg.Discord) {
-		out = append(out, provider.NewDiscord(cfg.Discord.ClientID, cfg.Discord.ClientSecret, cfg.Discord.RedirectURL))
-	} else {
-		logger.Debug("oauth_provider_skipped", "name", "discord", "reason", "incomplete config")
-	}
 	if isProviderConfigured(cfg.Google) {
 		out = append(out, provider.NewGoogle(cfg.Google.ClientID, cfg.Google.ClientSecret, cfg.Google.RedirectURL))
 	} else {
 		logger.Debug("oauth_provider_skipped", "name", "google", "reason", "incomplete config")
 	}
+	logger.Debug("oauth_provider_skipped", "name", "discord", "reason", "not enabled in google-only login v1")
 	return out
 }
 
@@ -306,9 +357,9 @@ func connectDB(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, e
 }
 
 // versionResolverAdapter bridges sqlcgen.Queries.GetLatestGameVersion
-// (which returns a row struct) to the simpler string contract the
-// rankings service wants. Inlined here in main.go because it's pure
-// glue — no business logic, nothing to test in isolation.
+// (the newest statistics-ready version, returned as a row struct) to the
+// simpler string contract the rankings and champion services want. Inlined
+// here because it is pure wiring.
 type versionResolverAdapter struct {
 	queries *sqlcgen.Queries
 }

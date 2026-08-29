@@ -15,6 +15,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -27,10 +29,31 @@ type Config struct {
 	API      APIConfig      `mapstructure:"api"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Redis    RedisConfig    `mapstructure:"redis"`
+	Temporal TemporalConfig `mapstructure:"temporal"`
+	Summoner SummonerConfig `mapstructure:"summoner"`
+	TFT      TFTConfig      `mapstructure:"tft"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	Auth     AuthConfig     `mapstructure:"auth"`
 	OAuth    OAuthConfig    `mapstructure:"oauth"`
 	Assets   AssetConfig    `mapstructure:"assets"`
+}
+
+type TemporalConfig struct {
+	HostPort         string            `mapstructure:"host_port"`
+	Namespace        string            `mapstructure:"namespace"`
+	RegionTaskQueues map[string]string `mapstructure:"region_task_queues"`
+}
+
+type SummonerConfig struct {
+	Freshness     time.Duration `mapstructure:"freshness"`
+	IPLimit       int           `mapstructure:"ip_limit"`
+	IPLimitWindow time.Duration `mapstructure:"ip_limit_window"`
+}
+
+type TFTConfig struct {
+	PlayerFreshness     time.Duration `mapstructure:"player_freshness"`
+	PlayerIPLimit       int           `mapstructure:"player_ip_limit"`
+	PlayerIPLimitWindow time.Duration `mapstructure:"player_ip_limit_window"`
 }
 
 type AssetConfig struct {
@@ -123,6 +146,18 @@ func Default() Config {
 		Redis: RedisConfig{
 			URL: "redis://localhost:6379/0",
 		},
+		Temporal: TemporalConfig{
+			HostPort:  "localhost:7233",
+			Namespace: "default",
+			RegionTaskQueues: map[string]string{
+				"KR": "crawl-kr", "NA1": "crawl-na1",
+			},
+		},
+		Summoner: SummonerConfig{
+			Freshness: 5 * time.Minute, IPLimit: 5, IPLimitWindow: 10 * time.Minute,
+		},
+		TFT:    TFTConfig{PlayerFreshness: 10 * time.Minute, PlayerIPLimit: 5, PlayerIPLimitWindow: 10 * time.Minute},
+		Assets: AssetConfig{Root: "data/game-assets"},
 		Logging: LoggingConfig{
 			Level:  "info",
 			Format: "json",
@@ -206,6 +241,47 @@ func (c Config) Validate() error {
 	if c.Database.MaxOpenConns <= 0 {
 		errs = append(errs, fmt.Errorf("database.max_open_conns must be > 0"))
 	}
+	if strings.TrimSpace(c.Temporal.HostPort) == "" || strings.TrimSpace(c.Temporal.Namespace) == "" {
+		errs = append(errs, fmt.Errorf("temporal host_port and namespace are required"))
+	}
+	for _, region := range []string{"KR", "NA1"} {
+		if strings.TrimSpace(c.Temporal.RegionTaskQueues[region]) == "" {
+			errs = append(errs, fmt.Errorf("temporal.region_task_queues.%s is required", region))
+		}
+	}
+	if c.Summoner.Freshness <= 0 || c.Summoner.IPLimit <= 0 || c.Summoner.IPLimitWindow <= 0 {
+		errs = append(errs, fmt.Errorf("summoner freshness and public rate limits must be > 0"))
+	}
+	if c.TFT.PlayerFreshness <= 0 || c.TFT.PlayerIPLimit <= 0 || c.TFT.PlayerIPLimitWindow <= 0 {
+		errs = append(errs, fmt.Errorf("TFT player freshness and public rate limits must be > 0"))
+	}
+	if c.Auth.AccessTTL <= 0 {
+		errs = append(errs, fmt.Errorf("auth.access_ttl must be > 0"))
+	}
+	if c.Auth.RefreshTTL <= 0 {
+		errs = append(errs, fmt.Errorf("auth.refresh_ttl must be > 0"))
+	}
+	if c.Auth.JWTSecret != "" {
+		if len(c.Auth.JWTSecret) < 32 {
+			errs = append(errs, fmt.Errorf("auth.jwt_secret must be at least 32 bytes when enabled"))
+		}
+		if c.Auth.RefreshTTL <= c.Auth.AccessTTL {
+			errs = append(errs, fmt.Errorf("auth.refresh_ttl must outlive auth.access_ttl when JWT is enabled"))
+		}
+	}
+	for name, provider := range map[string]OAuthProviderConfig{
+		"discord": c.OAuth.Discord,
+		"google":  c.OAuth.Google,
+	} {
+		if err := validateOAuthProvider(name, provider); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if googleURL, ok := configuredOAuthRedirect(c.OAuth.Google); ok {
+		if (googleURL.Scheme == "https") != c.Auth.CookieSecure {
+			errs = append(errs, fmt.Errorf("auth.cookie_secure must match the configured Google redirect URL scheme"))
+		}
+	}
 	switch c.Logging.Level {
 	case "debug", "info", "warn", "error":
 	default:
@@ -217,6 +293,44 @@ func (c Config) Validate() error {
 		errs = append(errs, fmt.Errorf("logging.format %q: want json|text", c.Logging.Format))
 	}
 	return errors.Join(errs...)
+}
+
+func validateOAuthProvider(name string, provider OAuthProviderConfig) error {
+	clientID := strings.TrimSpace(provider.ClientID)
+	clientSecret := strings.TrimSpace(provider.ClientSecret)
+	redirectURL := strings.TrimSpace(provider.RedirectURL)
+	configured := clientID != "" || clientSecret != "" || redirectURL != ""
+	if !configured {
+		return nil
+	}
+	if clientID == "" || clientSecret == "" || redirectURL == "" {
+		return fmt.Errorf("oauth.%s client_id, client_secret, and redirect_url must be configured together", name)
+	}
+
+	parsed, err := url.Parse(redirectURL)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" || parsed.Path == "" {
+		return fmt.Errorf("oauth.%s.redirect_url must be an absolute callback URL", name)
+	}
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && isLoopbackHost(parsed.Hostname())) {
+		return fmt.Errorf("oauth.%s.redirect_url must use https outside local development", name)
+	}
+	return nil
+}
+
+func configuredOAuthRedirect(provider OAuthProviderConfig) (*url.URL, bool) {
+	if strings.TrimSpace(provider.ClientID) == "" || strings.TrimSpace(provider.ClientSecret) == "" || strings.TrimSpace(provider.RedirectURL) == "" {
+		return nil, false
+	}
+	parsed, err := url.Parse(strings.TrimSpace(provider.RedirectURL))
+	return parsed, err == nil && parsed.IsAbs() && parsed.Host != ""
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // bindDefaults seeds viper with the Default() struct so YAML omission
@@ -234,6 +348,15 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("database.min_idle_conns", def.Database.MinIdleConns)
 	v.SetDefault("database.conn_max_lifetime", def.Database.ConnMaxLifetimeSeconds)
 	v.SetDefault("redis.url", def.Redis.URL)
+	v.SetDefault("temporal.host_port", def.Temporal.HostPort)
+	v.SetDefault("temporal.namespace", def.Temporal.Namespace)
+	v.SetDefault("temporal.region_task_queues", def.Temporal.RegionTaskQueues)
+	v.SetDefault("summoner.freshness", def.Summoner.Freshness)
+	v.SetDefault("summoner.ip_limit", def.Summoner.IPLimit)
+	v.SetDefault("summoner.ip_limit_window", def.Summoner.IPLimitWindow)
+	v.SetDefault("tft.player_freshness", def.TFT.PlayerFreshness)
+	v.SetDefault("tft.player_ip_limit", def.TFT.PlayerIPLimit)
+	v.SetDefault("tft.player_ip_limit_window", def.TFT.PlayerIPLimitWindow)
 	v.SetDefault("logging.level", def.Logging.Level)
 	v.SetDefault("logging.format", def.Logging.Format)
 	v.SetDefault("auth.jwt_secret", "")
@@ -251,6 +374,6 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("oauth.google.client_id", "")
 	v.SetDefault("oauth.google.client_secret", "")
 	v.SetDefault("oauth.google.redirect_url", "")
-	v.SetDefault("assets.root", "")
+	v.SetDefault("assets.root", def.Assets.Root)
 	return nil
 }

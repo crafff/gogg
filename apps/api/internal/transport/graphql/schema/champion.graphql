@@ -1,0 +1,47 @@
+input ChampionDetailFilter {
+  queueId: Int = 420
+  version: String = "latest"
+  region: String = ""
+  tierGroup: TierGroup = ALL
+  position: String = ""
+}
+
+type BuildChoice {
+  ids: [Int!]!
+  games: Int!
+  eligibleGames: Int!
+  pickRate: Float!
+  winRate: Float!
+}
+
+type RuneBuildChoice {
+  primaryStyleId: Int!
+  secondaryStyleId: Int!
+  perkIds: [Int!]!
+  statShardIds: [Int!]!
+  games: Int!
+  eligibleGames: Int!
+  pickRate: Float!
+  winRate: Float!
+}
+
+type ItemStageBuilds {
+  stage: Int!
+  builds: [BuildChoice!]!
+}
+
+type ChampionDetailResult {
+  championId: Int!
+  championName: String!
+  games: Int!
+  resolvedVersion: String
+  runeBuilds: [RuneBuildChoice!]!
+  summonerSpellBuilds: [BuildChoice!]!
+  starterBuilds: [BuildChoice!]!
+  bootsBuilds: [BuildChoice!]!
+  itemBuilds: [ItemStageBuilds!]!
+}
+
+extend type Query {
+  championDetail(id: Int!, filter: ChampionDetailFilter): ChampionDetailResult
+}

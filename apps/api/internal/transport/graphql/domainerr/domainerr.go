@@ -19,9 +19,10 @@ import "fmt"
 // caller sees; Code is the machine-readable extension. Wraps the
 // underlying error so errors.Is / errors.As still work for tests.
 type Error struct {
-	Code   string
-	Public string
-	cause  error
+	Code       string
+	Public     string
+	Extensions map[string]any
+	cause      error
 }
 
 // New builds a domain error with a generic underlying cause.
@@ -34,6 +35,13 @@ func New(code, public string) *Error {
 // public message but wants the original kept for the logs.
 func Wrap(code, public string, cause error) *Error {
 	return &Error{Code: code, Public: public, cause: cause}
+}
+
+// WrapWithExtensions adds safe machine-readable details for clients that need
+// more than a code, such as a rate-limit countdown. Callers must not place
+// internal errors, SQL details, or secrets in extensions.
+func WrapWithExtensions(code, public string, cause error, extensions map[string]any) *Error {
+	return &Error{Code: code, Public: public, Extensions: extensions, cause: cause}
 }
 
 // Error implements the error interface. Renders the internal form

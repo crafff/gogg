@@ -12,6 +12,88 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireOAuthIdentityLock = `-- name: AcquireOAuthIdentityLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    $1::text || ':' || $2::text,
+    0
+))
+`
+
+// Serialize first-login transactions for the same provider subject without
+// holding a database transaction open during the external OAuth exchange.
+func (q *Queries) AcquireOAuthIdentityLock(ctx context.Context, provider string, providerUserID string) error {
+	_, err := q.db.Exec(ctx, acquireOAuthIdentityLock, provider, providerUserID)
+	return err
+}
+
+const consumeOAuthLoginAttempt = `-- name: ConsumeOAuthLoginAttempt :one
+UPDATE oauth_login_attempts
+SET consumed_at = now()
+WHERE state_hash = $1
+  AND provider = $2
+  AND browser_binding_hash = $3
+  AND consumed_at IS NULL
+  AND expires_at > now()
+RETURNING state_hash, provider, code_verifier, return_to, browser_binding_hash, expires_at, consumed_at, created_at
+`
+
+func (q *Queries) ConsumeOAuthLoginAttempt(ctx context.Context, stateHash []byte, provider string, browserBindingHash []byte) (OauthLoginAttempt, error) {
+	row := q.db.QueryRow(ctx, consumeOAuthLoginAttempt, stateHash, provider, browserBindingHash)
+	var i OauthLoginAttempt
+	err := row.Scan(
+		&i.StateHash,
+		&i.Provider,
+		&i.CodeVerifier,
+		&i.ReturnTo,
+		&i.BrowserBindingHash,
+		&i.ExpiresAt,
+		&i.ConsumedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createOAuthLoginAttempt = `-- name: CreateOAuthLoginAttempt :one
+INSERT INTO oauth_login_attempts (
+    state_hash, provider, code_verifier, return_to,
+    browser_binding_hash, expires_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING state_hash, provider, code_verifier, return_to, browser_binding_hash, expires_at, consumed_at, created_at
+`
+
+type CreateOAuthLoginAttemptParams struct {
+	StateHash          []byte
+	Provider           string
+	CodeVerifier       string
+	ReturnTo           string
+	BrowserBindingHash []byte
+	ExpiresAt          pgtype.Timestamptz
+}
+
+func (q *Queries) CreateOAuthLoginAttempt(ctx context.Context, arg CreateOAuthLoginAttemptParams) (OauthLoginAttempt, error) {
+	row := q.db.QueryRow(ctx, createOAuthLoginAttempt,
+		arg.StateHash,
+		arg.Provider,
+		arg.CodeVerifier,
+		arg.ReturnTo,
+		arg.BrowserBindingHash,
+		arg.ExpiresAt,
+	)
+	var i OauthLoginAttempt
+	err := row.Scan(
+		&i.StateHash,
+		&i.Provider,
+		&i.CodeVerifier,
+		&i.ReturnTo,
+		&i.BrowserBindingHash,
+		&i.ExpiresAt,
+		&i.ConsumedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createRefreshToken = `-- name: CreateRefreshToken :one
 INSERT INTO user_refresh_tokens (
     id, user_id, token_hash, expires_at, user_agent, ip
@@ -92,6 +174,60 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const createUserSession = `-- name: CreateUserSession :one
+INSERT INTO user_sessions (
+    id, user_id, token_hash, expires_at, user_agent, ip
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, user_id, token_hash, expires_at, revoked_at, user_agent, ip, created_at, last_seen_at
+`
+
+type CreateUserSessionParams struct {
+	ID        pgtype.UUID
+	UserID    pgtype.UUID
+	TokenHash []byte
+	ExpiresAt pgtype.Timestamptz
+	UserAgent *string
+	Ip        *netip.Addr
+}
+
+func (q *Queries) CreateUserSession(ctx context.Context, arg CreateUserSessionParams) (UserSession, error) {
+	row := q.db.QueryRow(ctx, createUserSession,
+		arg.ID,
+		arg.UserID,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.UserAgent,
+		arg.Ip,
+	)
+	var i UserSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.UserAgent,
+		&i.Ip,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const deleteExpiredOAuthLoginAttempts = `-- name: DeleteExpiredOAuthLoginAttempts :execrows
+DELETE FROM oauth_login_attempts
+WHERE expires_at < now()
+`
+
+func (q *Queries) DeleteExpiredOAuthLoginAttempts(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredOAuthLoginAttempts)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteExpiredRefreshTokens = `-- name: DeleteExpiredRefreshTokens :execrows
 DELETE FROM user_refresh_tokens
 WHERE expires_at < now()
@@ -106,6 +242,44 @@ func (q *Queries) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteExpiredUserSessions = `-- name: DeleteExpiredUserSessions :execrows
+DELETE FROM user_sessions
+WHERE expires_at < now()
+`
+
+func (q *Queries) DeleteExpiredUserSessions(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredUserSessions)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getActiveUserSessionByHash = `-- name: GetActiveUserSessionByHash :one
+SELECT id, user_id, token_hash, expires_at, revoked_at, user_agent, ip, created_at, last_seen_at
+FROM user_sessions
+WHERE token_hash = $1
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+func (q *Queries) GetActiveUserSessionByHash(ctx context.Context, tokenHash []byte) (UserSession, error) {
+	row := q.db.QueryRow(ctx, getActiveUserSessionByHash, tokenHash)
+	var i UserSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.UserAgent,
+		&i.Ip,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+	)
+	return i, err
 }
 
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
@@ -176,6 +350,43 @@ func (q *Queries) GetUserByOAuthIdentity(ctx context.Context, provider string, p
 	return i, err
 }
 
+const listUserOAuthIdentities = `-- name: ListUserOAuthIdentities :many
+SELECT id, user_id, provider, provider_user_id, provider_email, provider_username, avatar_url, created_at, updated_at
+FROM user_oauth_identities
+WHERE user_id = $1
+ORDER BY provider
+`
+
+func (q *Queries) ListUserOAuthIdentities(ctx context.Context, userID pgtype.UUID) ([]UserOauthIdentity, error) {
+	rows, err := q.db.Query(ctx, listUserOAuthIdentities, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserOauthIdentity{}
+	for rows.Next() {
+		var i UserOauthIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Provider,
+			&i.ProviderUserID,
+			&i.ProviderEmail,
+			&i.ProviderUsername,
+			&i.AvatarUrl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeAllRefreshTokensForUser = `-- name: RevokeAllRefreshTokensForUser :exec
 UPDATE user_refresh_tokens
 SET revoked_at = now()
@@ -199,6 +410,21 @@ WHERE id = $1 AND revoked_at IS NULL
 func (q *Queries) RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRefreshToken, id)
 	return err
+}
+
+const revokeUserSessionByHash = `-- name: RevokeUserSessionByHash :execrows
+UPDATE user_sessions
+SET revoked_at = now()
+WHERE token_hash = $1
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeUserSessionByHash(ctx context.Context, tokenHash []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeUserSessionByHash, tokenHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const touchUserLastLogin = `-- name: TouchUserLastLogin :exec

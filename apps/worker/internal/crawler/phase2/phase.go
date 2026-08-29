@@ -155,7 +155,7 @@ func (p *Phase) collectForPlayer(ctx context.Context, region string, state *craw
 	}
 
 	// Update sync time only after all IDs are written in the same transaction.
-	if err := p.store.SavePlayerMatchIDs(ctx, puuid, region, state.Profile.Version, collected, time.Now()); err != nil {
+	if err := p.store.SavePlayerMatchIDs(ctx, state.ID, puuid, region, state.Profile.Version, collected, time.Now()); err != nil {
 		return err
 	}
 

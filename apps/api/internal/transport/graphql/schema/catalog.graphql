@@ -2,13 +2,13 @@
 
 extend type Query {
   """
-  Game versions for which we have ingested match data, newest first.
-  Use this to populate the version filter in the rankings UI.
+  Game versions with published statistics rollups, newest first. Newer raw-only
+  match versions remain queryable through summoner history but are omitted here.
   """
   versions: [String!]!
 
   """
-  Regions for which we have ingested match data, alphabetically.
+  Regions with published statistics rollups, alphabetically.
   V1 returns KR and NA1; more regions land as the crawler grows.
   """
   regions: [String!]!

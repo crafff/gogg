@@ -138,15 +138,18 @@ func (i *Issuer) Parse(token string) (*Claims, error) {
 	return c, nil
 }
 
-// HashRefreshToken returns the sha-256 of the opaque refresh token
-// string. Callers store this in user_refresh_tokens.token_hash;
-// the cleartext only travels in the cookie.
+// HashOpaqueToken returns the sha-256 of a cryptographically random opaque
+// token. Callers store only this digest; the cleartext only travels in the
+// browser cookie or OAuth redirect.
 //
 // sha-256 with no salt is acceptable here because the refresh tokens
-// are 256 bits of crypto/rand — there's no rainbow-table or password
+// tokens are 256 bits of crypto/rand — there's no rainbow-table or password
 // cracking threat. The hash is just so a DB read doesn't yield
 // usable tokens.
-func HashRefreshToken(s string) []byte {
+func HashOpaqueToken(s string) []byte {
 	sum := sha256.Sum256([]byte(s))
 	return sum[:]
 }
+
+// HashRefreshToken keeps the legacy refresh-token API source compatible.
+func HashRefreshToken(s string) []byte { return HashOpaqueToken(s) }

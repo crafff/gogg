@@ -161,6 +161,16 @@ func (p *Phase) processMatch(ctx context.Context, region string, matchID string)
 // IngestMatchDetail maps an already-fetched Match V5 response into the
 // relational schema. It is shared by live crawling and offline bundle import.
 func IngestMatchDetail(ctx context.Context, store *storage.Store, region string, matchID string, detail *riotapi.MatchDetailDTO) error {
+	return IngestMatchDetailWithOptions(ctx, store, region, matchID, detail, IngestOptions{InferRanks: true})
+}
+
+type IngestOptions struct {
+	InferRanks bool
+}
+
+// IngestMatchDetailWithOptions lets on-demand summoner refreshes reuse the
+// canonical mapping without running crawler-only rank inference.
+func IngestMatchDetailWithOptions(ctx context.Context, store *storage.Store, region string, matchID string, detail *riotapi.MatchDetailDTO, opts IngestOptions) error {
 	info := &detail.Info
 
 	// Ensure all participants exist in the players table before writing FKs.
@@ -168,7 +178,14 @@ func IngestMatchDetail(ctx context.Context, store *storage.Store, region string,
 		if dp.Puuid == "" {
 			continue
 		}
-		if err := store.UpsertPlayer(ctx, dp.Puuid, region, nil, nil); err != nil {
+		var gameName, tagLine *string
+		if dp.RiotIDGameName != "" {
+			gameName = ptr(dp.RiotIDGameName)
+		}
+		if dp.RiotIDTagline != "" {
+			tagLine = ptr(dp.RiotIDTagline)
+		}
+		if err := store.UpsertPlayerFromMatch(ctx, dp.Puuid, region, gameName, tagLine); err != nil {
 			return err
 		}
 	}
@@ -178,12 +195,14 @@ func IngestMatchDetail(ctx context.Context, store *storage.Store, region string,
 	gameEnd := time.UnixMilli(info.GameEndTimestamp)
 	dur := int(info.GameDuration)
 	queueID := info.QueueID
+	version := riotapi.ExtractCDragonPatch(info.GameVersion)
 
 	h := &storage.MatchHeader{
 		MatchID:         matchID,
 		DataVersion:     ptr(detail.Metadata.DataVersion),
 		PlatformID:      ptr(info.PlatformID),
 		QueueID:         &queueID,
+		Version:         &version,
 		GameVersion:     ptr(info.GameVersion),
 		GameMode:        ptr(info.GameMode),
 		GameType:        ptr(info.GameType),
@@ -198,7 +217,7 @@ func IngestMatchDetail(ctx context.Context, store *storage.Store, region string,
 		part := participantFromDTO(matchID, &dp)
 
 		// Rank inference: find closest snapshot to game start time.
-		if dp.Puuid != "" {
+		if opts.InferRanks && dp.Puuid != "" {
 			snap, _ := store.GetClosestSnapshot(ctx, dp.Puuid, region, gameStart)
 			if snap != nil {
 				part.TierAtMatch = &snap.Tier
@@ -214,7 +233,7 @@ func IngestMatchDetail(ctx context.Context, store *storage.Store, region string,
 	// Write perks.
 	var perks []storage.PerkRow
 	for _, dp := range info.Participants {
-		perk := perkRowFromDTO(matchID, dp.Puuid, &dp.Perks)
+		perk := PerkRowFromDTO(matchID, dp.Puuid, &dp.Perks)
 		perks = append(perks, perk)
 	}
 
@@ -311,7 +330,10 @@ func participantFromDTO(matchID string, dp *riotapi.ParticipantDTO) storage.Part
 	}
 }
 
-func perkRowFromDTO(matchID, puuid string, perks *riotapi.PerksDTO) storage.PerkRow {
+// PerkRowFromDTO maps Riot's ordered 4-primary + 2-secondary selections to
+// the six persistent perk slots. It is exported for the historical perk-only
+// backfill command, which must use exactly the same mapping as live crawl.
+func PerkRowFromDTO(matchID, puuid string, perks *riotapi.PerksDTO) storage.PerkRow {
 	row := storage.PerkRow{
 		MatchID:     matchID,
 		PUUID:       puuid,
@@ -319,6 +341,7 @@ func perkRowFromDTO(matchID, puuid string, perks *riotapi.PerksDTO) storage.Perk
 		StatFlex:    perks.StatPerks.Flex,
 		StatOffense: perks.StatPerks.Offense,
 	}
+	perkIndex := 0
 	for i, style := range perks.Styles {
 		switch i {
 		case 0:
@@ -326,12 +349,13 @@ func perkRowFromDTO(matchID, puuid string, perks *riotapi.PerksDTO) storage.Perk
 		case 1:
 			row.Style1 = style.Style
 		}
-		for j, sel := range style.Selections {
-			idx := i*3 + j
-			if idx < 6 {
-				row.Perk[idx] = sel.Perk
-				row.Vars[idx] = [3]int{sel.Var1, sel.Var2, sel.Var3}
+		for _, sel := range style.Selections {
+			if perkIndex >= len(row.Perk) {
+				break
 			}
+			row.Perk[perkIndex] = sel.Perk
+			row.Vars[perkIndex] = [3]int{sel.Var1, sel.Var2, sel.Var3}
+			perkIndex++
 		}
 	}
 	return row

@@ -85,6 +85,11 @@ func sanitizingErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 			gerr.Extensions = map[string]any{}
 		}
 		gerr.Extensions["code"] = de.Code
+		for key, value := range de.Extensions {
+			if key != "code" {
+				gerr.Extensions[key] = value
+			}
+		}
 		logger.Warn("graphql_domain_error", "code", de.Code, "msg", de.Public, "err", err)
 		return gerr
 	}

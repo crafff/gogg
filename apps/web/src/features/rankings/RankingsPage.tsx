@@ -58,6 +58,15 @@ export function RankingsPage() {
     enabled: fade.phase === "shown" || fade.phase === "fading-in",
   });
   const gameAssets = useGameAssets(rankings.resolvedVersion);
+  const detailParams = new URLSearchParams();
+  if (filters.committed.position)
+    detailParams.set("position", filters.committed.position);
+  if (filters.committed.tier) detailParams.set("tier", filters.committed.tier);
+  if (filters.committed.region)
+    detailParams.set("region", filters.committed.region);
+  if (filters.committed.version !== "latest")
+    detailParams.set("version", filters.committed.version);
+  const detailSearch = detailParams.size ? `?${detailParams.toString()}` : "";
 
   // Drive the "fade-in" half once new data has actually landed.
   useEffect(() => {
@@ -128,6 +137,7 @@ export function RankingsPage() {
             items={rankings.items}
             assets={gameAssets.manifest}
             assetBaseURL={gameAssets.baseURL}
+            detailSearch={detailSearch}
           />
         )}
 

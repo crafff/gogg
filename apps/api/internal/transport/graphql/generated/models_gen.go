@@ -9,6 +9,38 @@ import (
 	"strconv"
 )
 
+type AuthProvider struct {
+	ID string `json:"id"`
+}
+
+type BuildChoice struct {
+	Ids           []int   `json:"ids"`
+	Games         int     `json:"games"`
+	EligibleGames int     `json:"eligibleGames"`
+	PickRate      float64 `json:"pickRate"`
+	WinRate       float64 `json:"winRate"`
+}
+
+type ChampionDetailFilter struct {
+	QueueID   *int       `json:"queueId,omitempty"`
+	Version   *string    `json:"version,omitempty"`
+	Region    *string    `json:"region,omitempty"`
+	TierGroup *TierGroup `json:"tierGroup,omitempty"`
+	Position  *string    `json:"position,omitempty"`
+}
+
+type ChampionDetailResult struct {
+	ChampionID          int                `json:"championId"`
+	ChampionName        string             `json:"championName"`
+	Games               int                `json:"games"`
+	ResolvedVersion     *string            `json:"resolvedVersion,omitempty"`
+	RuneBuilds          []*RuneBuildChoice `json:"runeBuilds"`
+	SummonerSpellBuilds []*BuildChoice     `json:"summonerSpellBuilds"`
+	StarterBuilds       []*BuildChoice     `json:"starterBuilds"`
+	BootsBuilds         []*BuildChoice     `json:"bootsBuilds"`
+	ItemBuilds          []*ItemStageBuilds `json:"itemBuilds"`
+}
+
 // Per-champion ranking row. Mirrors the legacy REST shape so the new
 // GraphQL surface and /api/v1/rankings/champions stay byte-comparable
 // for a given filter, per ADR-0003.
@@ -50,6 +82,28 @@ type ChampionRankingsFilter struct {
 	Position *string `json:"position,omitempty"`
 }
 
+type CurrentUser struct {
+	ID          string           `json:"id"`
+	DisplayName string           `json:"displayName"`
+	Email       *string          `json:"email,omitempty"`
+	AvatarURL   *string          `json:"avatarUrl,omitempty"`
+	Locale      string           `json:"locale"`
+	Identities  []*OAuthIdentity `json:"identities"`
+}
+
+type ItemStageBuilds struct {
+	Stage  int            `json:"stage"`
+	Builds []*BuildChoice `json:"builds"`
+}
+
+type Mutation struct {
+}
+
+type OAuthIdentity struct {
+	Provider string  `json:"provider"`
+	Username *string `json:"username,omitempty"`
+}
+
 // Top-level query root. Domain schemas extend this with their own fields
 // so each module's surface stays in its own .graphql file.
 type Query struct {
@@ -64,6 +118,771 @@ type RankingsResult struct {
 	// When the caller passed version="latest", this echoes the version
 	//   that was resolved (e.g. "14.23.1"). Null otherwise.
 	ResolvedVersion *string `json:"resolvedVersion,omitempty"`
+}
+
+type RuneBuildChoice struct {
+	PrimaryStyleID   int     `json:"primaryStyleId"`
+	SecondaryStyleID int     `json:"secondaryStyleId"`
+	PerkIds          []int   `json:"perkIds"`
+	StatShardIds     []int   `json:"statShardIds"`
+	Games            int     `json:"games"`
+	EligibleGames    int     `json:"eligibleGames"`
+	PickRate         float64 `json:"pickRate"`
+	WinRate          float64 `json:"winRate"`
+}
+
+type SummonerHistoryInput struct {
+	Queue *SummonerQueueFilter `json:"queue,omitempty"`
+	First *int                 `json:"first,omitempty"`
+	After *string              `json:"after,omitempty"`
+}
+
+type SummonerIdentityInput struct {
+	Region   string `json:"region"`
+	GameName string `json:"gameName"`
+	TagLine  string `json:"tagLine"`
+}
+
+type SummonerLookupJob struct {
+	ID             string               `json:"id"`
+	Region         string               `json:"region"`
+	GameName       string               `json:"gameName"`
+	TagLine        string               `json:"tagLine"`
+	Status         SummonerLookupStatus `json:"status"`
+	Stage          SummonerLookupStage  `json:"stage"`
+	ScannedCount   int                  `json:"scannedCount"`
+	SupportedCount int                  `json:"supportedCount"`
+	FetchedCount   int                  `json:"fetchedCount"`
+	FailedCount    int                  `json:"failedCount"`
+	ErrorCode      *string              `json:"errorCode,omitempty"`
+	ErrorMessage   *string              `json:"errorMessage,omitempty"`
+	CreatedAt      string               `json:"createdAt"`
+	UpdatedAt      string               `json:"updatedAt"`
+	CompletedAt    *string              `json:"completedAt,omitempty"`
+}
+
+type SummonerMatch struct {
+	MatchID           string                      `json:"matchId"`
+	Queue             SummonerQueueFilter         `json:"queue"`
+	QueueID           int                         `json:"queueId"`
+	GameStartTime     string                      `json:"gameStartTime"`
+	DurationSeconds   int                         `json:"durationSeconds"`
+	Version           string                      `json:"version"`
+	EndOfGameResult   string                      `json:"endOfGameResult"`
+	Position          string                      `json:"position"`
+	Win               bool                        `json:"win"`
+	ChampionID        int                         `json:"championId"`
+	ChampionName      string                      `json:"championName"`
+	ChampionLevel     int                         `json:"championLevel"`
+	Kills             int                         `json:"kills"`
+	Deaths            int                         `json:"deaths"`
+	Assists           int                         `json:"assists"`
+	Kda               float64                     `json:"kda"`
+	MinionsKilled     int                         `json:"minionsKilled"`
+	CsPerMinute       float64                     `json:"csPerMinute"`
+	GoldEarned        int                         `json:"goldEarned"`
+	DamageToChampions int                         `json:"damageToChampions"`
+	VisionScore       int                         `json:"visionScore"`
+	ItemIds           []int                       `json:"itemIds"`
+	SummonerSpellIds  []int                       `json:"summonerSpellIds"`
+	PrimaryStyleID    int                         `json:"primaryStyleId"`
+	SecondaryStyleID  int                         `json:"secondaryStyleId"`
+	PerkIds           []int                       `json:"perkIds"`
+	StatShardIds      []int                       `json:"statShardIds"`
+	EarlySurrender    bool                        `json:"earlySurrender"`
+	Surrender         bool                        `json:"surrender"`
+	AverageTier       *string                     `json:"averageTier,omitempty"`
+	AverageDivision   *string                     `json:"averageDivision,omitempty"`
+	TierCoverage      int                         `json:"tierCoverage"`
+	Participants      []*SummonerMatchParticipant `json:"participants"`
+}
+
+type SummonerMatchConnection struct {
+	Items    []*SummonerMatch       `json:"items"`
+	PageInfo *SummonerMatchPageInfo `json:"pageInfo"`
+}
+
+type SummonerMatchPageInfo struct {
+	EndCursor   *string `json:"endCursor,omitempty"`
+	HasNextPage bool    `json:"hasNextPage"`
+	Returned    int     `json:"returned"`
+}
+
+type SummonerMatchParticipant struct {
+	ParticipantID     int                           `json:"participantId"`
+	TeamID            int                           `json:"teamId"`
+	IsCurrentPlayer   bool                          `json:"isCurrentPlayer"`
+	GameName          string                        `json:"gameName"`
+	TagLine           string                        `json:"tagLine"`
+	Position          string                        `json:"position"`
+	Win               bool                          `json:"win"`
+	ChampionID        int                           `json:"championId"`
+	ChampionName      string                        `json:"championName"`
+	ChampionLevel     int                           `json:"championLevel"`
+	Kills             int                           `json:"kills"`
+	Deaths            int                           `json:"deaths"`
+	Assists           int                           `json:"assists"`
+	Kda               float64                       `json:"kda"`
+	MinionsKilled     int                           `json:"minionsKilled"`
+	GoldEarned        int                           `json:"goldEarned"`
+	DamageToChampions int                           `json:"damageToChampions"`
+	VisionScore       int                           `json:"visionScore"`
+	ItemIds           []int                         `json:"itemIds"`
+	SummonerSpellIds  []int                         `json:"summonerSpellIds"`
+	PrimaryStyleID    int                           `json:"primaryStyleId"`
+	SecondaryStyleID  int                           `json:"secondaryStyleId"`
+	PerkIds           []int                         `json:"perkIds"`
+	Rank              *SummonerMatchParticipantRank `json:"rank,omitempty"`
+}
+
+type SummonerMatchParticipantRank struct {
+	Tier               string  `json:"tier"`
+	Division           *string `json:"division,omitempty"`
+	LeaguePoints       *int    `json:"leaguePoints,omitempty"`
+	SnapshotDeltaHours *int    `json:"snapshotDeltaHours,omitempty"`
+}
+
+type SummonerProfile struct {
+	Region          string  `json:"region"`
+	GameName        string  `json:"gameName"`
+	TagLine         string  `json:"tagLine"`
+	ProfileIconID   int     `json:"profileIconId"`
+	SummonerLevel   int     `json:"summonerLevel"`
+	LastRefreshedAt *string `json:"lastRefreshedAt,omitempty"`
+	IsStale         bool    `json:"isStale"`
+}
+
+type SummonerRank struct {
+	QueueType    string  `json:"queueType"`
+	Tier         string  `json:"tier"`
+	Division     string  `json:"division"`
+	LeaguePoints int     `json:"leaguePoints"`
+	Wins         int     `json:"wins"`
+	Losses       int     `json:"losses"`
+	WinRate      float64 `json:"winRate"`
+}
+
+type SummonerRefreshResult struct {
+	Fresh  bool               `json:"fresh"`
+	Reused bool               `json:"reused"`
+	Job    *SummonerLookupJob `json:"job,omitempty"`
+}
+
+type SummonerResult struct {
+	Profile *SummonerProfile         `json:"profile"`
+	Ranks   []*SummonerRank          `json:"ranks"`
+	History *SummonerMatchConnection `json:"history"`
+}
+
+type TFTAnalysisCatalogEntry struct {
+	Platform           string               `json:"platform"`
+	Patch              string               `json:"patch"`
+	SetNumber          int                  `json:"setNumber"`
+	QueueID            int                  `json:"queueId"`
+	Cohort             TFTCohort            `json:"cohort"`
+	Window             TFTWindow            `json:"window"`
+	PublishedAt        string               `json:"publishedAt"`
+	SourceMatches      int                  `json:"sourceMatches"`
+	SourceParticipants int                  `json:"sourceParticipants"`
+	Coverage           *TFTAnalysisCoverage `json:"coverage"`
+}
+
+type TFTAnalysisCoverage struct {
+	WindowStart     string `json:"windowStart"`
+	WindowEnd       string `json:"windowEnd"`
+	ExactLineups    int    `json:"exactLineups"`
+	FamilyThreshold int    `json:"familyThreshold"`
+}
+
+type TFTEntity struct {
+	ID      string  `json:"id"`
+	Name    *string `json:"name,omitempty"`
+	IconURL *string `json:"iconUrl,omitempty"`
+}
+
+type TFTEntityCount struct {
+	Entity *TFTEntity `json:"entity"`
+	Count  int        `json:"count"`
+	Rate   float64    `json:"rate"`
+}
+
+type TFTHistoryInput struct {
+	Platform string  `json:"platform"`
+	GameName string  `json:"gameName"`
+	TagLine  string  `json:"tagLine"`
+	QueueID  *int    `json:"queueId,omitempty"`
+	First    *int    `json:"first,omitempty"`
+	After    *string `json:"after,omitempty"`
+	Locale   *string `json:"locale,omitempty"`
+}
+
+type TFTHistoryMatch struct {
+	MatchID           string                   `json:"matchId"`
+	Platform          string                   `json:"platform"`
+	RoutingRegion     string                   `json:"routingRegion"`
+	QueueID           int                      `json:"queueId"`
+	GameVersion       string                   `json:"gameVersion"`
+	Patch             string                   `json:"patch"`
+	GameDatetime      string                   `json:"gameDatetime"`
+	GameLengthSeconds float64                  `json:"gameLengthSeconds"`
+	MapID             int                      `json:"mapId"`
+	TftGameType       string                   `json:"tftGameType"`
+	SetCoreName       string                   `json:"setCoreName"`
+	SetNumber         int                      `json:"setNumber"`
+	EndOfGameResult   string                   `json:"endOfGameResult"`
+	ParticipantCount  int                      `json:"participantCount"`
+	Eligible          bool                     `json:"eligible"`
+	ExclusionReason   string                   `json:"exclusionReason"`
+	Participant       *TFTHistoryParticipant   `json:"participant"`
+	Participants      []*TFTHistoryParticipant `json:"participants"`
+}
+
+type TFTHistoryParticipant struct {
+	Puuid                 string             `json:"puuid"`
+	GameName              string             `json:"gameName"`
+	TagLine               string             `json:"tagLine"`
+	IsCurrentPlayer       bool               `json:"isCurrentPlayer"`
+	Placement             int                `json:"placement"`
+	Level                 int                `json:"level"`
+	GoldLeft              int                `json:"goldLeft"`
+	LastRound             int                `json:"lastRound"`
+	PlayersEliminated     int                `json:"playersEliminated"`
+	TimeEliminatedSeconds float64            `json:"timeEliminatedSeconds"`
+	TotalDamageToPlayers  int                `json:"totalDamageToPlayers"`
+	CompanionContentID    string             `json:"companionContentId"`
+	CompanionItemID       int                `json:"companionItemId"`
+	CompanionSkinID       int                `json:"companionSkinId"`
+	CompanionSpecies      string             `json:"companionSpecies"`
+	Abnormal              bool               `json:"abnormal"`
+	Augments              []*TFTEntity       `json:"augments"`
+	Traits                []*TFTHistoryTrait `json:"traits"`
+	Units                 []*TFTHistoryUnit  `json:"units"`
+}
+
+type TFTHistoryResult struct {
+	Profile  *TFTPlayerProfile  `json:"profile"`
+	Matches  []*TFTHistoryMatch `json:"matches"`
+	PageInfo *TFTMatchPageInfo  `json:"pageInfo"`
+}
+
+type TFTHistoryTrait struct {
+	Entity      *TFTEntity `json:"entity"`
+	NumUnits    int        `json:"numUnits"`
+	Style       int        `json:"style"`
+	TierCurrent int        `json:"tierCurrent"`
+	TierTotal   int        `json:"tierTotal"`
+}
+
+type TFTHistoryUnit struct {
+	Entity *TFTEntity   `json:"entity"`
+	Rarity int          `json:"rarity"`
+	Tier   int          `json:"tier"`
+	Items  []*TFTEntity `json:"items"`
+}
+
+type TFTIdentityInput struct {
+	Platform string `json:"platform"`
+	GameName string `json:"gameName"`
+	TagLine  string `json:"tagLine"`
+}
+
+type TFTLineup struct {
+	ID             string            `json:"id"`
+	CoreUnits      []*TFTEntity      `json:"coreUnits"`
+	CommonItems    []*TFTEntityCount `json:"commonItems"`
+	CommonAugments []*TFTEntityCount `json:"commonAugments"`
+	CommonTraits   []*TFTEntityCount `json:"commonTraits"`
+	Metrics        *TFTLineupMetrics `json:"metrics"`
+}
+
+type TFTLineupMetrics struct {
+	SampleSize    int     `json:"sampleSize"`
+	LobbyCount    int     `json:"lobbyCount"`
+	PickRate      float64 `json:"pickRate"`
+	AvgPlacement  float64 `json:"avgPlacement"`
+	FirstRate     float64 `json:"firstRate"`
+	Top4Rate      float64 `json:"top4Rate"`
+	ContestedRate float64 `json:"contestedRate"`
+}
+
+type TFTLineupsFilter struct {
+	Platform   string     `json:"platform"`
+	Patch      *string    `json:"patch,omitempty"`
+	SetNumber  int        `json:"setNumber"`
+	Cohort     *TFTCohort `json:"cohort,omitempty"`
+	Window     *TFTWindow `json:"window,omitempty"`
+	Locale     *string    `json:"locale,omitempty"`
+	MinSamples *int       `json:"minSamples,omitempty"`
+	Limit      *int       `json:"limit,omitempty"`
+}
+
+type TFTLineupsResult struct {
+	Platform           string               `json:"platform"`
+	Patch              string               `json:"patch"`
+	SetNumber          int                  `json:"setNumber"`
+	QueueID            int                  `json:"queueId"`
+	Cohort             TFTCohort            `json:"cohort"`
+	Window             TFTWindow            `json:"window"`
+	Locale             string               `json:"locale"`
+	AlgorithmVersion   string               `json:"algorithmVersion"`
+	PublishedAt        string               `json:"publishedAt"`
+	SourceMatches      int                  `json:"sourceMatches"`
+	SourceParticipants int                  `json:"sourceParticipants"`
+	Coverage           *TFTAnalysisCoverage `json:"coverage"`
+	Items              []*TFTLineup         `json:"items"`
+}
+
+type TFTLookupJob struct {
+	ID           string          `json:"id"`
+	Platform     string          `json:"platform"`
+	GameName     string          `json:"gameName"`
+	TagLine      string          `json:"tagLine"`
+	Status       TFTLookupStatus `json:"status"`
+	Stage        TFTLookupStage  `json:"stage"`
+	ScannedCount int             `json:"scannedCount"`
+	FetchedCount int             `json:"fetchedCount"`
+	FailedCount  int             `json:"failedCount"`
+	ErrorCode    *string         `json:"errorCode,omitempty"`
+	CreatedAt    string          `json:"createdAt"`
+	UpdatedAt    string          `json:"updatedAt"`
+	CompletedAt  *string         `json:"completedAt,omitempty"`
+}
+
+type TFTMatchPageInfo struct {
+	EndCursor   *string `json:"endCursor,omitempty"`
+	HasNextPage bool    `json:"hasNextPage"`
+	Returned    int     `json:"returned"`
+}
+
+type TFTPlayerProfile struct {
+	Platform        string  `json:"platform"`
+	GameName        string  `json:"gameName"`
+	TagLine         string  `json:"tagLine"`
+	LastRefreshedAt *string `json:"lastRefreshedAt,omitempty"`
+	IsStale         bool    `json:"isStale"`
+}
+
+type TFTRefreshResult struct {
+	Fresh  bool          `json:"fresh"`
+	Reused bool          `json:"reused"`
+	Job    *TFTLookupJob `json:"job,omitempty"`
+}
+
+type SummonerLookupStage string
+
+const (
+	SummonerLookupStageQueued         SummonerLookupStage = "QUEUED"
+	SummonerLookupStageResolveAccount SummonerLookupStage = "RESOLVE_ACCOUNT"
+	SummonerLookupStageRefreshProfile SummonerLookupStage = "REFRESH_PROFILE"
+	SummonerLookupStageFetchMatches   SummonerLookupStage = "FETCH_MATCHES"
+	SummonerLookupStageEnrichRanks    SummonerLookupStage = "ENRICH_RANKS"
+	SummonerLookupStageFinalize       SummonerLookupStage = "FINALIZE"
+)
+
+var AllSummonerLookupStage = []SummonerLookupStage{
+	SummonerLookupStageQueued,
+	SummonerLookupStageResolveAccount,
+	SummonerLookupStageRefreshProfile,
+	SummonerLookupStageFetchMatches,
+	SummonerLookupStageEnrichRanks,
+	SummonerLookupStageFinalize,
+}
+
+func (e SummonerLookupStage) IsValid() bool {
+	switch e {
+	case SummonerLookupStageQueued, SummonerLookupStageResolveAccount, SummonerLookupStageRefreshProfile, SummonerLookupStageFetchMatches, SummonerLookupStageEnrichRanks, SummonerLookupStageFinalize:
+		return true
+	}
+	return false
+}
+
+func (e SummonerLookupStage) String() string {
+	return string(e)
+}
+
+func (e *SummonerLookupStage) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SummonerLookupStage(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SummonerLookupStage", str)
+	}
+	return nil
+}
+
+func (e SummonerLookupStage) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SummonerLookupStage) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SummonerLookupStage) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SummonerLookupStatus string
+
+const (
+	SummonerLookupStatusQueued    SummonerLookupStatus = "QUEUED"
+	SummonerLookupStatusRunning   SummonerLookupStatus = "RUNNING"
+	SummonerLookupStatusCompleted SummonerLookupStatus = "COMPLETED"
+	SummonerLookupStatusPartial   SummonerLookupStatus = "PARTIAL"
+	SummonerLookupStatusFailed    SummonerLookupStatus = "FAILED"
+)
+
+var AllSummonerLookupStatus = []SummonerLookupStatus{
+	SummonerLookupStatusQueued,
+	SummonerLookupStatusRunning,
+	SummonerLookupStatusCompleted,
+	SummonerLookupStatusPartial,
+	SummonerLookupStatusFailed,
+}
+
+func (e SummonerLookupStatus) IsValid() bool {
+	switch e {
+	case SummonerLookupStatusQueued, SummonerLookupStatusRunning, SummonerLookupStatusCompleted, SummonerLookupStatusPartial, SummonerLookupStatusFailed:
+		return true
+	}
+	return false
+}
+
+func (e SummonerLookupStatus) String() string {
+	return string(e)
+}
+
+func (e *SummonerLookupStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SummonerLookupStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SummonerLookupStatus", str)
+	}
+	return nil
+}
+
+func (e SummonerLookupStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SummonerLookupStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SummonerLookupStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SummonerQueueFilter string
+
+const (
+	SummonerQueueFilterAll        SummonerQueueFilter = "ALL"
+	SummonerQueueFilterDraftPick  SummonerQueueFilter = "DRAFT_PICK"
+	SummonerQueueFilterRankedSolo SummonerQueueFilter = "RANKED_SOLO"
+	SummonerQueueFilterRankedFlex SummonerQueueFilter = "RANKED_FLEX"
+	SummonerQueueFilterSwiftplay  SummonerQueueFilter = "SWIFTPLAY"
+)
+
+var AllSummonerQueueFilter = []SummonerQueueFilter{
+	SummonerQueueFilterAll,
+	SummonerQueueFilterDraftPick,
+	SummonerQueueFilterRankedSolo,
+	SummonerQueueFilterRankedFlex,
+	SummonerQueueFilterSwiftplay,
+}
+
+func (e SummonerQueueFilter) IsValid() bool {
+	switch e {
+	case SummonerQueueFilterAll, SummonerQueueFilterDraftPick, SummonerQueueFilterRankedSolo, SummonerQueueFilterRankedFlex, SummonerQueueFilterSwiftplay:
+		return true
+	}
+	return false
+}
+
+func (e SummonerQueueFilter) String() string {
+	return string(e)
+}
+
+func (e *SummonerQueueFilter) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SummonerQueueFilter(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SummonerQueueFilter", str)
+	}
+	return nil
+}
+
+func (e SummonerQueueFilter) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SummonerQueueFilter) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SummonerQueueFilter) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TFTCohort string
+
+const (
+	TFTCohortMasterPlus TFTCohort = "MASTER_PLUS"
+	TFTCohortDiamond    TFTCohort = "DIAMOND"
+)
+
+var AllTFTCohort = []TFTCohort{
+	TFTCohortMasterPlus,
+	TFTCohortDiamond,
+}
+
+func (e TFTCohort) IsValid() bool {
+	switch e {
+	case TFTCohortMasterPlus, TFTCohortDiamond:
+		return true
+	}
+	return false
+}
+
+func (e TFTCohort) String() string {
+	return string(e)
+}
+
+func (e *TFTCohort) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TFTCohort(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TFTCohort", str)
+	}
+	return nil
+}
+
+func (e TFTCohort) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TFTCohort) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TFTCohort) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TFTLookupStage string
+
+const (
+	TFTLookupStageQueued         TFTLookupStage = "QUEUED"
+	TFTLookupStageResolveAccount TFTLookupStage = "RESOLVE_ACCOUNT"
+	TFTLookupStageFetchMatchIDS  TFTLookupStage = "FETCH_MATCH_IDS"
+	TFTLookupStageFetchMatches   TFTLookupStage = "FETCH_MATCHES"
+	TFTLookupStageFinalize       TFTLookupStage = "FINALIZE"
+)
+
+var AllTFTLookupStage = []TFTLookupStage{
+	TFTLookupStageQueued,
+	TFTLookupStageResolveAccount,
+	TFTLookupStageFetchMatchIDS,
+	TFTLookupStageFetchMatches,
+	TFTLookupStageFinalize,
+}
+
+func (e TFTLookupStage) IsValid() bool {
+	switch e {
+	case TFTLookupStageQueued, TFTLookupStageResolveAccount, TFTLookupStageFetchMatchIDS, TFTLookupStageFetchMatches, TFTLookupStageFinalize:
+		return true
+	}
+	return false
+}
+
+func (e TFTLookupStage) String() string {
+	return string(e)
+}
+
+func (e *TFTLookupStage) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TFTLookupStage(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TFTLookupStage", str)
+	}
+	return nil
+}
+
+func (e TFTLookupStage) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TFTLookupStage) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TFTLookupStage) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TFTLookupStatus string
+
+const (
+	TFTLookupStatusQueued    TFTLookupStatus = "QUEUED"
+	TFTLookupStatusRunning   TFTLookupStatus = "RUNNING"
+	TFTLookupStatusCompleted TFTLookupStatus = "COMPLETED"
+	TFTLookupStatusPartial   TFTLookupStatus = "PARTIAL"
+	TFTLookupStatusFailed    TFTLookupStatus = "FAILED"
+)
+
+var AllTFTLookupStatus = []TFTLookupStatus{
+	TFTLookupStatusQueued,
+	TFTLookupStatusRunning,
+	TFTLookupStatusCompleted,
+	TFTLookupStatusPartial,
+	TFTLookupStatusFailed,
+}
+
+func (e TFTLookupStatus) IsValid() bool {
+	switch e {
+	case TFTLookupStatusQueued, TFTLookupStatusRunning, TFTLookupStatusCompleted, TFTLookupStatusPartial, TFTLookupStatusFailed:
+		return true
+	}
+	return false
+}
+
+func (e TFTLookupStatus) String() string {
+	return string(e)
+}
+
+func (e *TFTLookupStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TFTLookupStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TFTLookupStatus", str)
+	}
+	return nil
+}
+
+func (e TFTLookupStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TFTLookupStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TFTLookupStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TFTWindow string
+
+const (
+	TFTWindowThreeDays TFTWindow = "THREE_DAYS"
+	TFTWindowPatch     TFTWindow = "PATCH"
+)
+
+var AllTFTWindow = []TFTWindow{
+	TFTWindowThreeDays,
+	TFTWindowPatch,
+}
+
+func (e TFTWindow) IsValid() bool {
+	switch e {
+	case TFTWindowThreeDays, TFTWindowPatch:
+		return true
+	}
+	return false
+}
+
+func (e TFTWindow) String() string {
+	return string(e)
+}
+
+func (e *TFTWindow) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TFTWindow(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TFTWindow", str)
+	}
+	return nil
+}
+
+func (e TFTWindow) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TFTWindow) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TFTWindow) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 // Coarse rank bucket used to filter rankings. Matches the legacy REST

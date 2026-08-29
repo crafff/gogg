@@ -77,3 +77,63 @@ WHERE user_id = $1 AND revoked_at IS NULL;
 -- can call it. Returns rowcount so the caller can log it.
 DELETE FROM user_refresh_tokens
 WHERE expires_at < now();
+
+-- name: ListUserOAuthIdentities :many
+SELECT *
+FROM user_oauth_identities
+WHERE user_id = $1
+ORDER BY provider;
+
+-- name: AcquireOAuthIdentityLock :exec
+-- Serialize first-login transactions for the same provider subject without
+-- holding a database transaction open during the external OAuth exchange.
+SELECT pg_advisory_xact_lock(hashtextextended(
+    sqlc.arg(provider)::text || ':' || sqlc.arg(provider_user_id)::text,
+    0
+));
+
+-- name: CreateOAuthLoginAttempt :one
+INSERT INTO oauth_login_attempts (
+    state_hash, provider, code_verifier, return_to,
+    browser_binding_hash, expires_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: ConsumeOAuthLoginAttempt :one
+UPDATE oauth_login_attempts
+SET consumed_at = now()
+WHERE state_hash = $1
+  AND provider = $2
+  AND browser_binding_hash = $3
+  AND consumed_at IS NULL
+  AND expires_at > now()
+RETURNING *;
+
+-- name: CreateUserSession :one
+INSERT INTO user_sessions (
+    id, user_id, token_hash, expires_at, user_agent, ip
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: GetActiveUserSessionByHash :one
+SELECT *
+FROM user_sessions
+WHERE token_hash = $1
+  AND revoked_at IS NULL
+  AND expires_at > now();
+
+-- name: RevokeUserSessionByHash :execrows
+UPDATE user_sessions
+SET revoked_at = now()
+WHERE token_hash = $1
+  AND revoked_at IS NULL;
+
+-- name: DeleteExpiredOAuthLoginAttempts :execrows
+DELETE FROM oauth_login_attempts
+WHERE expires_at < now();
+
+-- name: DeleteExpiredUserSessions :execrows
+DELETE FROM user_sessions
+WHERE expires_at < now();

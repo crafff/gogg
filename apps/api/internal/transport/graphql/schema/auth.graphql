@@ -1,0 +1,24 @@
+type OAuthIdentity {
+  provider: String!
+  username: String
+}
+
+type CurrentUser {
+  id: ID!
+  displayName: String!
+  email: String
+  avatarUrl: String
+  locale: String!
+  identities: [OAuthIdentity!]!
+}
+
+type AuthProvider {
+  id: String!
+}
+
+extend type Query {
+  """The signed-in GOGG user, or null for an anonymous browser."""
+  me: CurrentUser
+  """OAuth providers enabled in this deployment. Google only in V1."""
+  authProviders: [AuthProvider!]!
+}

@@ -62,17 +62,7 @@ const config: CodegenConfig = {
       config: {
         importOperationTypesFrom: "Operations",
         addInfiniteQuery: false,
-        fetcher: {
-          // Endpoint is wrapped in an extra pair of quotes because the
-          // plugin emits the value as a raw JS expression. Without the
-          // outer quoting the output reads `fetch(/graphql as string,
-          // …)` and won't compile.
-          endpoint: '"/graphql"',
-          fetchParams: {
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-          },
-        },
+        fetcher: { func: "../fetcher#fetcher", isReactHook: false },
         exposeQueryKeys: true,
         exposeFetcher: true,
         reactQueryVersion: 5,
@@ -83,9 +73,12 @@ const config: CodegenConfig = {
       },
     },
   },
-  // No afterAllFileWrite hook — `prettier` isn't on PATH in every
-  // dev shell. Generated files are excluded from lint/prettier checks
-  // anyway, and the plugin's own formatting is consistent enough.
+  // Keep generated output compatible with the repository-wide
+  // `git diff --check` gate without requiring Prettier on every machine.
+  hooks: {
+    beforeOneFileWrite: (_path: string, content: string) =>
+      content.replace(/[ \t]+$/gm, ""),
+  },
 };
 
 export default config;

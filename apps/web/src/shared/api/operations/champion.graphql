@@ -1,0 +1,13 @@
+query ChampionDetail($id: Int!, $filter: ChampionDetailFilter) {
+  championDetail(id: $id, filter: $filter) {
+    championId
+    championName
+    games
+    resolvedVersion
+    runeBuilds { primaryStyleId secondaryStyleId perkIds statShardIds games eligibleGames pickRate winRate }
+    summonerSpellBuilds { ids games eligibleGames pickRate winRate }
+    starterBuilds { ids games eligibleGames pickRate winRate }
+    bootsBuilds { ids games eligibleGames pickRate winRate }
+    itemBuilds { stage builds { ids games eligibleGames pickRate winRate } }
+  }
+}

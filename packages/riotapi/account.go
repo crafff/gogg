@@ -15,12 +15,13 @@ type AccountDTO struct {
 func (c *Client) GetAccountByPUUID(ctx context.Context, puuid string) (*AccountDTO, error) {
 	u := fmt.Sprintf("%s/riot/account/v1/accounts/by-puuid/%s", c.regionalURL, url.PathEscape(puuid))
 	var dto AccountDTO
-	return &dto, c.doRequest(ctx, u, &dto)
+	return &dto, c.doRequestRawFirst(ctx, u, &dto, ResponseMeta{Kind: "riot-account", ResourceKey: puuid, Operation: "account-get-by-puuid"})
 }
 
 func (c *Client) GetAccountByRiotID(ctx context.Context, gameName, tagLine string) (*AccountDTO, error) {
 	u := fmt.Sprintf("%s/riot/account/v1/accounts/by-riot-id/%s/%s",
 		c.regionalURL, url.PathEscape(gameName), url.PathEscape(tagLine))
 	var dto AccountDTO
-	return &dto, c.doRequest(ctx, u, &dto)
+	resource := gameName + "#" + tagLine
+	return &dto, c.doRequestRawFirst(ctx, u, &dto, ResponseMeta{Kind: "riot-account", ResourceKey: resource, Operation: "account-get-by-riot-id"})
 }

@@ -46,6 +46,9 @@ const config: Config = {
           active: "#b89856",
           subtle: "#c8aa6e1a",
         },
+        danger: {
+          DEFAULT: "#f87171",
+        },
         tier: {
           challenger: "#f4c874",
           grandmaster: "#d24a4a",

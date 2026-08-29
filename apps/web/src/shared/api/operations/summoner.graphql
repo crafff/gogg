@@ -1,0 +1,48 @@
+query Summoner($identity: SummonerIdentityInput!, $history: SummonerHistoryInput) {
+  summoner(identity: $identity, history: $history) {
+    profile {
+      region gameName tagLine profileIconId summonerLevel lastRefreshedAt isStale
+    }
+    ranks {
+      queueType tier division leaguePoints wins losses winRate
+    }
+    history {
+      items {
+        matchId queue queueId gameStartTime durationSeconds version endOfGameResult position win
+        championId championName championLevel kills deaths assists kda
+        minionsKilled csPerMinute goldEarned damageToChampions visionScore
+        itemIds summonerSpellIds primaryStyleId secondaryStyleId perkIds statShardIds
+        earlySurrender surrender
+        averageTier averageDivision tierCoverage
+        participants {
+          participantId teamId isCurrentPlayer gameName tagLine position win
+          championId championName championLevel kills deaths assists kda
+          minionsKilled goldEarned damageToChampions visionScore
+          itemIds summonerSpellIds primaryStyleId secondaryStyleId perkIds
+          rank { tier division leaguePoints snapshotDeltaHours }
+        }
+      }
+      pageInfo { endCursor hasNextPage returned }
+    }
+  }
+}
+
+mutation RefreshSummoner($identity: SummonerIdentityInput!) {
+  refreshSummoner(identity: $identity) {
+    fresh
+    reused
+    job {
+      id region gameName tagLine status stage
+      scannedCount supportedCount fetchedCount failedCount
+      errorCode errorMessage createdAt updatedAt completedAt
+    }
+  }
+}
+
+query SummonerLookupJob($id: ID!) {
+  summonerLookupJob(id: $id) {
+    id region gameName tagLine status stage
+    scannedCount supportedCount fetchedCount failedCount
+    errorCode errorMessage createdAt updatedAt completedAt
+  }
+}

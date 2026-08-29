@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -37,23 +38,28 @@ func NewGoogle(clientID, clientSecret, redirectURL string) *Google {
 func (g *Google) Name() string { return "google" }
 
 // AuthCodeURL implements Provider.
-func (g *Google) AuthCodeURL(state string) string {
-	return g.cfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
+func (g *Google) AuthCodeURL(state, codeVerifier string) string {
+	return g.cfg.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOnline,
+		oauth2.S256ChallengeOption(codeVerifier),
+	)
 }
 
 // googleUser mirrors the v3 userinfo response. The Sub field is the
 // stable Google account id (a numeric string). Picture is a CDN URL
 // that may rotate — we cache it but treat it as best-effort.
 type googleUser struct {
-	Sub     string `json:"sub"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Picture string `json:"picture"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 // Exchange implements Provider.
-func (g *Google) Exchange(ctx context.Context, code string) (UserInfo, error) {
-	tok, err := g.cfg.Exchange(ctx, code)
+func (g *Google) Exchange(ctx context.Context, code, codeVerifier string) (UserInfo, error) {
+	tok, err := g.cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		return UserInfo{}, fmt.Errorf("google token exchange: %w", err)
 	}
@@ -73,11 +79,14 @@ func (g *Google) Exchange(ctx context.Context, code string) (UserInfo, error) {
 	}
 
 	var u googleUser
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&u); err != nil {
 		return UserInfo{}, fmt.Errorf("google userinfo decode: %w", err)
 	}
 	if u.Sub == "" {
 		return UserInfo{}, ErrUserInfoIncomplete
+	}
+	if !u.EmailVerified {
+		u.Email = ""
 	}
 	return UserInfo{
 		Subject:  u.Sub,

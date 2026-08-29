@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -38,8 +39,12 @@ func NewDiscord(clientID, clientSecret, redirectURL string) *Discord {
 func (d *Discord) Name() string { return "discord" }
 
 // AuthCodeURL implements Provider.
-func (d *Discord) AuthCodeURL(state string) string {
-	return d.cfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
+func (d *Discord) AuthCodeURL(state, codeVerifier string) string {
+	return d.cfg.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOnline,
+		oauth2.S256ChallengeOption(codeVerifier),
+	)
 }
 
 // discordUser mirrors the subset of /users/@me we read. Discord
@@ -53,8 +58,8 @@ type discordUser struct {
 }
 
 // Exchange implements Provider.
-func (d *Discord) Exchange(ctx context.Context, code string) (UserInfo, error) {
-	tok, err := d.cfg.Exchange(ctx, code)
+func (d *Discord) Exchange(ctx context.Context, code, codeVerifier string) (UserInfo, error) {
+	tok, err := d.cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		return UserInfo{}, fmt.Errorf("discord token exchange: %w", err)
 	}
@@ -74,7 +79,7 @@ func (d *Discord) Exchange(ctx context.Context, code string) (UserInfo, error) {
 	}
 
 	var u discordUser
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&u); err != nil {
 		return UserInfo{}, fmt.Errorf("discord userinfo decode: %w", err)
 	}
 	if u.ID == "" {

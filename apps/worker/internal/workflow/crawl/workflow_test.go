@@ -75,6 +75,7 @@ func TestCrawlRegionWorkflow_Pipeline_CompletesEachTierBeforeNext(t *testing.T) 
 	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).
 		Run(func(args mock.Arguments) { record("phase55") }).
 		Return(crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.Phase6ChampionDetailRollup, mockAny).Return(crawlact.Phase6Output{}, nil)
 	env.OnActivity(acts.CompleteRun, mockAny, mockAny).Return(nil)
 
 	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{
@@ -139,6 +140,7 @@ func TestCrawlRegionWorkflow_Sequential_OneBulkPhase2(t *testing.T) {
 	env.OnActivity(acts.Phase4AvgTierCalc, mockAny, mockAny).Return(crawlact.Phase4Output{}, nil)
 	env.OnActivity(acts.Phase5Timeline, mockAny, mockAny).Return(crawlact.Phase5Output{}, nil)
 	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).Return(crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.Phase6ChampionDetailRollup, mockAny).Return(crawlact.Phase6Output{}, nil)
 	env.OnActivity(acts.CompleteRun, mockAny, mockAny).Return(nil)
 
 	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{
@@ -200,6 +202,8 @@ func TestCrawlRegionWorkflow_FullChain_Sequential(t *testing.T) {
 		Run(tick("Phase5Timeline")).Return(crawlact.Phase5Output{}, nil)
 	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).
 		Run(tick("Phase55ItemClassify")).Return(crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.Phase6ChampionDetailRollup, mockAny).
+		Run(tick("Phase6ChampionDetailRollup")).Return(crawlact.Phase6Output{}, nil)
 	env.OnActivity(acts.CompleteRun, mockAny, mockAny).
 		Run(tick("CompleteRun")).Return(nil)
 
@@ -221,7 +225,7 @@ func TestCrawlRegionWorkflow_FullChain_Sequential(t *testing.T) {
 		"CreateRun", "Phase0VersionSync", "PinRunVersion",
 		"Phase1RankSnapshot", "Phase2MatchIDCollection",
 		"Phase3MatchDetails", "Phase35OnDemandRank", "Phase4AvgTierCalc",
-		"Phase5Timeline", "Phase55ItemClassify", "CompleteRun",
+		"Phase5Timeline", "Phase55ItemClassify", "Phase6ChampionDetailRollup", "CompleteRun",
 	} {
 		require.Equal(t, 1, called[name],
 			"activity %s should fire exactly once", name)
@@ -262,6 +266,7 @@ func TestCrawlRegionWorkflow_Phase1PerTier(t *testing.T) {
 	env.OnActivity(acts.Phase4AvgTierCalc, mockAny, mockAny).Return(crawlact.Phase4Output{}, nil)
 	env.OnActivity(acts.Phase5Timeline, mockAny, mockAny).Return(crawlact.Phase5Output{}, nil)
 	env.OnActivity(acts.Phase55ItemClassify, mockAny, mockAny).Return(crawlact.Phase55Output{}, nil)
+	env.OnActivity(acts.Phase6ChampionDetailRollup, mockAny).Return(crawlact.Phase6Output{}, nil)
 	env.OnActivity(acts.CompleteRun, mockAny, mockAny).Return(nil)
 
 	env.ExecuteWorkflow(CrawlRegionWorkflow, CrawlRegionInput{

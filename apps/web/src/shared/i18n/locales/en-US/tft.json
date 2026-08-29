@@ -1,0 +1,140 @@
+{
+  "analysis": {
+    "title": "TFT meta lineups",
+    "description": "Lineup strength, popularity, and contest rate calculated from collected high-tier matches. Filters only expose combinations backed by a complete publication.",
+    "lineupListLabel": "Lineup rankings"
+  },
+  "filter": {
+    "platform": "Platform",
+    "patch": "Patch",
+    "set": "Set",
+    "setValue": "Set {{value}}",
+    "cohort": "Tier",
+    "window": "Window",
+    "minSamples": "Minimum samples"
+  },
+  "cohort": {
+    "MASTER_PLUS": "Master+",
+    "DIAMOND": "Diamond"
+  },
+  "window": {
+    "PATCH": "Current patch",
+    "THREE_DAYS": "Last 3 days"
+  },
+  "coverage": {
+    "matches": "Source matches",
+    "participants": "Source players",
+    "exactLineups": "Exact lineups",
+    "familyThreshold": "Family threshold",
+    "publishedAt": "Published",
+    "window": "Coverage window: {{start}} to {{end}} · algorithm {{version}}"
+  },
+  "lineup": {
+    "rank": "Rank {{rank}}",
+    "coreUnits": "Core units",
+    "items": "Common items",
+    "augments": "Common augments",
+    "traits": "Common traits"
+  },
+  "metric": {
+    "samples": "Samples",
+    "lobbies": "Lobbies",
+    "pickRate": "Pick rate",
+    "avgPlacement": "Average place",
+    "firstRate": "Win rate",
+    "top4Rate": "Top 4",
+    "contestedRate": "Contested"
+  },
+  "state": {
+    "catalogError": "Could not load the analysis catalog",
+    "catalogErrorDescription": "The service is temporarily unavailable. Please try again.",
+    "notPublished": "No lineup analysis has been published yet",
+    "notPublishedDescription": "The collector has not published its first complete dataset. You can still search stored player matches.",
+    "lineupsError": "Could not load lineup rankings",
+    "lineupsErrorDescription": "The selected dataset is published, but this request failed. Please retry.",
+    "noLineups": "No lineups meet the sample threshold",
+    "noLineupsDescription": "The current minimum is {{minSamples}} samples. Lower it to see more lineups."
+  },
+  "action": {
+    "retry": "Retry",
+    "searchPlayer": "Search TFT history",
+    "viewLineups": "View meta lineups",
+    "showAllSamples": "Show all samples"
+  },
+  "player": {
+    "title": "TFT match history",
+    "description": "Enter a Riot ID to see stored matches, final boards, items, augments, and traits.",
+    "search": {
+      "label": "TFT player search",
+      "platform": "Platform",
+      "riotID": "Game name and tag",
+      "placeholder": "Game Name#Tag",
+      "submit": "Search",
+      "invalid": "Enter a complete Riot ID, for example: Player One#NA1",
+      "supported": "Supports all 15 TFT platforms. A first lookup collects and stores recent matches in the background."
+    },
+    "profile": {
+      "updated": "Data updated {{value}}"
+    },
+    "history": {
+      "title": "Recent matches",
+      "scope": "Stored Riot TFT match data, with queue filters and cursor pagination.",
+      "queueFilter": "TFT queue filter",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "end": "All matches loaded"
+    },
+    "queue": {
+      "ALL": "All queues",
+      "1100": "Ranked",
+      "1090": "Normal",
+      "1160": "Double Up",
+      "1130": "Hyper Roll"
+    },
+    "match": {
+      "placement": "#{{value}}",
+      "patchSet": "Patch {{patch}} · Set {{set}}",
+      "units": "Final board",
+      "augments": "Augments",
+      "level": "Level",
+      "gold": "Gold left",
+      "round": "Last round",
+      "eliminations": "Eliminations",
+      "damage": "Player damage",
+      "duration": "Duration"
+    },
+    "state": {
+      "error": "Could not load TFT history",
+      "errorDescription": "The service is temporarily unavailable. Please try again.",
+      "fetchingFirst": "Collecting the first matches",
+      "fetchingFirstDescription": "The job is resolving the account and saving recent TFT matches. This page updates automatically.",
+      "notFound": "This player is not stored yet",
+      "notFoundDescription": "If the Riot ID is correct, refresh or try again shortly.",
+      "empty": "No matches meet this filter",
+      "emptyDescription": "There are no stored games for this queue yet. Change the filter or refresh."
+    },
+    "refresh": {
+      "action": "Refresh history",
+      "refreshing": "Refreshing…",
+      "alreadyFresh": "This data is still fresh; no new collection was needed.",
+      "complete": "Match history refreshed.",
+      "partial": "Refresh completed, but some matches could not be fetched.",
+      "failed": "The history refresh failed. Please try again later.",
+      "notFound": "That Riot ID was not found. Check the game name and tag.",
+      "notFoundInPlatform": "This account is not on {{platform}}. Choose another platform.",
+      "profileUnavailable": "Riot did not return a TFT profile for this player.",
+      "jobExpired": "The refresh job record expired; local data has been reloaded.",
+      "progress": "Scanned {{scanned}}, saved {{fetched}} matches",
+      "rateLimited": "Too many requests. Try again in {{seconds}} seconds.",
+      "networkError": "Could not reach the service. Check your connection.",
+      "serviceUnavailable": "The refresh service is temporarily unavailable."
+    },
+    "stage": {
+      "QUEUED": "Waiting for the TFT collector",
+      "RESOLVE_ACCOUNT": "Resolving the Riot account",
+      "FETCH_MATCH_IDS": "Loading the match list",
+      "FETCH_MATCHES": "Fetching match details",
+      "FINALIZE": "Saving match data"
+    }
+  }
+}

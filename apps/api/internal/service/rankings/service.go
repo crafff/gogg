@@ -77,10 +77,9 @@ type Querier interface {
 	ListRankingsByPosition(ctx context.Context, arg sqlcgen.ListRankingsByPositionParams) ([]sqlcgen.ListRankingsByPositionRow, error)
 }
 
-// VersionResolver resolves the "latest" magic value into the concrete
-// version stored in game_versions. Implemented by the catalog service
-// in practice, but kept as a small interface so this package doesn't
-// import catalog directly.
+// VersionResolver resolves the "latest" magic value into the newest concrete
+// version with a published statistics rollup. Kept as a small interface so
+// this package remains independent from the SQL implementation.
 type VersionResolver interface {
 	GetLatestVersion(ctx context.Context) (string, error)
 }

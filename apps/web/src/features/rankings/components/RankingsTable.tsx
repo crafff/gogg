@@ -17,6 +17,7 @@ export interface RankingsTableProps {
   items: ReadonlyArray<RankingRow>;
   assets?: GameAssetManifest | null;
   assetBaseURL?: string;
+  detailSearch?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function RankingsTable({
   items,
   assets,
   assetBaseURL = "",
+  detailSearch = "",
 }: RankingsTableProps) {
   const { t } = useTranslation(["rankings", "common"]);
   const [sortKey, setSortKey] = useState<SortKey>("composite");
@@ -135,6 +137,7 @@ export function RankingsTable({
               index={index}
               assets={assets}
               assetBaseURL={assetBaseURL}
+              detailSearch={detailSearch}
             />
           ))}
         </tbody>
@@ -190,11 +193,13 @@ function Row({
   index,
   assets,
   assetBaseURL,
+  detailSearch,
 }: {
   row: RankingRow;
   index: number;
   assets?: GameAssetManifest | null;
   assetBaseURL: string;
+  detailSearch: string;
 }) {
   const { t, i18n } = useTranslation("rankings");
   const champion = assets?.champions[String(row.championId)];
@@ -207,7 +212,10 @@ function Row({
         {index + 1}
       </td>
       <td className="px-3 py-2 font-medium text-fg-default">
-        <div className="flex items-center gap-2">
+        <a
+          href={`/champion/${row.championId}${detailSearch}`}
+          className="flex items-center gap-2 hover:text-accent"
+        >
           {champion && (
             <img
               src={`${assetBaseURL}/${champion.image}`}
@@ -217,7 +225,7 @@ function Row({
             />
           )}
           <span>{championName}</span>
-        </div>
+        </a>
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-1">

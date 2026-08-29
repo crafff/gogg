@@ -7,9 +7,19 @@ export interface GameAssetChampion {
 }
 
 export interface GameAssetManifest {
+  schemaVersion?: number;
   version: string;
   champions: Record<string, GameAssetChampion>;
   positions?: Record<string, string>;
+  items?: Record<string, GameAssetEntry>;
+  summonerSpells?: Record<string, GameAssetEntry>;
+  perks?: Record<string, GameAssetEntry>;
+}
+
+export interface GameAssetEntry {
+  id: number;
+  names: Record<string, string>;
+  image: string;
 }
 
 function assetPatch(version: string): string {

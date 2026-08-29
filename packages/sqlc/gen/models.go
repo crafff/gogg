@@ -10,6 +10,257 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type OauthLoginAttempt struct {
+	StateHash          []byte
+	Provider           string
+	CodeVerifier       string
+	ReturnTo           string
+	BrowserBindingHash []byte
+	ExpiresAt          pgtype.Timestamptz
+	ConsumedAt         pgtype.Timestamptz
+	CreatedAt          pgtype.Timestamptz
+}
+
+type SummonerLookupJob struct {
+	ID                    string
+	Region                string
+	RequestedGameName     string
+	RequestedTagLine      string
+	RequestedGameNameNorm string
+	RequestedTagLineNorm  string
+	Puuid                 *string
+	Status                string
+	Stage                 string
+	ScannedCount          int32
+	SupportedCount        int32
+	FetchedCount          int32
+	FailedCount           int32
+	ErrorCode             *string
+	ErrorMessage          *string
+	CreatedAt             pgtype.Timestamptz
+	StartedAt             pgtype.Timestamptz
+	CompletedAt           pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+}
+
+type TftCrawlCheckpoint struct {
+	RunID          int64
+	Stage          string
+	ScopeKey       string
+	Cursor         []byte
+	Processed      int64
+	NextEligibleAt pgtype.Timestamptz
+	LeaseOwner     *string
+	LeaseExpiresAt pgtype.Timestamptz
+	Attempt        int32
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type TftCrawlRun struct {
+	ID                int64
+	WorkflowID        string
+	WorkflowRunID     string
+	ScheduleID        string
+	ProfileName       string
+	Platform          string
+	RoutingRegion     string
+	QueueType         string
+	QueueID           int32
+	Status            string
+	DesiredState      string
+	Stage             string
+	TargetPatch       *string
+	TargetSet         *string
+	WindowStart       pgtype.Timestamptz
+	WindowEnd         pgtype.Timestamptz
+	Config            []byte
+	DiscoveredSeeds   int64
+	DiscoveredMatches int64
+	CompletedMatches  int64
+	TerminalMatches   int64
+	LastError         *string
+	StartedAt         pgtype.Timestamptz
+	EndedAt           pgtype.Timestamptz
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type TftLineupPublication struct {
+	ID                 int64
+	Platform           string
+	Patch              string
+	SetNumber          int32
+	QueueID            int32
+	Cohort             string
+	WindowKind         string
+	AlgorithmVersion   string
+	Status             string
+	SourceMatches      int64
+	SourceParticipants int64
+	Coverage           []byte
+	CreatedAt          pgtype.Timestamptz
+	PublishedAt        pgtype.Timestamptz
+}
+
+type TftMatchAugment struct {
+	MatchID   string
+	Puuid     string
+	Slot      int16
+	AugmentID string
+}
+
+type TftMatchJob struct {
+	RoutingRegion  string
+	MatchID        string
+	Platform       string
+	Status         string
+	Attempt        int32
+	NextEligibleAt pgtype.Timestamptz
+	LeaseOwner     *string
+	LeaseExpiresAt pgtype.Timestamptz
+	LastStatusCode *int32
+	LastError      *string
+	DiscoveredAt   pgtype.Timestamptz
+	CompletedAt    pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type TftMatchTrait struct {
+	MatchID     string
+	Puuid       string
+	TraitIndex  int16
+	TraitID     string
+	NumUnits    *int16
+	Style       *int16
+	TierCurrent *int16
+	TierTotal   *int16
+}
+
+type TftMatchUnit struct {
+	MatchID     string
+	Puuid       string
+	UnitIndex   int16
+	CharacterID string
+	Name        *string
+	Rarity      *int16
+	Tier        *int16
+	Mapped      bool
+}
+
+type TftMatchUnitItem struct {
+	MatchID   string
+	Puuid     string
+	UnitIndex int16
+	ItemSlot  int16
+	ItemID    string
+}
+
+type TftPlayerIdentity struct {
+	Platform            string
+	Puuid               string
+	GameName            string
+	TagLine             string
+	IdentityRefreshedAt pgtype.Timestamptz
+	MatchesRefreshedAt  pgtype.Timestamptz
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+type TftPlayerLookupJob struct {
+	ID                    string
+	Platform              string
+	RequestedGameName     string
+	RequestedTagLine      string
+	RequestedGameNameNorm string
+	RequestedTagLineNorm  string
+	Puuid                 *string
+	Status                string
+	Stage                 string
+	ScannedCount          int32
+	FetchedCount          int32
+	FailedCount           int32
+	ErrorCode             *string
+	ErrorMessage          *string
+	CreatedAt             pgtype.Timestamptz
+	StartedAt             pgtype.Timestamptz
+	CompletedAt           pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+}
+
+type TftPlayerMatchSync struct {
+	Platform     string
+	Puuid        string
+	QueueType    string
+	WindowStart  pgtype.Timestamptz
+	WindowEnd    pgtype.Timestamptz
+	LastSyncedAt pgtype.Timestamptz
+	LastMatchID  *string
+	UpdatedAt    pgtype.Timestamptz
+}
+
+type TftRawCapture struct {
+	ID                 int64
+	RunID              *int64
+	Platform           string
+	RoutingRegion      string
+	EndpointKind       string
+	ResourceKey        string
+	RequestFingerprint string
+	RequestUrl         string
+	ObjectSha256       string
+	ParseStatus        string
+	ParserVersion      *string
+	ParseError         *string
+	CapturedAt         pgtype.Timestamptz
+}
+
+type TftSeedSnapshot struct {
+	ID           int64
+	RunID        int64
+	Platform     string
+	QueueType    string
+	Cohort       string
+	Tier         string
+	Division     *string
+	Puuid        string
+	LeagueID     *string
+	LeaguePoints *int32
+	Wins         *int32
+	Losses       *int32
+	SampleBucket *int32
+	Selected     bool
+	CapturedAt   pgtype.Timestamptz
+}
+
+type TftStaticAssetJob struct {
+	SnapshotID     int64
+	AssetKey       string
+	SourceUrl      string
+	RelativePath   string
+	Status         string
+	Attempt        int32
+	LeaseOwner     *string
+	LeaseExpiresAt pgtype.Timestamptz
+	LastError      *string
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type TftStaticSnapshot struct {
+	ID            int64
+	Source        string
+	Patch         string
+	Build         string
+	Revision      string
+	Locale        string
+	Status        string
+	Etag          *string
+	LastModified  *string
+	SourceUrl     string
+	ParserVersion string
+	FetchedAt     pgtype.Timestamptz
+	PublishedAt   pgtype.Timestamptz
+}
+
 type User struct {
 	ID          pgtype.UUID
 	DisplayName string
@@ -41,4 +292,16 @@ type UserRefreshToken struct {
 	UserAgent *string
 	Ip        *netip.Addr
 	CreatedAt pgtype.Timestamptz
+}
+
+type UserSession struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	TokenHash  []byte
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+	UserAgent  *string
+	Ip         *netip.Addr
+	CreatedAt  pgtype.Timestamptz
+	LastSeenAt pgtype.Timestamptz
 }

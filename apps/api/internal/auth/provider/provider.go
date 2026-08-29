@@ -36,12 +36,12 @@ type Provider interface {
 	// AuthCodeURL returns the URL the browser should be redirected to
 	// for the consent step. `state` is an opaque CSRF token the caller
 	// generates per attempt and verifies on callback.
-	AuthCodeURL(state string) string
+	AuthCodeURL(state, codeVerifier string) string
 
 	// Exchange turns an authorisation code into a UserInfo. Wraps the
 	// oauth2.Config.Exchange + GET /userinfo round trip so callers
 	// don't deal with two HTTP clients.
-	Exchange(ctx context.Context, code string) (UserInfo, error)
+	Exchange(ctx context.Context, code, codeVerifier string) (UserInfo, error)
 }
 
 // ErrUserInfoIncomplete is returned by an Exchange that succeeded at

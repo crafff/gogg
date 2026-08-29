@@ -61,6 +61,9 @@ func ClaimsFromContext(ctx context.Context) (*auth.Claims, bool) {
 // "the current user id or 401". Returns the zero uuid + false when
 // the request is anonymous.
 func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	if userID, ok := ctx.Value(ctxKeySessionUser).(uuid.UUID); ok && userID != uuid.Nil {
+		return userID, true
+	}
 	c, ok := ClaimsFromContext(ctx)
 	if !ok {
 		return uuid.Nil, false

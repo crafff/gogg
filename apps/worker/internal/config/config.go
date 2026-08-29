@@ -31,6 +31,7 @@ type Config struct {
 	Riot       RiotConfig            `mapstructure:"riot"`
 	Regions    []RegionConfig        `mapstructure:"regions"`
 	Database   DatabaseConfig        `mapstructure:"database"`
+	Redis      RedisConfig           `mapstructure:"redis"`
 	Crawler    CrawlerConfig         `mapstructure:"crawler"`
 	Assets     AssetConfig           `mapstructure:"assets"`
 	Lite       CrawlerLiteConfig     `mapstructure:"crawler_lite"`
@@ -50,6 +51,9 @@ type AssetConfig struct {
 type RiotConfig = crawlercfg.RiotConfig
 type RegionConfig = crawlercfg.RegionConfig
 type DatabaseConfig = crawlercfg.DatabaseConfig
+type RedisConfig struct {
+	URL string `mapstructure:"url"`
+}
 type CrawlerConfig = crawlercfg.CrawlerConfig
 type CrawlerLiteConfig = crawlercfg.CrawlerLiteConfig
 type RawArchiveConfig = crawlercfg.RawArchiveConfig
@@ -100,6 +104,7 @@ func Default() Config {
 			Level:  "info",
 			Format: "json",
 		},
+		Redis: RedisConfig{URL: "redis://localhost:6379/0"},
 		Lite: CrawlerLiteConfig{
 			OutageInitialInterval: time.Second,
 			OutageMaxInterval:     2 * time.Minute,
@@ -190,6 +195,9 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Database.DSN) == "" {
 		errs = append(errs, fmt.Errorf("database.dsn is required"))
 	}
+	if strings.TrimSpace(c.Redis.URL) == "" {
+		errs = append(errs, fmt.Errorf("redis.url is required for distributed Riot quota coordination"))
+	}
 	if c.RawArchive.Enabled && strings.TrimSpace(c.RawArchive.Root) == "" {
 		errs = append(errs, fmt.Errorf("raw_archive.root is required when enabled"))
 	}
@@ -243,6 +251,7 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("database.max_open_conns", 10)
 	v.SetDefault("database.max_idle_conns", 2)
 	v.SetDefault("database.conn_max_lifetime_seconds", 300)
+	v.SetDefault("redis.url", def.Redis.URL)
 	v.SetDefault("crawler_lite.outage_initial_interval", def.Lite.OutageInitialInterval)
 	v.SetDefault("crawler_lite.outage_max_interval", def.Lite.OutageMaxInterval)
 	v.SetDefault("crawler_lite.outage_jitter", def.Lite.OutageJitter)

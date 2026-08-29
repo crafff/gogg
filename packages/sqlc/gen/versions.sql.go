@@ -13,10 +13,14 @@ import (
 
 const getLatestGameVersion = `-- name: GetLatestGameVersion :one
 
-SELECT version, patch_start_at
-FROM game_versions
-WHERE is_latest = TRUE
-ORDER BY patch_start_at DESC NULLS LAST
+SELECT rollup.version, gv.patch_start_at
+FROM (
+    SELECT DISTINCT version
+    FROM rankings_match_count_rollup
+    WHERE total_matches > 0
+) rollup
+LEFT JOIN game_versions gv ON gv.version = rollup.version
+ORDER BY string_to_array(rollup.version, '.')::int[] DESC
 LIMIT 1
 `
 
@@ -25,7 +29,10 @@ type GetLatestGameVersionRow struct {
 	PatchStartAt pgtype.Timestamptz
 }
 
-// Queries on game_versions + the versions column of matches.
+// Queries on game_versions + published statistics rollups.
+// "latest" on the statistics surface means the newest version with a
+// published, non-empty rollup. Collector bundles can contain newer raw match
+// versions before tier enrichment makes them eligible for statistics.
 func (q *Queries) GetLatestGameVersion(ctx context.Context) (GetLatestGameVersionRow, error) {
 	row := q.db.QueryRow(ctx, getLatestGameVersion)
 	var i GetLatestGameVersionRow
@@ -67,17 +74,16 @@ func (q *Queries) ListGameVersions(ctx context.Context, limit int32) ([]ListGame
 }
 
 const listVersionsWithData = `-- name: ListVersionsWithData :many
-SELECT DISTINCT version
-FROM matches
-WHERE fetch_status = 'done'
-  AND version IS NOT NULL
-  AND version <> ''
-ORDER BY version DESC
+SELECT version
+FROM rankings_match_count_rollup
+WHERE total_matches > 0
+GROUP BY version
+ORDER BY string_to_array(version, '.')::int[] DESC
 `
 
-// Distinct match-processing versions for matches that have completed
-// the fetch pipeline. Mirrors legacy VersionStore.GetVersionsWithData
-// exactly so /api/v1/versions stays byte-equal with /api/versions.
+// Only expose versions that can answer the statistics queries powered by this
+// catalog. Raw-only versions remain available to summoner match history but do
+// not produce an empty option in the rankings UI.
 func (q *Queries) ListVersionsWithData(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, listVersionsWithData)
 	if err != nil {

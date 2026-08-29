@@ -1,0 +1,117 @@
+{
+  "title": "Summoner match history",
+  "description": "Enter a Riot ID to view recent supported matches and current ranked tiers.",
+  "search": {
+    "label": "Summoner search",
+    "region": "Region",
+    "riotID": "Riot ID",
+    "placeholder": "Game name#tag, e.g. Faker#KR1",
+    "submit": "Search",
+    "invalid": "Enter a complete Riot ID in the format game name#tag.",
+    "recent": "Recent",
+    "clearRecent": "Clear recent searches",
+    "supported": "Currently available for Korea and North America: Draft Pick, Swiftplay, Solo/Duo and Ranked Flex."
+  },
+  "profile": {
+    "level": "Level {{level}}",
+    "updated": "Updated {{time}}",
+    "never": "Not fetched yet"
+  },
+  "rank": {
+    "solo": "Solo/Duo",
+    "flex": "Ranked Flex",
+    "unranked": "Unranked",
+    "pending": "Pending",
+    "snapshotDelta": "This rank snapshot is about {{hours}} hours from the match time",
+    "record": "{{wins}}W {{losses}}L · {{winRate}}%",
+    "tier": {
+      "IRON": "Iron",
+      "BRONZE": "Bronze",
+      "SILVER": "Silver",
+      "GOLD": "Gold",
+      "PLATINUM": "Platinum",
+      "EMERALD": "Emerald",
+      "DIAMOND": "Diamond",
+      "MASTER": "Master",
+      "GRANDMASTER": "Grandmaster",
+      "CHALLENGER": "Challenger",
+      "UNRANKED": "Unranked"
+    }
+  },
+  "refresh": {
+    "button": "Refresh",
+    "running": "Updating…",
+    "progress": "Scanned {{scanned}} / 100, fetched {{fetched}} matches",
+    "complete": "Match data is up to date.",
+    "partial": "Update completed, but a few matches or participant ranks could not be fetched.",
+    "failed": "Update failed. Please try again later.",
+    "notFound": "That Riot ID was not found. Check the game name, tag and region.",
+    "notFoundInRegion": "That Riot ID exists, but it has no summoner profile on {{region}}. Select the server where the account plays.",
+    "alreadyFresh": "The cached data is already fresh.",
+    "rateLimited": "Too many refresh requests. Try again in {{seconds}} seconds.",
+    "rateLimitedIdentity": "That Riot ID was refreshed too recently. Try again in {{seconds}} seconds.",
+    "rateLimitedIP": "This network started too many new lookups recently. Try again in {{seconds}} seconds; no task was created.",
+    "networkError": "The backend could not be reached. Check that the service is still running and try again.",
+    "serviceUnavailable": "The refresh service is unavailable. Check that the API, worker, and Temporal are running.",
+    "profileUnavailable": "Riot did not return this account's summoner profile yet. Please try again shortly.",
+    "jobExpired": "This update job is no longer available. Start a new refresh.",
+    "queuedStalled": "The job is still queued. If it does not advance, check that the worker is running.",
+    "runningStalled": "The job has not advanced recently. Cached matches remain available; check the worker logs."
+  },
+  "stage": {
+    "QUEUED": "Waiting to update",
+    "RESOLVE_ACCOUNT": "Resolving Riot ID",
+    "REFRESH_PROFILE": "Updating profile and ranks",
+    "FETCH_MATCHES": "Fetching recent matches",
+    "ENRICH_RANKS": "Fetching participant ranks",
+    "FINALIZE": "Finalizing results"
+  },
+  "state": {
+    "error": "Could not load match history. Please try again.",
+    "fetchingFirst": "Fetching the latest 100 matches for this first lookup…",
+    "notFound": "No cached data is available and the refresh did not complete."
+  },
+  "history": {
+    "title": "Recent matches",
+    "scope": "Supported modes from the latest 100 matches returned by Riot",
+    "queueFilter": "Game mode",
+    "empty": "No matches in the latest 100 meet this filter.",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "end": "All available matches loaded"
+  },
+  "queue": {
+    "ALL": "All supported modes",
+    "SWIFTPLAY": "Swiftplay",
+    "DRAFT_PICK": "Draft Pick",
+    "RANKED_SOLO": "Ranked Solo/Duo",
+    "RANKED_FLEX": "Ranked Flex"
+  },
+  "match": {
+    "victory": "Victory",
+    "defeat": "Defeat",
+    "surrender": "Surrender",
+    "earlySurrender": "Early surrender",
+    "kda": "{{value}} KDA",
+    "unknownPosition": "Unknown position",
+    "cs": "CS",
+    "gold": "Gold",
+    "damage": "Damage",
+    "vision": "Vision",
+    "rank": "Rank",
+    "averageRank": "Average rank",
+    "averageRankPending": "Average rank pending",
+    "rankCoverage": "{{count}}/{{total}} rank snapshots",
+    "showParticipants": "View {{count}} player details",
+    "hideParticipants": "Hide player details",
+    "participantDetails": "Details for {{count}} players in this match",
+    "participantsUnavailable": "Player details are not available for this match yet.",
+    "blueTeam": "Blue team",
+    "redTeam": "Red team",
+    "team": "Team {{id}}",
+    "player": "Player / champion",
+    "items": "Items",
+    "playerNumber": "Player {{id}}",
+    "you": "You"
+  }
+}

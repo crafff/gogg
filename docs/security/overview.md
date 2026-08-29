@@ -2,97 +2,59 @@
 
   认证与会话
 
-  1. OAuth2 第三方登录
-      - 支持 Google、Discord Provider 抽象。
-      - 通过授权码 code 换取用户信息。
+  1. Google OAuth2 + PKCE
+      - 浏览器登录只启用 Google；Discord Provider 保留但不注册，Riot RSO 等待审批。
+      - 授权请求使用随机 state 和 S256 PKCE，换码在服务端完成。
       - 相关文件：
           - apps/api/internal/auth/provider/google.go
-          - apps/api/internal/auth/provider/discord.go
+          - apps/api/internal/service/user/service.go
 
-  2. OAuth state 防 CSRF
-      - /oauth/start/{provider} 生成 32 字节随机 state。
-      - 存入 HttpOnly cookie。
-      - /oauth/callback/{provider} 校验 query 中的 state 必须和 cookie 一致。
-      - 校验后立即清除 state cookie，防止回放。
-      - 相关文件：apps/api/internal/transport/rest/auth/auth.go
+  2. 一次性 OAuth 登录尝试
+      - state 和浏览器绑定值只以 SHA-256 哈希入库。
+      - `UPDATE ... RETURNING` 原子消费未过期 attempt，回调无法重放。
+      - state、provider、浏览器绑定和 PKCE verifier 一起约束同一次登录。
+      - 相关文件：
+          - packages/sqlc/migrations/024_browser_sessions.up.sql
+          - packages/sqlc/queries/users.sql
 
-  3. JWT Access Token
-      - 使用 HS256 签名。
-      - 包含 sub、iss、iat、nbf、exp、jti。
-      - 校验签名、issuer、有效期、算法。
-      - 明确限制只接受 HS256，防止算法混淆。
-      - 相关文件：apps/api/internal/auth/jwt.go
-
-  4. JWT 密钥强度校验
-      - jwt_secret 长度必须至少 32 字节。
-      - access / refresh TTL 必须大于 0。
-      - refresh TTL 必须长于 access TTL。
-      - 相关文件：apps/api/internal/auth/jwt.go
-
-  5. Bearer Token 解析
-      - 只接受 Authorization: Bearer <token>。
-      - scheme 大小写不敏感。
-      - 空 token、非 Bearer token 会被拒绝解析。
-      - 相关文件：apps/api/internal/transport/middleware/auth.go
-
-  6. 短期 Access Token + 长期 Refresh Token 模型
-      - Access token 默认 15 分钟。
-      - Refresh token 默认 30 天。
-      - Access token 放在响应体，由前端用 Authorization 携带。
-      - Refresh token 放在 cookie。
-      - 相关文件：apps/api/internal/auth/jwt.go
-
-  7. Opaque Refresh Token
-      - Refresh token 不是 JWT，而是 crypto/rand 生成的 256-bit 随机字符串。
-      - 使用 Base64 URL safe 编码。
-      - 相关文件：apps/api/internal/auth/refresh.go
-
-  8. Refresh Token 哈希入库
-      - 数据库只保存 sha256(refresh_token)。
-      - 明文 refresh token 只存在于 cookie / 请求中。
-      - 数据库泄露时，攻击者不能直接拿 token 使用。
+  3. 服务端 opaque browser session
+      - SPA 不接收 Google token、GOGG JWT 或 refresh token。
+      - cookie 中是 crypto/rand 生成的 256-bit 随机 secret，数据库只保存 SHA-256。
+      - 查询同时校验 `revoked_at IS NULL` 和 `expires_at > now()`。
       - 相关文件：
           - apps/api/internal/auth/jwt.go
-          - packages/sqlc/migrations/013_users.up.sql
+          - apps/api/internal/service/user/service.go
+          - packages/sqlc/migrations/024_browser_sessions.up.sql
 
-  9. Refresh Token 轮换
-      - /auth/refresh 使用旧 refresh token 后立即 revoke。
-      - 然后签发新的 access token 和新的 refresh token。
-      - 旧 refresh token 一次性使用。
-      - 相关文件：apps/api/internal/service/user/service.go
-
-  10. Refresh Token 过期与撤销校验
-      - 校验 revoked_at。
-      - 校验 expires_at。
-      - 找不到、过期、已撤销都返回无效。
-      - 相关文件：apps/api/internal/service/user/service.go
-
-  11. Logout 撤销刷新令牌
-      - /auth/logout revoke 当前 refresh token。
-      - 清除 cookie。
-      - 幂等处理，无 cookie 也返回成功。
+  4. HttpOnly / Secure / SameSite Cookie
+      - 会话 cookie 为 host-only、`Path=/`、HttpOnly、SameSite=Strict。
+      - HTTPS 环境使用 Secure 和 `__Host-gogg_session`；本地 HTTP 使用普通名称。
+      - OAuth 浏览器绑定 cookie 为 HttpOnly、SameSite=Lax、`Path=/oauth`，仅保留 10 分钟。
       - 相关文件：apps/api/internal/transport/rest/auth/auth.go
 
-  12. HttpOnly Cookie
-      - Refresh token cookie 设置 HttpOnly，降低 XSS 直接读取 token 的风险。
-      - 相关文件：apps/api/internal/transport/rest/auth/auth.go
-
-  13. SameSite Cookie
-      - OAuth state cookie 和 refresh cookie 都使用 SameSite=Lax。
-      - 用于降低跨站请求风险。
-      - 相关文件：apps/api/internal/transport/rest/auth/auth.go
-
-  14. Secure Cookie 配置
-      - cookie_secure 可配置。
-      - 本地 HTTP 可关闭，生产 HTTPS 应开启。
+  5. Cookie 请求 CSRF 防护
+      - 携带会话 cookie 的非安全方法必须带 `X-GOGG-CSRF: 1`。
+      - 跨站表单无法设置该自定义头，CORS 又只允许精确 origin。
       - 相关文件：
-          - apps/api/internal/config/config.go
-          - apps/api/internal/transport/rest/auth/auth.go
+          - apps/api/internal/transport/middleware/session.go
+          - apps/api/internal/transport/middleware/cors.go
 
-  15. Cookie Domain 最小化
-      - 默认空 domain，即 host-only cookie。
-      - 避免 cookie 泄露给不必要的子域。
-      - 相关文件：apps/api/internal/transport/rest/auth/auth.go
+  6. 安全退出
+      - `/auth/logout` 先撤销服务端 session，再清除浏览器 cookie。
+      - 数据库失败时保留 cookie 并返回 503，避免把未撤销误报为成功。
+      - 无 cookie 的退出保持幂等。
+
+  7. 开放重定向与输入边界
+      - `returnTo` 只接受长度受限的站内绝对路径，拒绝 scheme、host、双斜杠和反斜杠。
+      - callback 的 code、state、浏览器绑定、User-Agent 和 provider profile 都有大小上限。
+      - OAuth/登录失败只返回固定错误码，不回显 provider 或数据库错误。
+
+  8. 可选 Bearer JWT 兼容
+      - 非浏览器客户端仍可使用 HS256 Bearer 验证；浏览器 Google 登录不签发 JWT。
+      - 只接受 Bearer scheme 和固定算法，并校验 issuer、有效期和 UUID subject。
+      - 相关文件：
+          - apps/api/internal/auth/jwt.go
+          - apps/api/internal/transport/middleware/auth.go
 
   授权与身份绑定
 
@@ -165,7 +127,7 @@
 
   27. CORS 方法和头限制
       - 只允许 GET, POST, OPTIONS。
-      - 只允许 Content-Type, Authorization, X-Request-Id。
+      - 只允许 Content-Type、Authorization、X-GOGG-CSRF、X-Request-Id。
       - 相关文件：apps/api/internal/transport/middleware/cors.go
 
   28. 前端安全响应头
@@ -222,14 +184,14 @@
       - 相关文件：packages/sqlc/queries/users.sql
 
   36. 数据库唯一约束
-      - refresh token hash 唯一。
+      - browser session token hash 唯一。
       - OAuth identity 唯一。
-      - 相关文件：packages/sqlc/migrations/013_users.up.sql
+      - 相关文件：packages/sqlc/migrations/013_users.up.sql、024_browser_sessions.up.sql
 
   37. 外键级联删除
-      - OAuth identities 和 refresh tokens 通过 user_id 关联用户。
+      - OAuth identities 和 browser sessions 通过 user_id 关联用户。
       - 用户删除后相关凭证自动删除。
-      - 相关文件：packages/sqlc/migrations/013_users.up.sql
+      - 相关文件：packages/sqlc/migrations/013_users.up.sql、024_browser_sessions.up.sql
 
   服务端运行安全
 
@@ -337,4 +299,4 @@
 
   总结：这个项目覆盖了认证、OAuth 防 CSRF、JWT 校验、刷新令牌轮换、Cookie 安全、CORS 白名单、输入范围校验、GraphQL
   复杂度限制、SQL 参数化、错误脱敏、密钥管理、服务端超时、限流和审计日志等安全验证知识点。当前比较核心的是 OAuth +
-  JWT + opaque refresh token rotation + HttpOnly cookie + CORS allowlist + sqlc 参数化查询 + GraphQL/REST 错误脱敏
+  Google OAuth PKCE + opaque server session + HttpOnly cookie + CSRF header + CORS allowlist + sqlc 参数化查询 + GraphQL/REST 错误脱敏

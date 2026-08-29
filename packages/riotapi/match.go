@@ -46,3 +46,12 @@ func (c *Client) GetMatchDetail(ctx context.Context, matchID string) (*MatchDeta
 	var dto MatchDetailDTO
 	return &dto, c.doRequestRecorded(ctx, u, &dto, ResponseMeta{Kind: "match-detail", MatchID: matchID})
 }
+
+// GetMatchDetailUnrecorded is used by public on-demand lookups. Persisting the
+// relational facts is enough for that feature; skipping the raw response keeps
+// a popular lookup from growing the crawler's archival dataset.
+func (c *Client) GetMatchDetailUnrecorded(ctx context.Context, matchID string) (*MatchDetailDTO, error) {
+	u := fmt.Sprintf("%s/lol/match/v5/matches/%s", c.regionalURL, url.PathEscape(matchID))
+	var dto MatchDetailDTO
+	return &dto, c.doRequest(ctx, u, &dto)
+}

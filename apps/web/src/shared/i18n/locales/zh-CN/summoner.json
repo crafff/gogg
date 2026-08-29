@@ -1,0 +1,117 @@
+{
+  "title": "查询召唤师战绩",
+  "description": "输入 Riot ID，查看近期支持模式的个人战绩和当前排位段位。",
+  "search": {
+    "label": "召唤师搜索",
+    "region": "服务器",
+    "riotID": "Riot ID",
+    "placeholder": "游戏名#标签，例如 Faker#KR1",
+    "submit": "查询",
+    "invalid": "请输入完整的 Riot ID，格式为 游戏名#标签。",
+    "recent": "最近搜索",
+    "clearRecent": "清除最近搜索",
+    "supported": "当前支持韩国服和北美服；展示匹配征召、迅捷模式、单双排和灵活排位。"
+  },
+  "profile": {
+    "level": "等级 {{level}}",
+    "updated": "数据更新时间：{{time}}",
+    "never": "尚未获取"
+  },
+  "rank": {
+    "solo": "单双排",
+    "flex": "灵活排位",
+    "unranked": "未定级",
+    "pending": "待补齐",
+    "snapshotDelta": "该段位快照距对局时间约 {{hours}} 小时",
+    "record": "{{wins}} 胜 {{losses}} 负 · {{winRate}}%",
+    "tier": {
+      "IRON": "坚韧黑铁",
+      "BRONZE": "英勇黄铜",
+      "SILVER": "不屈白银",
+      "GOLD": "荣耀黄金",
+      "PLATINUM": "华贵铂金",
+      "EMERALD": "流光翡翠",
+      "DIAMOND": "璀璨钻石",
+      "MASTER": "超凡大师",
+      "GRANDMASTER": "傲世宗师",
+      "CHALLENGER": "最强王者",
+      "UNRANKED": "未定级"
+    }
+  },
+  "refresh": {
+    "button": "刷新数据",
+    "running": "正在更新…",
+    "progress": "已扫描 {{scanned}} / 100，新增 {{fetched}} 场",
+    "complete": "数据已更新。",
+    "partial": "更新已完成，少数对局或玩家段位暂时获取失败。",
+    "failed": "更新失败，请稍后再试。",
+    "notFound": "没有找到这个 Riot ID，请检查游戏名、标签和服务器。",
+    "notFoundInRegion": "已找到这个 Riot ID，但它在 {{region}} 没有召唤师资料。请切换到账号实际所在服务器。",
+    "alreadyFresh": "当前缓存仍是最新数据。",
+    "rateLimited": "请求过于频繁，请在 {{seconds}} 秒后重试。",
+    "rateLimitedIdentity": "这个 Riot ID 刷新过于频繁，请在 {{seconds}} 秒后重试。",
+    "rateLimitedIP": "当前网络短时间内发起了过多新查询，请在 {{seconds}} 秒后重试；本次没有创建任务。",
+    "networkError": "暂时无法连接后端，请确认服务仍在运行后重试。",
+    "serviceUnavailable": "刷新服务暂时不可用，请确认 API、Worker 和 Temporal 均已启动。",
+    "profileUnavailable": "Riot 暂时没有返回这个账号的召唤师资料，请稍后重试。",
+    "jobExpired": "本次更新任务已失效，请重新刷新。",
+    "queuedStalled": "任务仍在排队；如果长时间没有进度，请确认 Worker 已启动。",
+    "runningStalled": "任务长时间没有新进度；可继续查看缓存战绩，并检查 Worker 日志。"
+  },
+  "stage": {
+    "QUEUED": "等待更新",
+    "RESOLVE_ACCOUNT": "正在确认 Riot ID",
+    "REFRESH_PROFILE": "正在更新头像和段位",
+    "FETCH_MATCHES": "正在获取近期对局",
+    "ENRICH_RANKS": "正在补齐参赛者段位",
+    "FINALIZE": "正在整理结果"
+  },
+  "state": {
+    "error": "读取战绩失败，请稍后重试。",
+    "fetchingFirst": "首次查询正在采集最近 100 场对局，请稍候…",
+    "notFound": "暂无缓存数据，刷新未成功。"
+  },
+  "history": {
+    "title": "近期战绩",
+    "scope": "从 Riot 返回的最近 100 场对局中筛选支持的模式",
+    "queueFilter": "比赛模式",
+    "empty": "最近 100 场中没有符合当前筛选条件的对局。",
+    "loadMore": "加载更多",
+    "loadingMore": "正在加载…",
+    "end": "已加载全部可用战绩"
+  },
+  "queue": {
+    "ALL": "全部支持模式",
+    "SWIFTPLAY": "迅捷模式",
+    "DRAFT_PICK": "匹配征召",
+    "RANKED_SOLO": "单双排",
+    "RANKED_FLEX": "灵活排位"
+  },
+  "match": {
+    "victory": "胜利",
+    "defeat": "失败",
+    "surrender": "投降",
+    "earlySurrender": "提前投降",
+    "kda": "KDA {{value}}",
+    "unknownPosition": "未知位置",
+    "cs": "补刀",
+    "gold": "金币",
+    "damage": "英雄伤害",
+    "vision": "视野",
+    "rank": "段位",
+    "averageRank": "平均段位",
+    "averageRankPending": "平均段位待补齐",
+    "rankCoverage": "{{count}}/{{total}} 人有段位快照",
+    "showParticipants": "查看 {{count}} 名玩家详情",
+    "hideParticipants": "收起玩家详情",
+    "participantDetails": "本场 {{count}} 名玩家详情",
+    "participantsUnavailable": "这场对局暂时没有可用的玩家详情。",
+    "blueTeam": "蓝方",
+    "redTeam": "红方",
+    "team": "队伍 {{id}}",
+    "player": "玩家 / 英雄",
+    "items": "装备",
+    "playerNumber": "玩家 {{id}}",
+    "you": "你"
+  }
+}

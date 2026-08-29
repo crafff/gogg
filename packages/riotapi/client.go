@@ -47,12 +47,20 @@ type Client struct {
 	retry       RetryPolicy
 	region      string
 	recorder    ResponseRecorder
+	quota       QuotaCoordinator
 }
 
+// SetQuotaCoordinator installs a shared, fail-closed quota authority. The
+// coordinator is consulted for both LoL and TFT calls made by this client.
+func (c *Client) SetQuotaCoordinator(quota QuotaCoordinator) { c.quota = quota }
+
 type ResponseMeta struct {
-	Region  string
-	Kind    string
-	MatchID string
+	Region      string
+	Kind        string
+	MatchID     string
+	ResourceKey string
+	RequestURL  string
+	Operation   string
 }
 
 type ResponseRecorder interface {
@@ -99,9 +107,20 @@ func (c *Client) doRequest(ctx context.Context, requestURL string, result any) e
 }
 
 func (c *Client) doRequestRecorded(ctx context.Context, requestURL string, result any, meta ResponseMeta) error {
+	return c.doRequestMode(ctx, requestURL, result, meta, false)
+}
+
+// doRequestRawFirst archives each successful 2xx body before attempting to
+// decode it. TFT uses this path so upstream schema drift never discards the
+// source response needed for replay.
+func (c *Client) doRequestRawFirst(ctx context.Context, requestURL string, result any, meta ResponseMeta) error {
+	return c.doRequestMode(ctx, requestURL, result, meta, true)
+}
+
+func (c *Client) doRequestMode(ctx context.Context, requestURL string, result any, meta ResponseMeta, rawFirst bool) error {
 	interval := c.retry.InitialInterval
 	for attempt := 1; ; attempt++ {
-		err := c.doOnce(ctx, requestURL, result, meta)
+		err := c.doOnce(ctx, requestURL, result, meta, rawFirst)
 		if err == nil {
 			if attempt > 1 {
 				slog.InfoContext(ctx, "riot_connectivity_restored", "attempt", attempt)
@@ -118,11 +137,10 @@ func (c *Client) doRequestRecorded(ctx context.Context, requestURL string, resul
 			return err
 		}
 
-		wait := interval
+		wait := jitter(interval, c.retry.Jitter)
 		if apiErr.RetryAfter > wait {
 			wait = apiErr.RetryAfter
 		}
-		wait = jitter(wait, c.retry.Jitter)
 		slog.WarnContext(ctx, "riot_retry_wait", "kind", apiErr.Kind, "status", apiErr.StatusCode,
 			"attempt", attempt, "wait", wait, "err", err)
 		if err := waitContext(ctx, wait); err != nil {
@@ -135,20 +153,41 @@ func (c *Client) doRequestRecorded(ctx context.Context, requestURL string, resul
 	}
 }
 
-func (c *Client) doOnce(ctx context.Context, requestURL string, result any, meta ResponseMeta) error {
-	if err := c.limiter.Wait(ctx); err != nil {
-		return err
-	}
+func (c *Client) doOnce(ctx context.Context, requestURL string, result any, meta ResponseMeta, rawFirst bool) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return &APIError{Kind: ErrorClient, Global: true, Cause: err}
 	}
 	req.Header.Set("X-Riot-Token", c.apiKey)
+	if err := c.limiter.Wait(ctx); err != nil {
+		return err
+	}
+	scope, err := quotaScopeForRequest(c.apiKey, requestURL)
+	if err != nil {
+		return &APIError{Kind: ErrorClient, Global: true, Cause: err}
+	}
+	if meta.Operation != "" {
+		scope.Method = sanitizeQuotaPart(meta.Operation)
+	}
+	if c.quota != nil {
+		if err := c.quota.Acquire(ctx, scope); err != nil {
+			return &APIError{Kind: ErrorConnectivity, Retryable: true, Global: true, Cause: err}
+		}
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return connectivityError(err)
 	}
 	defer resp.Body.Close()
+	if c.quota != nil {
+		if err := c.quota.Observe(ctx, scope, resp.StatusCode, resp.Header); err != nil {
+			if resp.StatusCode == http.StatusTooManyRequests {
+				return &APIError{Kind: ErrorRateLimit, Retryable: true, Global: true,
+					RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()), Cause: err}
+			}
+			slog.ErrorContext(ctx, "riot_quota_observe_failed", "err", err, "status", resp.StatusCode)
+		}
+	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		return responseError(resp)
@@ -161,10 +200,17 @@ func (c *Client) doOnce(ctx context.Context, requestURL string, result any, meta
 	if err != nil {
 		return &APIError{Kind: ErrorDecode, Retryable: true, Global: true, Cause: err}
 	}
+	meta.RequestURL = requestURL
+	if rawFirst && c.recorder != nil && meta.Kind != "" {
+		meta.Region = c.region
+		if err := c.recorder.Record(ctx, meta, body); err != nil {
+			return fmt.Errorf("record Riot response: %w", err)
+		}
+	}
 	if err := sonic.ConfigDefault.Unmarshal(body, result); err != nil {
 		return &APIError{Kind: ErrorDecode, Retryable: true, Global: true, Cause: err}
 	}
-	if c.recorder != nil && meta.Kind != "" {
+	if !rawFirst && c.recorder != nil && meta.Kind != "" {
 		meta.Region = c.region
 		if err := c.recorder.Record(ctx, meta, body); err != nil {
 			return fmt.Errorf("record Riot response: %w", err)

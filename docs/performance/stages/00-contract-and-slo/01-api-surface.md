@@ -16,17 +16,17 @@
 | Operations | GET | `/healthz` | 平台探针 | 不要求；部署层限制访问 | 进程 | P1 | liveness |
 | Operations | GET | `/readyz` | 平台探针 | 不要求；部署层限制访问 | PostgreSQL、可选 Redis | P1 | readiness |
 | Operations | GET | `/metrics` | Prometheus | 不要求；部署层限制访问 | 指标 registry | P1 | scrape |
-| OAuth | GET | `/oauth/start/{provider}` | Web | 不要求 | OAuth provider | P1 | 外部集成，不纳入本地延迟门禁 |
-| OAuth | GET | `/oauth/callback/{provider}` | OAuth provider/Web | state cookie | OAuth provider、PostgreSQL | P1 | 外部集成，不纳入本地延迟门禁 |
-| Auth | POST | `/auth/refresh` | Web | refresh cookie | PostgreSQL | P1 | Auth 专项测试 |
-| Auth | POST | `/auth/logout` | Web | refresh cookie | PostgreSQL | P1 | Auth 专项测试 |
+| OAuth | GET | `/oauth/start/google` | Web | 不要求 | Google OAuth、PostgreSQL | P1 | 外部集成，不纳入本地延迟门禁 |
+| OAuth | GET | `/oauth/callback/google` | Google/Web | state + browser-binding cookie + PKCE | Google OAuth、PostgreSQL | P1 | 外部集成，不纳入本地延迟门禁 |
+| Auth | POST | `/auth/logout` | Web | session cookie + CSRF header | PostgreSQL | P1 | Auth 专项测试 |
+| GraphQL | POST | `/graphql`（`Me`/`AuthProviders`） | Web | `Me` 可选 session cookie | PostgreSQL | P1 | Auth 专项测试 |
 
 `/graphql` handler 还支持 GET 和 OPTIONS transport；Web 的正式业务路径固定为 POST，
 OPTIONS 由 CORS 浏览器预检覆盖，GET 不作为排行榜性能基线。开发配置开启时还存在
 `GET /graphql/playground`，它不是生产 API 或性能场景。
 
-OAuth/Auth 路由仅在配置了 JWT secret 时挂载；具体 OAuth provider 还要求对应 client
-配置完整。它们依赖外部网络和用户会话，不与数据库 rankings 基线混测。
+OAuth/Auth 路由独立于可选的 JWT issuer 挂载；当前只注册配置完整的 Google provider。
+它们依赖外部网络和用户会话，不与数据库 rankings 基线混测。
 
 ## 调用频率和风险
 

@@ -68,6 +68,7 @@ make migrate-up
 # 3. Create local plaintext config if you are not using SOPS
 cp config/dev.example.yaml config/dev.yaml
 # edit config/dev.yaml and set riot.api_key before starting the worker
+# for Google login, also set oauth.google client_id/client_secret/redirect_url
 
 # 4. Run the three processes in three terminals
 make run-api      # apps/api — http://localhost:8080
@@ -77,12 +78,15 @@ make run-web      # apps/web — http://localhost:5173 (proxies /api + /graphql 
 
 `make run-api` and `make run-worker` decrypt `deploy/secrets/dev.enc.yaml`
 via sops if the file exists; otherwise they use `config/dev.yaml`. The
-vite dev server in `make run-web` proxies `/api` and `/graphql` to
-`:8080`, so no CORS gymnastics in development.
+vite dev server in `make run-web` proxies `/api`, `/graphql`, `/game-assets`,
+`/oauth`, and `/auth` to `:8080`, so browser sessions remain same-origin in
+development.
 
-Open `http://localhost:5173` for the rankings page. Other routes
-(`/champion/:id`, `/summoner/:region/:name`, `/login`, `/me`) are
-placeholder pages until Phase E populates them.
+Open `http://localhost:5173` for the rankings page. Google login uses
+`http://localhost:5173/oauth/callback/google`; register that exact authorized
+redirect URI in Google Cloud and configure all three Google OAuth fields
+together. `/me` is session-protected, and Google login does not automatically
+link a Riot account.
 
 ## Common workflows
 
@@ -156,6 +160,7 @@ hand-held walkthrough split into three parts:
 
 ## Documentation
 
+- [`docs/azure/vm-operations.md`](./docs/azure/vm-operations.md) — Azure VM 开关机、公网 IP 与费用操作手册
 - [`CLAUDE.md`](./CLAUDE.md) — load-bearing project context (read first)
 - [`docs/tutorial/`](./docs/tutorial/README.md) — 9-chapter hand-held codebase walkthrough
 - [`docs/manual-verification.md`](./docs/manual-verification.md) — step-by-step manual smoke + test guide

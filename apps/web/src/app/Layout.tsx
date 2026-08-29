@@ -3,12 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import { LanguageSwitcher } from "@shared/i18n/LanguageSwitcher";
 import { cn } from "@shared/lib/cn";
+import { Skeleton } from "@shared/ui";
+import { useSession } from "@features/auth";
 
 // Global layout: brand strip + nav + LanguageSwitcher, then the
 // routed page renders into <Outlet/>. Pages stay focused on their
 // own content — no per-page header chrome.
 export function Layout() {
   const { t } = useTranslation("common");
+  const session = useSession();
 
   return (
     <div className="min-h-screen bg-surface text-fg">
@@ -28,14 +31,30 @@ export function Layout() {
           <nav aria-label="primary" className="flex items-center gap-1 text-sm">
             <NavItem to="/rankings">{t("nav.rankings")}</NavItem>
             <NavItem to="/summoner">{t("nav.summoner")}</NavItem>
-            <NavItem to="/me">{t("nav.me")}</NavItem>
+            <NavItem to="/tft">{t("nav.tft")}</NavItem>
           </nav>
 
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <NavItem to="/login" variant="cta">
-              {t("nav.login")}
-            </NavItem>
+            {session.isPending ? (
+              <Skeleton className="h-8 w-20" />
+            ) : session.isError ? (
+              <button
+                type="button"
+                className="rounded px-3 py-1.5 text-sm text-danger hover:bg-surface-overlay focus-visible:outline-none focus-visible:shadow-focus-ring"
+                onClick={() => void session.refetch()}
+              >
+                {t("state.retry")}
+              </button>
+            ) : session.data?.me ? (
+              <NavItem to="/me" variant="cta">
+                {session.data.me.displayName}
+              </NavItem>
+            ) : (
+              <NavItem to="/login" variant="cta">
+                {t("nav.login")}
+              </NavItem>
+            )}
           </div>
         </div>
       </header>

@@ -505,19 +505,10 @@ if cfg.API.GraphQLPlayground {
 ### 11. 挂载认证相关路由
 ```go
 // ---- /api/internal/api/main.go ----
-// OAuth + /auth endpoints land only when a jwt secret is configured.
-if issuer != nil {
-	providers := configuredProviders(cfg.OAuth, logger)
-	userService := usersvc.New(queries, issuer, providers...)
-	authCfg := restauth.Config{
-		CookieDomain: cfg.Auth.CookieDomain,
-		CookieSecure: cfg.Auth.CookieSecure,
-	}
-	r.Mount("/", restauth.Routes(userService, authCfg))
-	names := make([]string, 0, len(providers))
-	for _, p := range providers {
-		names = append(names, p.Name())
-	}
-	logger.Info("oauth_providers_registered", "providers", names)
-}
+// Browser OAuth is independent of the optional Bearer JWT issuer.
+providers := configuredProviders(cfg.OAuth, logger)
+userService := usersvc.New(pool, queries, cfg.Auth.RefreshTTL, providers...)
+r.Use(middleware.SessionAuth(userService, restauth.SessionCookieName(cfg.Auth.CookieSecure)))
+r.Use(middleware.CookieCSRF(restauth.SessionCookieName(cfg.Auth.CookieSecure), restauth.CSRFHeader))
+r.Mount("/", restauth.Routes(userService, restauth.Config{CookieSecure: cfg.Auth.CookieSecure}))
 ```

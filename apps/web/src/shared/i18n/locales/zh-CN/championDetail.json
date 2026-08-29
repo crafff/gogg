@@ -1,0 +1,18 @@
+{
+  "eyebrow": "英雄详情",
+  "version": "数据版本 {{version}}",
+  "summary": "{{games}} 场有效样本 · 数据版本 {{version}}",
+  "runes": "符文选择",
+  "primaryRunes": "主系",
+  "secondaryRunes": "副系",
+  "statShards": "属性碎片",
+  "spells": "召唤师技能",
+  "starter": "出门装",
+  "boots": "鞋子",
+  "items": "{{count}} 件装备",
+  "rates": "选择率 {{pick}}% · 胜率 {{win}}%",
+  "sample": "{{games}} / {{total}} 场",
+  "empty": "当前筛选下暂无数据",
+  "invalid": "英雄 ID 无效",
+  "notFound": "未找到该英雄"
+}

@@ -72,6 +72,8 @@ func (s *Store) RebuildRankingsRollups(ctx context.Context) (RankingsRollupRefre
 					COUNT(*) FILTER (WHERE mp.team_id = 100 AND mp.win)::int AS team_100_wins,
 					COUNT(*) FILTER (WHERE mp.team_id = 200 AND mp.win)::int AS team_200_wins
 				FROM matches m
+				INNER JOIN statistics_match_membership smm
+				  ON smm.match_id = m.match_id AND smm.dataset_key = 'ranked-solo-v1'
 				LEFT JOIN match_participants mp ON mp.match_id = m.match_id
 				WHERE m.fetch_status = 'done' AND m.queue_id = 420
 				GROUP BY m.match_id
@@ -93,6 +95,8 @@ func (s *Store) RebuildRankingsRollups(ctx context.Context) (RankingsRollupRefre
 						WHERE mb.match_id IS NOT NULL AND mb.champion_id IS NULL
 					)::int AS null_champion_ids
 				FROM matches m
+				INNER JOIN statistics_match_membership smm
+				  ON smm.match_id = m.match_id AND smm.dataset_key = 'ranked-solo-v1'
 				LEFT JOIN match_bans mb ON mb.match_id = m.match_id
 				WHERE m.fetch_status = 'done' AND m.queue_id = 420
 				GROUP BY m.match_id
@@ -133,6 +137,8 @@ func (s *Store) RebuildRankingsRollups(ctx context.Context) (RankingsRollupRefre
 					ELSE 'eligible'
 				END::text AS quality
 			FROM matches m
+			INNER JOIN statistics_match_membership smm
+			  ON smm.match_id = m.match_id AND smm.dataset_key = 'ranked-solo-v1'
 			INNER JOIN participant_quality pq ON pq.match_id = m.match_id
 			INNER JOIN ban_quality bq ON bq.match_id = m.match_id
 			WHERE m.fetch_status = 'done' AND m.queue_id = 420`); err != nil {

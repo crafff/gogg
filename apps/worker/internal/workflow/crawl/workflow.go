@@ -42,6 +42,7 @@ type CrawlRegionOutput struct {
 	Phase4Output    crawlact.Phase4Output   `json:"phase4"`
 	Phase5Output    crawlact.Phase5Output   `json:"phase5"`
 	Phase55Output   crawlact.Phase55Output  `json:"phase55"`
+	Phase6Output    crawlact.Phase6Output   `json:"phase6"`
 	StartedAt       time.Time               `json:"started_at"`
 }
 
@@ -160,6 +161,11 @@ var (
 			MaximumAttempts:    3,
 		},
 	}
+	phase6Opts = workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Minute,
+		HeartbeatTimeout:    2 * time.Minute,
+		RetryPolicy:         &temporal.RetryPolicy{InitialInterval: 2 * time.Second, BackoffCoefficient: 2, MaximumInterval: time.Minute, MaximumAttempts: 3},
+	}
 )
 
 // CrawlRegionWorkflow orchestrates Phase 0 + Phase 1 for one region.
@@ -234,6 +240,11 @@ func runPhases(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot
 	if err != nil {
 		return CrawlRegionOutput{}, err
 	}
+	ctx6 := workflow.WithActivityOptions(ctx, phase6Opts)
+	var p6 crawlact.Phase6Output
+	if err := workflow.ExecuteActivity(ctx6, (*crawlact.Activities).Phase6ChampionDetailRollup).Get(ctx6, &p6); err != nil {
+		return CrawlRegionOutput{}, fmt.Errorf("phase6: %w", err)
+	}
 
 	if err := workflow.ExecuteActivity(ctxBK, (*crawlact.Activities).CompleteRun, runID).Get(ctxBK, nil); err != nil {
 		return CrawlRegionOutput{}, fmt.Errorf("complete run: %w", err)
@@ -250,6 +261,7 @@ func runPhases(ctx workflow.Context, runID int, profile crawlact.ProfileSnapshot
 		Phase4Output:    p4,
 		Phase5Output:    p5,
 		Phase55Output:   p55,
+		Phase6Output:    p6,
 		StartedAt:       startedAt,
 	}, nil
 }

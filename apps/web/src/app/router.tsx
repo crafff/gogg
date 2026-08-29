@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 
 import { Skeleton } from "@shared/ui";
+import { LoginPage, RequireSession } from "@features/auth";
 
 import { Layout } from "./Layout";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
@@ -30,8 +31,11 @@ const ChampionDetailPage = lazy(() =>
 const SummonerPage = lazy(() =>
   import("@features/summoner").then((m) => ({ default: m.SummonerPage })),
 );
-const LoginPage = lazy(() =>
-  import("@features/auth").then((m) => ({ default: m.LoginPage })),
+const TftAnalysisPage = lazy(() =>
+  import("@features/tft").then((m) => ({ default: m.TftAnalysisPage })),
+);
+const TftPlayerPage = lazy(() =>
+  import("@features/tft").then((m) => ({ default: m.TftPlayerPage })),
 );
 const MePage = lazy(() =>
   import("@features/user-profile").then((m) => ({ default: m.MePage })),
@@ -66,16 +70,22 @@ export const routes: RouteObject[] = [
         path: "champion/:championId",
         element: lazyRoute(<ChampionDetailPage />),
       },
-      // The /summoner index is the search landing; a real route hits
-      // it with both segments. Phase E will turn /summoner into the
-      // search form and keep /summoner/:region/:name for results.
       { path: "summoner", element: lazyRoute(<SummonerPage />) },
       {
-        path: "summoner/:region/:name",
+        path: "summoner/:region/:gameName/:tagLine",
         element: lazyRoute(<SummonerPage />),
       },
+      { path: "tft", element: lazyRoute(<TftAnalysisPage />) },
+      { path: "tft/player", element: lazyRoute(<TftPlayerPage />) },
+      {
+        path: "tft/player/:platform/:gameName/:tagLine",
+        element: lazyRoute(<TftPlayerPage />),
+      },
       { path: "login", element: lazyRoute(<LoginPage />) },
-      { path: "me", element: lazyRoute(<MePage />) },
+      {
+        path: "me",
+        element: <RequireSession>{lazyRoute(<MePage />)}</RequireSession>,
+      },
       { path: "*", element: <RouteErrorBoundary /> },
     ],
   },

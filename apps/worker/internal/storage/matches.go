@@ -10,10 +10,18 @@ import (
 // UpsertMatchID inserts a match_id with fetch_status=pending.
 // If it already exists, it's a no-op.
 func (s *Store) UpsertMatchID(ctx context.Context, matchID, region, version string) error {
-	_, err := s.Pool.Exec(ctx, `
-		INSERT INTO matches (match_id, region, version) VALUES ($1, $2, $3)
-		ON CONFLICT (match_id) DO NOTHING`, matchID, region, version)
-	return err
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO matches (match_id, region, version) VALUES ($1, $2, $3)
+			ON CONFLICT (match_id) DO NOTHING`, matchID, region, version); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
+			INSERT INTO statistics_match_membership (dataset_key, match_id)
+			VALUES ('ranked-solo-v1', $1)
+			ON CONFLICT DO NOTHING`, matchID)
+		return err
+	})
 }
 
 // CountPendingMatchIDs returns the total number of pending matches for the region and version.
@@ -54,6 +62,7 @@ type MatchHeader struct {
 	DataVersion     *string
 	PlatformID      *string
 	QueueID         *int
+	Version         *string
 	GameVersion     *string
 	GameMode        *string
 	GameType        *string
@@ -61,6 +70,32 @@ type MatchHeader struct {
 	GameEndTS       *time.Time
 	GameDuration    *int
 	EndOfGameResult *string
+}
+
+type MatchFetchInfo struct {
+	FetchStatus string
+	QueueID     *int
+}
+
+// GetMatchFetchInfo returns the minimal state needed by an on-demand refresh.
+func (s *Store) GetMatchFetchInfo(ctx context.Context, matchID string) (*MatchFetchInfo, error) {
+	var info MatchFetchInfo
+	err := s.Pool.QueryRow(ctx, `SELECT fetch_status, queue_id FROM matches WHERE match_id=$1`, matchID).
+		Scan(&info.FetchStatus, &info.QueueID)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	return &info, err
+}
+
+// UpsertOnDemandMatchID creates a fetch shell without admitting the match to
+// any statistics dataset. The match version is derived from Match Detail.
+func (s *Store) UpsertOnDemandMatchID(ctx context.Context, matchID, region string) error {
+	_, err := s.Pool.Exec(ctx, `
+		INSERT INTO matches (match_id, region, version)
+		VALUES ($1, $2, '')
+		ON CONFLICT (match_id) DO NOTHING`, matchID, region)
+	return err
 }
 
 type TeamDetail struct {
@@ -88,17 +123,18 @@ func (s *Store) UpdateMatchDetail(ctx context.Context, h *MatchHeader) error {
 			data_version       = $2,
 			platform_id        = $3,
 			queue_id           = $4,
-			game_version       = $5,
-			game_mode          = $6,
-			game_type          = $7,
-			game_start_ts      = $8,
-			game_end_ts        = $9,
-			game_duration      = $10,
-			end_of_game_result = $11,
+			version            = COALESCE(NULLIF($5, ''), version),
+			game_version       = $6,
+			game_mode          = $7,
+			game_type          = $8,
+			game_start_ts      = $9,
+			game_end_ts        = $10,
+			game_duration      = $11,
+			end_of_game_result = $12,
 			fetch_status       = 'done'
 		WHERE match_id = $1`,
 		h.MatchID, h.DataVersion, h.PlatformID, h.QueueID,
-		h.GameVersion, h.GameMode, h.GameType,
+		h.Version, h.GameVersion, h.GameMode, h.GameType,
 		h.GameStartTS, h.GameEndTS, h.GameDuration, h.EndOfGameResult,
 	)
 	return err
@@ -125,17 +161,18 @@ func (s *Store) SaveMatchDetail(ctx context.Context, h *MatchHeader, participant
 				data_version       = $2,
 				platform_id        = $3,
 				queue_id           = $4,
-				game_version       = $5,
-				game_mode          = $6,
-				game_type          = $7,
-				game_start_ts      = $8,
-				game_end_ts        = $9,
-				game_duration      = $10,
-				end_of_game_result = $11,
+				version            = COALESCE(NULLIF($5, ''), version),
+				game_version       = $6,
+				game_mode          = $7,
+				game_type          = $8,
+				game_start_ts      = $9,
+				game_end_ts        = $10,
+				game_duration      = $11,
+				end_of_game_result = $12,
 				fetch_status       = 'pending'
 			WHERE match_id = $1`,
 			h.MatchID, h.DataVersion, h.PlatformID, h.QueueID,
-			h.GameVersion, h.GameMode, h.GameType, h.GameStartTS, h.GameEndTS,
+			h.Version, h.GameVersion, h.GameMode, h.GameType, h.GameStartTS, h.GameEndTS,
 			h.GameDuration, h.EndOfGameResult); err != nil {
 			return err
 		}
@@ -162,6 +199,21 @@ func (s *Store) SaveMatchDetail(ctx context.Context, h *MatchHeader, participant
 					team.MatchID, team.TeamID, ban.PickTurn, ban.ChampionID); err != nil {
 					return err
 				}
+			}
+		}
+		if h.QueueID != nil && h.GameStartTS != nil {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO player_match_index (puuid, region, match_id, queue_id, game_start_ts)
+				SELECT mp.puuid, m.region, m.match_id, $2, $3
+				FROM match_participants mp
+				JOIN matches m ON m.match_id = mp.match_id
+				WHERE mp.match_id = $1 AND mp.puuid IS NOT NULL
+				ON CONFLICT (puuid, match_id) DO UPDATE
+				SET region = EXCLUDED.region,
+				    queue_id = EXCLUDED.queue_id,
+				    game_start_ts = EXCLUDED.game_start_ts`,
+				h.MatchID, *h.QueueID, *h.GameStartTS); err != nil {
+				return err
 			}
 		}
 		_, err := tx.Exec(ctx, `UPDATE matches SET fetch_status = 'done' WHERE match_id = $1`, h.MatchID)

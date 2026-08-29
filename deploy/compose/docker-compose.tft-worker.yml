@@ -1,0 +1,63 @@
+# Overlay for deploy/compose/docker-compose.prod.yml.
+# Build gogg-tft-worker:prod first, then include both compose files.
+services:
+  riot-quota-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/riot-quota-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 192m
+    networks: [gogg]
+
+  worker:
+    depends_on:
+      riot-quota-redis:
+        condition: service_healthy
+    environment:
+      GOGG_REDIS_URL: redis://riot-quota-redis:6379/0
+
+  worker-tft:
+    image: gogg-tft-worker:prod
+    restart: unless-stopped
+    profiles: ["tft-worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      riot-quota-redis:
+        condition: service_healthy
+    environment:
+      APP_CONFIG_PATH: /run/secrets/gogg-config.yaml
+      GOGG_DATABASE_DSN: postgres://gogg:${POSTGRES_PASSWORD}@postgres:5432/gogg?sslmode=disable
+      GOGG_DATABASE_MAX_OPEN_CONNS: "10"
+      GOGG_DATABASE_MAX_IDLE_CONNS: "2"
+      GOGG_TEMPORAL_HOST_PORT: temporal:7233
+      GOGG_REDIS_URL: redis://riot-quota-redis:6379/0
+      GOGG_RAW_ARCHIVE_ROOT: /srv/riot-raw
+      GOGG_TFT_STATIC_ROOT: /srv/game-assets
+    volumes:
+      - ./config/prod.yaml:/run/secrets/gogg-config.yaml:ro
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/riot-raw:/srv/riot-raw
+      - ./game-assets:/srv/game-assets
+    mem_limit: 1536m
+    networks: [gogg]
+
+  crawlctl:
+    image: gogg-crawlctl:prod
+    profiles: ["tft-ops"]
+    depends_on:
+      temporal:
+        condition: service_healthy
+      riot-quota-redis:
+        condition: service_healthy
+    environment:
+      GOGG_TEMPORAL_HOST_PORT: temporal:7233
+      GOGG_REDIS_URL: redis://riot-quota-redis:6379/0
+    networks: [gogg]

@@ -10,6 +10,7 @@
     "rankings": "Rankings",
     "champion": "Champion",
     "summoner": "Summoner",
+    "tft": "TFT",
     "login": "Sign in",
     "me": "Profile"
   },
@@ -28,12 +29,30 @@
     "cancel": "Cancel",
     "confirm": "Confirm"
   },
+  "auth": {
+    "title": "Sign in to GOGG",
+    "description": "Use Google to create or access your GOGG account. This does not automatically link a Riot account.",
+    "continueWithGoogle": "Continue with Google",
+    "googleNotConfigured": "Google sign-in is not configured in this environment.",
+    "providersUnavailable": "Sign-in options are temporarily unavailable.",
+    "privacyNote": "GOGG uses only the Google account identifier and basic profile needed to establish your session. It never receives your Google password.",
+    "checkingSession": "Checking your session",
+    "sessionUnavailable": "We could not verify your session. Please try again.",
+    "errorCancelled": "You cancelled Google authorization. You can try again.",
+    "errorExpired": "This sign-in attempt expired. Please start again.",
+    "errorGeneric": "Google sign-in failed. Please try again later.",
+    "account": "My account",
+    "connectedAccounts": "Connected sign-in methods",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…",
+    "signOutFailed": "The server could not revoke your session. Please try again."
+  },
   "placeholder": {
     "comingSoon": "Coming soon",
     "championDetail": "Champion detail ships in Phase E — for now, check the rankings.",
     "summoner": "Summoner search ships in Phase E.",
-    "login": "OAuth sign-in ships in Phase E.",
-    "me": "Profile ships in Phase E.",
+    "login": "Sign in with Google.",
+    "me": "View your GOGG account.",
     "notFound": "Page not found"
   }
 }

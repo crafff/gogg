@@ -26,7 +26,9 @@ export default defineConfig({
     proxy: {
       "/api": { target: "http://localhost:8080", changeOrigin: true },
       "/graphql": { target: "http://localhost:8080", changeOrigin: true },
-	  "/game-assets": { target: "http://localhost:8080", changeOrigin: true },
+      "/game-assets": { target: "http://localhost:8080", changeOrigin: true },
+      "/oauth": { target: "http://localhost:8080", changeOrigin: true },
+      "/auth": { target: "http://localhost:8080", changeOrigin: true },
     },
   },
 });

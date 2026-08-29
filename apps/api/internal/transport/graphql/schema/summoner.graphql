@@ -1,0 +1,176 @@
+enum SummonerQueueFilter {
+  ALL
+  DRAFT_PICK
+  RANKED_SOLO
+  RANKED_FLEX
+  SWIFTPLAY
+}
+
+enum SummonerLookupStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum SummonerLookupStage {
+  QUEUED
+  RESOLVE_ACCOUNT
+  REFRESH_PROFILE
+  FETCH_MATCHES
+  ENRICH_RANKS
+  FINALIZE
+}
+
+input SummonerIdentityInput {
+  region: String!
+  gameName: String!
+  tagLine: String!
+}
+
+input SummonerHistoryInput {
+  queue: SummonerQueueFilter = ALL
+  first: Int = 20
+  after: String
+}
+
+type SummonerProfile {
+  region: String!
+  gameName: String!
+  tagLine: String!
+  profileIconId: Int!
+  summonerLevel: Int!
+  lastRefreshedAt: String
+  isStale: Boolean!
+}
+
+type SummonerRank {
+  queueType: String!
+  tier: String!
+  division: String!
+  leaguePoints: Int!
+  wins: Int!
+  losses: Int!
+  winRate: Float!
+}
+
+type SummonerMatch {
+  matchId: ID!
+  queue: SummonerQueueFilter!
+  queueId: Int!
+  gameStartTime: String!
+  durationSeconds: Int!
+  version: String!
+  endOfGameResult: String!
+  position: String!
+  win: Boolean!
+  championId: Int!
+  championName: String!
+  championLevel: Int!
+  kills: Int!
+  deaths: Int!
+  assists: Int!
+  kda: Float!
+  minionsKilled: Int!
+  csPerMinute: Float!
+  goldEarned: Int!
+  damageToChampions: Int!
+  visionScore: Int!
+  itemIds: [Int!]!
+  summonerSpellIds: [Int!]!
+  primaryStyleId: Int!
+  secondaryStyleId: Int!
+  perkIds: [Int!]!
+  statShardIds: [Int!]!
+  earlySurrender: Boolean!
+  surrender: Boolean!
+  averageTier: String
+  averageDivision: String
+  tierCoverage: Int!
+  participants: [SummonerMatchParticipant!]!
+}
+
+type SummonerMatchParticipant {
+  participantId: Int!
+  teamId: Int!
+  isCurrentPlayer: Boolean!
+  gameName: String!
+  tagLine: String!
+  position: String!
+  win: Boolean!
+  championId: Int!
+  championName: String!
+  championLevel: Int!
+  kills: Int!
+  deaths: Int!
+  assists: Int!
+  kda: Float!
+  minionsKilled: Int!
+  goldEarned: Int!
+  damageToChampions: Int!
+  visionScore: Int!
+  itemIds: [Int!]!
+  summonerSpellIds: [Int!]!
+  primaryStyleId: Int!
+  secondaryStyleId: Int!
+  perkIds: [Int!]!
+  rank: SummonerMatchParticipantRank
+}
+
+type SummonerMatchParticipantRank {
+  tier: String!
+  division: String
+  leaguePoints: Int
+  snapshotDeltaHours: Int
+}
+
+type SummonerMatchPageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  returned: Int!
+}
+
+type SummonerMatchConnection {
+  items: [SummonerMatch!]!
+  pageInfo: SummonerMatchPageInfo!
+}
+
+type SummonerResult {
+  profile: SummonerProfile!
+  ranks: [SummonerRank!]!
+  history: SummonerMatchConnection!
+}
+
+type SummonerLookupJob {
+  id: ID!
+  region: String!
+  gameName: String!
+  tagLine: String!
+  status: SummonerLookupStatus!
+  stage: SummonerLookupStage!
+  scannedCount: Int!
+  supportedCount: Int!
+  fetchedCount: Int!
+  failedCount: Int!
+  errorCode: String
+  errorMessage: String
+  createdAt: String!
+  updatedAt: String!
+  completedAt: String
+}
+
+type SummonerRefreshResult {
+  fresh: Boolean!
+  reused: Boolean!
+  job: SummonerLookupJob
+}
+
+extend type Query {
+  summoner(identity: SummonerIdentityInput!, history: SummonerHistoryInput): SummonerResult
+  summonerLookupJob(id: ID!): SummonerLookupJob
+}
+
+type Mutation {
+  refreshSummoner(identity: SummonerIdentityInput!): SummonerRefreshResult!
+}

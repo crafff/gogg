@@ -12,17 +12,15 @@ import (
 const listRegionsWithData = `-- name: ListRegionsWithData :many
 
 SELECT DISTINCT region
-FROM matches
-WHERE fetch_status = 'done'
+FROM rankings_match_count_rollup
+WHERE total_matches > 0
   AND region IS NOT NULL
   AND region <> ''
 ORDER BY region
 `
 
-// Queries on the region column of matches.
-// Distinct regions that have completed matches. Mirrors legacy
-// RankingStore.GetRegionsWithData exactly so /api/v1/regions stays
-// byte-equal with /api/regions.
+// Queries on regions with published statistics rollups.
+// Keep the rankings filter catalog aligned with slices that can return data.
 func (q *Queries) ListRegionsWithData(ctx context.Context) ([]string, error) {
 	rows, err := q.db.Query(ctx, listRegionsWithData)
 	if err != nil {

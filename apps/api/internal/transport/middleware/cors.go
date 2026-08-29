@@ -23,7 +23,7 @@ func CORS(allowed []string) func(http.Handler) http.Handler {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 					w.Header().Set("Vary", "Origin")
 					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, "+HeaderRequestID)
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-GOGG-CSRF, "+HeaderRequestID)
 					w.Header().Set("Access-Control-Max-Age", "600")
 				}
 			}

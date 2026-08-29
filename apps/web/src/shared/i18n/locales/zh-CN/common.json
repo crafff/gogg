@@ -10,6 +10,7 @@
     "rankings": "英雄排行",
     "champion": "英雄详情",
     "summoner": "召唤师查询",
+    "tft": "云顶之弈",
     "login": "登录",
     "me": "我的"
   },
@@ -28,12 +29,30 @@
     "cancel": "取消",
     "confirm": "确定"
   },
+  "auth": {
+    "title": "登录 GOGG",
+    "description": "使用 Google 创建或登录 GOGG 账号。登录不会自动绑定 Riot 账号。",
+    "continueWithGoogle": "使用 Google 继续",
+    "googleNotConfigured": "当前环境尚未配置 Google 登录。",
+    "providersUnavailable": "暂时无法加载登录方式。",
+    "privacyNote": "GOGG 只使用 Google 提供的账号标识和基础资料来建立登录会话，不会获取你的 Google 密码。",
+    "checkingSession": "正在检查登录状态",
+    "sessionUnavailable": "暂时无法确认登录状态，请重试。",
+    "errorCancelled": "你取消了 Google 授权，可以重新尝试。",
+    "errorExpired": "这次登录请求已过期，请重新开始。",
+    "errorGeneric": "Google 登录失败，请稍后重试。",
+    "account": "我的账号",
+    "connectedAccounts": "已连接的登录方式",
+    "signOut": "退出登录",
+    "signingOut": "正在退出…",
+    "signOutFailed": "服务端未能撤销会话，请稍后重试。"
+  },
   "placeholder": {
     "comingSoon": "敬请期待",
     "championDetail": "英雄详情页将在 Phase E 上线，目前先看排行。",
     "summoner": "召唤师查询将在 Phase E 上线。",
-    "login": "OAuth 登录入口将在 Phase E 上线。",
-    "me": "个人主页将在 Phase E 上线。",
+    "login": "使用 Google 登录。",
+    "me": "查看你的 GOGG 账号。",
     "notFound": "页面未找到"
   }
 }

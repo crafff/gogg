@@ -37,8 +37,8 @@ operational surface and the legacy compatibility layer.**
 /graphql                 — single endpoint for client queries (gqlgen)
 /healthz, /readyz        — k8s probes
 /metrics                 — Prometheus scrape
-/oauth/callback/{provider} — Discord / Google / RSO redirect target
-/auth/refresh, /auth/logout — short-lived REST for token rotation
+/oauth/start/google, /oauth/callback/google — Google browser OAuth redirects
+/auth/logout             — revoke the opaque browser session
 /api/v1/rankings/champions — legacy compat (drop in Phase D)
 /api/v1/versions           — legacy compat (drop in Phase D)
 /api/v1/regions            — legacy compat (drop in Phase D)

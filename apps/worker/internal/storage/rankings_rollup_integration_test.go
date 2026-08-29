@@ -49,6 +49,10 @@ func TestRebuildRankingsRollupsStrictEligibility(t *testing.T) {
 	mustExec(t, store, `UPDATE matches SET fetch_status = 'pending' WHERE match_id = 'pending'`)
 	insertValidRankingsMatch(t, store, "other-queue", 1800, "MASTER", true)
 	mustExec(t, store, `UPDATE matches SET queue_id = 430 WHERE match_id = 'other-queue'`)
+	// A fully valid on-demand match remains available to personal history but
+	// must not silently expand the scheduled statistics population.
+	insertValidRankingsMatch(t, store, "on-demand", 1800, "MASTER", true)
+	mustExec(t, store, `DELETE FROM statistics_match_membership WHERE match_id = 'on-demand'`)
 
 	metadataCases := []struct {
 		id  string
@@ -289,7 +293,9 @@ func TestRankingsRollupMigrationDown(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = migration.Close() })
-	if err := migration.Steps(-1); err != nil {
+	// Migrate to the version immediately before rankings rollups instead of
+	// assuming migration 019 remains the latest migration forever.
+	if err := migration.Migrate(18); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []string{
@@ -359,6 +365,9 @@ func insertValidRankingsMatch(t *testing.T, store *Store, matchID string, durati
 			match_id, queue_id, fetch_status, version, region, avg_tier,
 			game_duration, game_end_ts
 		) VALUES ($1, 420, 'done', '16.13', 'KR', $2, $3, now())`, matchID, tier, duration)
+	mustExec(t, store, `
+		INSERT INTO statistics_match_membership (dataset_key, match_id)
+		VALUES ('ranked-solo-v1', $1)`, matchID)
 	for _, participant := range validRollupParticipants(team100Wins) {
 		insertRankingsParticipant(t, store, matchID, participant)
 	}

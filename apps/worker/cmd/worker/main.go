@@ -16,10 +16,12 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	crawlact "github.com/crafff/gogg/apps/worker/internal/activity/crawl"
+	sumact "github.com/crafff/gogg/apps/worker/internal/activity/summoner"
 	"github.com/crafff/gogg/apps/worker/internal/config"
 	"github.com/crafff/gogg/apps/worker/internal/runtime"
 	"github.com/crafff/gogg/apps/worker/internal/schedule"
 	crawlwf "github.com/crafff/gogg/apps/worker/internal/workflow/crawl"
+	"github.com/crafff/gogg/apps/worker/internal/workflow/enrich"
 	"github.com/crafff/gogg/apps/worker/internal/workflow/smoke"
 )
 
@@ -66,6 +68,7 @@ func run() error {
 	logger.Info("runtime_built", "regions", regionKeys(rt))
 
 	crawlActs := crawlact.New(rt)
+	summonerActs := sumact.New(rt)
 
 	c, err := client.Dial(client.Options{
 		HostPort:  cfg.Temporal.HostPort,
@@ -90,6 +93,8 @@ func run() error {
 		w.RegisterActivity(smoke.PingActivity)
 		w.RegisterWorkflow(crawlwf.CrawlRegionWorkflow)
 		w.RegisterActivity(crawlActs)
+		w.RegisterWorkflow(enrich.EnrichSummonerWorkflow)
+		w.RegisterActivity(summonerActs)
 		if err := w.Start(); err != nil {
 			stopAll(workers, logger)
 			return fmt.Errorf("worker start task_queue=%s: %w", tq, err)

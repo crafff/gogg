@@ -18,8 +18,6 @@ networks:
     driver: bridge
 
 volumes:
-  pg_data:
-  temporal_pg_data:
   redis_data:
   prometheus_data:
   grafana_data:
@@ -43,7 +41,11 @@ services:
     ports:
       - "55433:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - type: bind
+        source: ${GOGG_DB_ROOT:-/mnt/gogg-db}/app-postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gogg -d gogg"]
       interval: 5s
@@ -78,7 +80,11 @@ services:
       POSTGRES_PASSWORD: temporalpass
       POSTGRES_DB: temporal
     volumes:
-      - temporal_pg_data:/var/lib/postgresql/data
+      - type: bind
+        source: ${GOGG_DB_ROOT:-/mnt/gogg-db}/temporal-postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
       interval: 5s

@@ -3,7 +3,7 @@ import "@shared/i18n";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { routes } from "./router";
 
@@ -19,6 +19,26 @@ function renderAt(path: string) {
   );
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { query?: string };
+      if (body.query?.includes("query Me")) {
+        return Response.json({ data: { me: null } });
+      }
+      if (body.query?.includes("query AuthProviders")) {
+        return Response.json({ data: { authProviders: [{ id: "google" }] } });
+      }
+      return Response.json({ data: {} });
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("router", () => {
   it("redirects / to /rankings", async () => {
     renderAt("/");
@@ -28,27 +48,57 @@ describe("router", () => {
     );
   });
 
-  it("renders the champion-detail placeholder with the URL param", async () => {
+  it("renders the champion-detail page with the URL param", async () => {
     renderAt("/champion/99");
-    const placeholder = await screen.findByTestId("placeholder-page");
-    expect(placeholder).toBeInTheDocument();
-    expect(placeholder).toHaveTextContent("championId = 99");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "#99",
+    );
   });
 
-  it("renders the summoner placeholder with region + name", async () => {
-    renderAt("/summoner/kr/Faker");
-    const placeholder = await screen.findByTestId("placeholder-page");
-    expect(placeholder).toHaveTextContent("KR / Faker");
+  it("renders the summoner Riot ID search", async () => {
+    renderAt("/summoner");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      /Summoner match history|查询召唤师战绩/,
+    );
+    expect(
+      screen.getByRole("form", { name: /Summoner search|召唤师搜索/ }),
+    ).toBeInTheDocument();
   });
 
-  it("renders the login placeholder", async () => {
+  it("renders the TFT analysis route", async () => {
+    renderAt("/tft");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      /No lineup analysis|还没有可用的阵容分析/,
+    );
+  });
+
+  it("renders the TFT player search across all supported platforms", async () => {
+    renderAt("/tft/player");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      /TFT match history|查询 TFT 战绩/,
+    );
+    expect(
+      screen.getByRole("form", { name: /TFT player search|TFT 玩家搜索/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the configured Google login", async () => {
     renderAt("/login");
-    expect(await screen.findByTestId("placeholder-page")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      /Sign in|登录/,
+    );
+    expect(await screen.findByRole("link", { name: /Google/ })).toHaveAttribute(
+      "href",
+      "/oauth/start/google?returnTo=%2Fme",
+    );
   });
 
-  it("renders the me placeholder", async () => {
+  it("redirects anonymous /me visitors to login", async () => {
     renderAt("/me");
-    expect(await screen.findByTestId("placeholder-page")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Google/ })).toHaveAttribute(
+      "href",
+      "/oauth/start/google?returnTo=%2Fme",
+    );
   });
 
   it("renders the route error boundary for unknown paths", async () => {

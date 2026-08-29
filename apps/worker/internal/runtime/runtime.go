@@ -17,6 +17,7 @@ import (
 	"github.com/crafff/gogg/apps/worker/internal/rawarchive"
 	"github.com/crafff/gogg/apps/worker/internal/storage"
 	"github.com/crafff/gogg/packages/riotapi"
+	"github.com/redis/go-redis/v9"
 )
 
 // Runtime is the worker process's shared state. Constructed once in
@@ -27,7 +28,8 @@ type Runtime struct {
 	// Riot maps an upper-cased region name (KR, NA1, …) to its Client.
 	// Each client has its own RateLimiter so per-region budgets stay
 	// isolated even when one worker process serves multiple regions.
-	Riot map[string]*riotapi.Client
+	Riot  map[string]*riotapi.Client
+	Redis *redis.Client
 }
 
 // Build loads the crawler config, opens the DB pool, and spins up
@@ -40,9 +42,27 @@ func Build(ctx context.Context, cfg config.Config) (*Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect db: %w", err)
 	}
+	redisOptions, err := redis.ParseURL(cfg.Redis.URL)
+	if err != nil {
+		store.Close()
+		return nil, fmt.Errorf("parse Redis quota URL: %w", err)
+	}
+	redisClient := redis.NewClient(redisOptions)
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		_ = redisClient.Close()
+		store.Close()
+		return nil, fmt.Errorf("connect Redis quota coordinator: %w", err)
+	}
+	quota, err := riotapi.NewRedisQuotaCoordinator(redisClient)
+	if err != nil {
+		_ = redisClient.Close()
+		store.Close()
+		return nil, fmt.Errorf("build Riot quota coordinator: %w", err)
+	}
 
 	regions, err := resolvedRegions(cfg)
 	if err != nil {
+		_ = redisClient.Close()
 		store.Close()
 		return nil, err
 	}
@@ -51,13 +71,14 @@ func Build(ctx context.Context, cfg config.Config) (*Runtime, error) {
 	for _, r := range regions {
 		key := strings.ToUpper(r.Name)
 		clients[key] = riotapi.NewClient(r.APIKey, r.BaseURL, regionalRoutingURL(r.BaseURL))
+		clients[key].SetQuotaCoordinator(quota)
 		if cfg.RawArchive.Enabled {
 			clients[key].SetResponseRecorder(key, rawarchive.New(cfg.RawArchive.Root, cfg.RawArchive.CompressionLevel, store))
 		}
 		slog.Info("riot_client_built", "region", key, "platform", r.BaseURL)
 	}
 
-	return &Runtime{Cfg: &cfg, Store: store, Riot: clients}, nil
+	return &Runtime{Cfg: &cfg, Store: store, Riot: clients, Redis: redisClient}, nil
 }
 
 // Close releases the DB pool. Riot clients hold only an http.Client
@@ -65,6 +86,9 @@ func Build(ctx context.Context, cfg config.Config) (*Runtime, error) {
 func (r *Runtime) Close() {
 	if r.Store != nil {
 		r.Store.Close()
+	}
+	if r.Redis != nil {
+		_ = r.Redis.Close()
 	}
 }
 
@@ -103,12 +127,13 @@ func regionalRoutingURL(platformURL string) string {
 	case strings.Contains(p, "kr"), strings.Contains(p, "jp1"):
 		return "https://asia.api.riotgames.com"
 	case strings.Contains(p, "euw1"), strings.Contains(p, "eun1"),
-		strings.Contains(p, "tr1"), strings.Contains(p, "ru"):
+		strings.Contains(p, "tr1"), strings.Contains(p, "me1"), strings.Contains(p, "ru"):
 		return "https://europe.api.riotgames.com"
 	case strings.Contains(p, "br1"), strings.Contains(p, "la1"),
 		strings.Contains(p, "la2"), strings.Contains(p, "na1"):
 		return "https://americas.api.riotgames.com"
-	case strings.Contains(p, "oc1"):
+	case strings.Contains(p, "oc1"), strings.Contains(p, "sg2"),
+		strings.Contains(p, "tw2"), strings.Contains(p, "vn2"):
 		return "https://sea.api.riotgames.com"
 	default:
 		return "https://asia.api.riotgames.com"

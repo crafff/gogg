@@ -43,6 +43,28 @@ type Redis struct {
 	sf     singleflight.Group
 }
 
+var fixedWindowsScript = redis.NewScript(`
+for i = 1, #KEYS do
+  local count = tonumber(redis.call('GET', KEYS[i]) or '0')
+  local limit = tonumber(ARGV[(i - 1) * 2 + 1])
+  if count >= limit then
+    local ttl = redis.call('PTTL', KEYS[i])
+    if ttl < 0 then
+      ttl = tonumber(ARGV[(i - 1) * 2 + 2])
+    end
+    return {0, i, ttl}
+  end
+end
+
+for i = 1, #KEYS do
+  local count = redis.call('INCR', KEYS[i])
+  if count == 1 then
+    redis.call('PEXPIRE', KEYS[i], ARGV[(i - 1) * 2 + 2])
+  end
+end
+return {1, 0, 0}
+`)
+
 // NewRedis returns a Cache talking to the URL ("redis://host:port/db").
 // The connection isn't opened until the first call; callers should
 // invoke Ping() at startup to fail fast on misconfiguration.
@@ -97,6 +119,51 @@ func (r *Redis) Delete(ctx context.Context, keys ...string) error {
 		return nil
 	}
 	return r.client.Del(ctx, keys...).Err()
+}
+
+// AllowFixedWindow atomically increments a public-action counter. It returns
+// the remaining wait when the key has exceeded limit.
+func (r *Redis) AllowFixedWindow(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error) {
+	deniedIndex, retryAfter, err := r.AllowFixedWindows(ctx, []string{key}, []int{limit}, []time.Duration{window})
+	return deniedIndex < 0, retryAfter, err
+}
+
+// AllowFixedWindows checks every counter and increments all of them in one
+// Redis script only when every window has capacity. deniedIndex identifies the
+// first exhausted key; -1 means the request was admitted. This prevents an IP
+// rejection from consuming a per-identity allowance (and vice versa).
+func (r *Redis) AllowFixedWindows(ctx context.Context, keys []string, limits []int, windows []time.Duration) (int, time.Duration, error) {
+	if len(keys) == 0 || len(keys) != len(limits) || len(keys) != len(windows) {
+		return -1, 0, fmt.Errorf("redis fixed-windows: keys, limits, and windows must have equal non-zero lengths")
+	}
+	args := make([]any, 0, len(keys)*2)
+	for i := range keys {
+		if keys[i] == "" || limits[i] <= 0 || windows[i] <= 0 {
+			return -1, 0, fmt.Errorf("redis fixed-windows: invalid rule at index %d", i)
+		}
+		args = append(args, limits[i], windows[i].Milliseconds())
+	}
+	result, err := fixedWindowsScript.Run(ctx, r.client, keys, args...).Slice()
+	if err != nil {
+		return -1, 0, fmt.Errorf("redis fixed-windows: %w", err)
+	}
+	if len(result) != 3 {
+		return -1, 0, fmt.Errorf("redis fixed-windows: unexpected result")
+	}
+	allowed, okAllowed := result[0].(int64)
+	deniedOneBased, okIndex := result[1].(int64)
+	ttlMillis, okTTL := result[2].(int64)
+	if !okAllowed || !okIndex || !okTTL {
+		return -1, 0, fmt.Errorf("redis fixed-windows: invalid result types")
+	}
+	if allowed == 1 {
+		return -1, 0, nil
+	}
+	deniedIndex := int(deniedOneBased - 1)
+	if deniedIndex < 0 || deniedIndex >= len(keys) {
+		return -1, 0, fmt.Errorf("redis fixed-windows: invalid denied index %d", deniedOneBased)
+	}
+	return deniedIndex, time.Duration(ttlMillis) * time.Millisecond, nil
 }
 
 // Close releases the underlying connection pool. Call from main.go
