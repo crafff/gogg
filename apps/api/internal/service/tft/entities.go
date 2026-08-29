@@ -37,7 +37,7 @@ func localTFTIconURL(payload []byte, patch, revision string) string {
 	if json.Unmarshal(payload, &object) != nil {
 		return ""
 	}
-	icon := firstString(object, "iconPath", "icon")
+	icon := firstString(object, "iconPath", "icon", "icon_path", "squareIconPath")
 	if !strings.HasPrefix(strings.ToLower(icon), "/lol-game-data/assets") {
 		return ""
 	}

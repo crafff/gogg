@@ -59,9 +59,9 @@ mapping and analysis.
 After a static publication exists, inspect and enable crawling:
 
 ```bash
-tftctl status --schedule gogg-tft-crawl
-tftctl enable --schedule gogg-tft-crawl
-tftctl trigger --schedule gogg-tft-crawl
+tftctl status --schedule gogg-tft-crawl-global
+tftctl enable --schedule gogg-tft-crawl-global
+tftctl trigger --schedule gogg-tft-crawl-global
 ```
 
 `enable` and `trigger` refuse to proceed unless Temporal reports the required
@@ -78,10 +78,10 @@ and terminal database state changes retry durably until PostgreSQL recovers.
 
 ```bash
 # Stop new runs and allow the current run to drain.
-tftctl disable --schedule gogg-tft-crawl --drain
+tftctl disable --schedule gogg-tft-crawl-global --drain
 
 # Stop new runs and wait until the active run acknowledges its pause signal.
-tftctl disable --schedule gogg-tft-crawl --pause-active
+tftctl disable --schedule gogg-tft-crawl-global --pause-active
 
 # Copy the real workflow ID printed by `tftctl status`.
 tftctl resume-run --workflow-id <active-workflow-id>

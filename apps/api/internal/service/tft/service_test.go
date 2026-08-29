@@ -42,6 +42,13 @@ func TestLocalTFTIconURLUsesPublishedLocalAssetPath(t *testing.T) {
 	require.NotContains(t, url, "communitydragon.org")
 }
 
+func TestLocalTFTIconURLSupportsClientCatalogSquareIcon(t *testing.T) {
+	url := localTFTIconURL([]byte(`{"squareIconPath":"/lol-game-data/assets/ASSETS/Characters/Ahri.png"}`), "16.17", "revision-1")
+
+	require.True(t, strings.HasPrefix(url, "/game-assets/tft/static/cdragon/16.17/revision-1/assets/"))
+	require.True(t, strings.HasSuffix(url, ".png"))
+}
+
 type reconnectQuerier struct {
 	FullQuerier
 	job sqlcgen.TftPlayerLookupJob

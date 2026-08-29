@@ -21,7 +21,7 @@ import (
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 )
 
-const parserVersion = "tft-static-v1"
+const parserVersion = "tft-static-v2"
 
 var ddragonCategories = []string{
 	"tft-arena", "tft-augments", "tft-champion", "tft-item",
@@ -107,7 +107,7 @@ func Sync(ctx context.Context, q Querier, opts Options) (SyncResult, error) {
 }
 
 func syncDDragon(ctx context.Context, q Querier, opts Options, build, patch, locale string) (int64, int, error) {
-	if latest, err := q.GetLatestTFTStaticSnapshotAnyStatus(ctx, "ddragon", locale); err == nil && latest.Build == build && latest.Status == "published" {
+	if latest, err := q.GetLatestTFTStaticSnapshotAnyStatus(ctx, "ddragon", locale); err == nil && latest.Build == build && latest.ParserVersion == parserVersion && latest.Status == "published" {
 		return latest.ID, 0, nil
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return 0, 0, err
@@ -122,7 +122,7 @@ func syncDDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 		}
 		docs = append(docs, document{name: category + ".json", kind: category, url: u, body: body})
 	}
-	revision := documentsSHA(docs)
+	revision := documentsSHA(parserVersion, docs)
 	snapshot, err := q.CreateTFTStaticSnapshot(ctx, sqlcgen.CreateTFTStaticSnapshotParams{Source: "ddragon", Patch: patch, Build: build, Revision: revision, Locale: locale, SourceUrl: docs[0].url, ParserVersion: parserVersion})
 	if err != nil {
 		return 0, 0, err
@@ -135,10 +135,6 @@ func syncCDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 	base := strings.TrimRight(opts.CDragonBaseURL, "/")
 	richURL := fmt.Sprintf("%s/%s/cdragon/tft/%s.json", base, patch, locale)
 	latest, latestErr := q.GetLatestTFTStaticSnapshotAnyStatus(ctx, "cdragon", locale)
-	etag, modified := head(ctx, opts.Client, richURL)
-	if latestErr == nil && latest.Status == "published" && latest.Patch == patch && ((etag != "" && value(latest.Etag) == etag) || (etag == "" && modified != "" && value(latest.LastModified) == modified)) {
-		return latest.ID, 0, nil
-	}
 	if latestErr != nil && !errors.Is(latestErr, pgx.ErrNoRows) {
 		return 0, 0, latestErr
 	}
@@ -146,12 +142,7 @@ func syncCDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 	if err != nil {
 		return 0, 0, fmt.Errorf("fetch CommunityDragon rich %s: %w", locale, err)
 	}
-	if responseETag != "" {
-		etag = responseETag
-	}
-	if responseModified != "" {
-		modified = responseModified
-	}
+	etag, modified := responseETag, responseModified
 	docs := []document{{name: "rich.json", kind: "rich", url: richURL, body: richBody}}
 	sourceLocale := mapLocale(locale, false)
 	for _, file := range cdragonClientFiles {
@@ -162,8 +153,8 @@ func syncCDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 		}
 		docs = append(docs, document{name: file, kind: strings.TrimSuffix(file, ".json"), url: u, body: body})
 	}
-	revision := documentsSHA(docs)
-	if latestErr == nil && latest.Status == "published" && latest.Patch == patch && latest.Revision == revision {
+	revision := documentsSHA(parserVersion, docs)
+	if latestErr == nil && latest.Status == "published" && latest.Patch == patch && latest.ParserVersion == parserVersion && latest.Revision == revision {
 		return latest.ID, 0, nil
 	}
 	snapshot, err := q.CreateTFTStaticSnapshot(ctx, sqlcgen.CreateTFTStaticSnapshotParams{Source: "cdragon", Patch: patch, Build: build, Revision: revision, Locale: locale, Etag: optional(etag), LastModified: optional(modified), SourceUrl: richURL, ParserVersion: parserVersion})
@@ -175,7 +166,7 @@ func syncCDragon(ctx context.Context, q Querier, opts Options, build, patch, loc
 }
 
 func persistDocuments(ctx context.Context, q Querier, opts Options, snapshotID int64, source, patch, revision, locale, build string, docs []document) (int, error) {
-	jobs := 0
+	parsed := make([]parsedDocument, 0, len(docs))
 	for _, doc := range docs {
 		rel := filepath.Join("tft", "static", source, patch, revision, locale, doc.name)
 		if err := writeAtomic(filepath.Join(opts.Root, rel), doc.body, 0o640); err != nil {
@@ -189,27 +180,36 @@ func persistDocuments(ctx context.Context, q Querier, opts Options, snapshotID i
 		if err != nil {
 			return 0, fmt.Errorf("parse TFT static document %s: %w", doc.name, err)
 		}
-		for _, object := range objects {
-			if err := q.UpsertTFTStaticObject(ctx, sqlcgen.UpsertTFTStaticObjectParams{SnapshotID: snapshotID, ObjectKind: object.kind, ObjectID: object.id, Name: optional(object.name), Purchasable: object.purchasable, Cost: object.cost, Payload: object.payload}); err != nil {
-				return 0, err
-			}
-		}
-		for _, asset := range assets {
-			digest := sha256.Sum256([]byte(asset))
-			key := hex.EncodeToString(digest[:])
-			ext := filepath.Ext(strings.Split(asset, "?")[0])
-			if ext == "" || len(ext) > 6 {
-				ext = ".png"
-			}
-			rel := filepath.Join("tft", "static", source, patch, revision, "assets", key+ext)
-			n, err := q.EnqueueTFTStaticAsset(ctx, sqlcgen.EnqueueTFTStaticAssetParams{SnapshotID: snapshotID, AssetKey: key, SourceUrl: asset, RelativePath: filepath.ToSlash(rel)})
-			if err != nil {
-				return 0, err
-			}
-			jobs += int(n)
+		parsed = append(parsed, parsedDocument{kind: doc.kind, objects: objects, assets: assets})
+	}
+	objects, assets := mergeParsedDocuments(source, parsed)
+	for _, object := range objects {
+		if err := q.UpsertTFTStaticObject(ctx, sqlcgen.UpsertTFTStaticObjectParams{SnapshotID: snapshotID, ObjectKind: object.kind, ObjectID: object.id, Name: optional(object.name), Purchasable: object.purchasable, Cost: object.cost, Payload: object.payload}); err != nil {
+			return 0, err
 		}
 	}
+	jobs := 0
+	for _, asset := range assets {
+		digest := sha256.Sum256([]byte(asset))
+		key := hex.EncodeToString(digest[:])
+		ext := filepath.Ext(strings.Split(asset, "?")[0])
+		if ext == "" || len(ext) > 6 {
+			ext = ".png"
+		}
+		rel := filepath.Join("tft", "static", source, patch, revision, "assets", key+ext)
+		n, err := q.EnqueueTFTStaticAsset(ctx, sqlcgen.EnqueueTFTStaticAssetParams{SnapshotID: snapshotID, AssetKey: key, SourceUrl: asset, RelativePath: filepath.ToSlash(rel)})
+		if err != nil {
+			return 0, err
+		}
+		jobs += int(n)
+	}
 	return jobs, nil
+}
+
+type parsedDocument struct {
+	kind    string
+	objects []staticObject
+	assets  []string
 }
 
 type staticObject struct {
@@ -241,6 +241,7 @@ func parseDocument(source, build string, doc document) ([]staticObject, []string
 	} else {
 		walkCDragon(root, doc.kind, build, &objects, assets)
 	}
+	objects = dedupeStaticObjects(objects)
 	urls := make([]string, 0, len(assets))
 	for u := range assets {
 		urls = append(urls, u)
@@ -249,7 +250,7 @@ func parseDocument(source, build string, doc document) ([]staticObject, []string
 	if len(objects) == 0 {
 		return nil, nil, errors.New("document contains no identifiable objects")
 	}
-	if normalizeKind(doc.kind) == "unit" {
+	if requiresPurchasableUnitCatalog(source, doc.kind) {
 		hasPurchasableUnit := false
 		for _, object := range objects {
 			if object.kind == "unit" && object.purchasable != nil && *object.purchasable && object.cost != nil && *object.cost > 0 {
@@ -291,32 +292,185 @@ func walkCDragon(value any, fallbackKind, patch string, objects *[]staticObject,
 			walkCDragon(item, fallbackKind, patch, objects, assets)
 		}
 	case map[string]any:
-		id := stringField(typed, "apiName", "id", "characterId")
-		if id != "" {
-			payload, _ := json.Marshal(typed)
-			kind := normalizeKind(fallbackKind)
-			if strings.Contains(strings.ToLower(id), "champion") || typed["cost"] != nil {
-				kind = "unit"
-			}
-			object := staticObject{kind: kind, id: id, name: stringField(typed, "name"), payload: payload}
-			if kind == "unit" {
-				cost := int32(number(typed["cost"]))
-				purchasable := cost > 0
-				object.cost, object.purchasable = &cost, &purchasable
-			}
+		if object, ok := cdragonObject(typed, fallbackKind); ok {
 			*objects = append(*objects, object)
 		}
-		if icon := stringField(typed, "iconPath", "icon"); strings.HasPrefix(strings.ToLower(icon), "/lol-game-data/assets") {
-			p := strings.TrimPrefix(strings.ToLower(icon), "/lol-game-data/assets")
-			assets[fmt.Sprintf("https://raw.communitydragon.org/%s/plugins/rcp-be-lol-game-data/global/default%s", patch, p)] = true
+		if asset := cdragonAssetURL(stringField(typed, "iconPath", "icon", "icon_path", "squareIconPath"), patch); asset != "" {
+			assets[asset] = true
 		}
-		for _, child := range typed {
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child := typed[key]
 			switch child.(type) {
 			case []any, map[string]any:
-				walkCDragon(child, fallbackKind, patch, objects, assets)
+				walkCDragon(child, cdragonChildKind(key, fallbackKind), patch, objects, assets)
 			}
 		}
 	}
+}
+
+func cdragonObject(values map[string]any, fallbackKind string) (staticObject, bool) {
+	kind := normalizeKind(fallbackKind)
+	var id, name string
+	switch kind {
+	case "set":
+		id = stringField(values, "SetName")
+		name = stringField(values, "SetDisplayName", "SetName")
+	case "unit":
+		id = stringField(values, "apiName", "characterId", "character_id", "id")
+		name = stringField(values, "name", "display_name", "displayName", "characterName")
+	case "trait":
+		id = stringField(values, "apiName", "trait_id", "id")
+		name = stringField(values, "name", "display_name", "displayName")
+	case "item":
+		id = stringField(values, "apiName", "nameId", "id")
+		name = stringField(values, "name", "display_name", "displayName")
+		isAugment, known := values["isAugment"].(bool)
+		if (known && isAugment) || (!known && strings.Contains(strings.ToLower(id), "augment")) {
+			kind = "augment"
+		}
+	case "portal":
+		id = stringField(values, "nameId", "apiName", "id")
+		name = stringField(values, "displayName", "name")
+	default:
+		id = stringField(values, "apiName", "id", "characterId", "character_id")
+		name = stringField(values, "name", "display_name", "displayName", "characterName")
+		isAugment, augmentKnown := values["isAugment"].(bool)
+		switch {
+		case augmentKnown && isAugment:
+			kind = "augment"
+		case augmentKnown:
+			kind = "item"
+		case strings.Contains(strings.ToLower(id), "augment"):
+			kind = "augment"
+		case strings.Contains(strings.ToLower(id), "champion") || values["cost"] != nil:
+			kind = "unit"
+		}
+	}
+	if id == "" {
+		return staticObject{}, false
+	}
+	payload, _ := json.Marshal(values)
+	object := staticObject{kind: kind, id: id, name: name, payload: payload}
+	if kind == "unit" {
+		if rawCost, ok := values["cost"]; ok {
+			cost := int32(number(rawCost))
+			purchasable := cost > 0
+			object.cost, object.purchasable = &cost, &purchasable
+		}
+	}
+	return object, true
+}
+
+func cdragonChildKind(key, fallbackKind string) string {
+	switch strings.ToLower(key) {
+	case "champions":
+		return "tftchampions"
+	case "items":
+		return "tftitems"
+	case "traits":
+		return "tfttraits"
+	default:
+		return fallbackKind
+	}
+}
+
+func cdragonAssetURL(icon, patch string) string {
+	lower := strings.ToLower(strings.TrimSpace(icon))
+	const prefix = "/lol-game-data/assets"
+	if !strings.HasPrefix(lower, prefix) {
+		return ""
+	}
+	suffix := strings.TrimPrefix(lower, prefix)
+	if suffix == "" || suffix == "/" {
+		return ""
+	}
+	return fmt.Sprintf("https://raw.communitydragon.org/%s/plugins/rcp-be-lol-game-data/global/default%s", patch, suffix)
+}
+
+func dedupeStaticObjects(objects []staticObject) []staticObject {
+	byKey := make(map[string]staticObject, len(objects))
+	for _, object := range objects {
+		byKey[object.kind+"\x00"+object.id] = object
+	}
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]staticObject, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+func mergeParsedDocuments(source string, documents []parsedDocument) ([]staticObject, []string) {
+	authoritativeItemKinds := map[string]string{}
+	if source == "cdragon" {
+		for _, doc := range documents {
+			if doc.kind != "rich" {
+				continue
+			}
+			for _, object := range doc.objects {
+				if object.kind == "item" || object.kind == "augment" {
+					authoritativeItemKinds[object.id] = object.kind
+				}
+			}
+		}
+	}
+
+	byKey := map[string]staticObject{}
+	assetSet := map[string]bool{}
+	for _, doc := range documents {
+		for _, object := range doc.objects {
+			if source == "cdragon" && doc.kind != "rich" && normalizeKind(doc.kind) == "item" {
+				if kind, ok := authoritativeItemKinds[object.id]; ok {
+					object.kind = kind
+				}
+			}
+			key := object.kind + "\x00" + object.id
+			if previous, ok := byKey[key]; ok {
+				if object.name == "" {
+					object.name = previous.name
+				}
+				if object.cost == nil {
+					object.cost = previous.cost
+				}
+				if object.purchasable == nil {
+					object.purchasable = previous.purchasable
+				}
+			}
+			byKey[key] = object
+		}
+		for _, asset := range doc.assets {
+			assetSet[asset] = true
+		}
+	}
+
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	objects := make([]staticObject, 0, len(keys))
+	for _, key := range keys {
+		objects = append(objects, byKey[key])
+	}
+	assets := make([]string, 0, len(assetSet))
+	for asset := range assetSet {
+		assets = append(assets, asset)
+	}
+	sort.Strings(assets)
+	return objects, assets
+}
+
+func requiresPurchasableUnitCatalog(source, kind string) bool {
+	return (source == "ddragon" && normalizeKind(kind) == "unit") || (source == "cdragon" && kind == "rich")
 }
 
 func normalizeKind(kind string) string {
@@ -329,11 +483,17 @@ func normalizeKind(kind string) string {
 		return "trait"
 	case "tft-augments":
 		return "augment"
+	case "tftsets":
+		return "set"
+	case "tftregionportals":
+		return "portal"
 	}
 	return kind
 }
-func documentsSHA(docs []document) string {
+func documentsSHA(version string, docs []document) string {
 	h := sha256.New()
+	_, _ = h.Write([]byte(version))
+	_, _ = h.Write([]byte{0})
 	for _, doc := range docs {
 		_, _ = h.Write([]byte(doc.name))
 		_, _ = h.Write(doc.body)
@@ -385,13 +545,6 @@ func optional(v string) *string {
 	}
 	return &v
 }
-func value(v *string) string {
-	if v == nil {
-		return ""
-	}
-	return *v
-}
-
 func getJSON(ctx context.Context, client *http.Client, url string, target any) error {
 	body, _, _, err := get(ctx, client, url)
 	if err != nil {
@@ -421,21 +574,6 @@ func get(ctx context.Context, client *http.Client, url string) ([]byte, string, 
 		return nil, "", "", fmt.Errorf("GET %s: response exceeds %d bytes", url, maxBody)
 	}
 	return body, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), nil
-}
-func head(ctx context.Context, client *http.Client, url string) (string, string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
-	if err != nil {
-		return "", ""
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		return "", ""
-	}
-	return resp.Header.Get("ETag"), resp.Header.Get("Last-Modified")
 }
 func writeAtomic(path string, body []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

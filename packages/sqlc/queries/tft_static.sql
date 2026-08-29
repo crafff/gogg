@@ -6,7 +6,8 @@ INSERT INTO tft_static_snapshots (
     sqlc.narg(last_modified), @source_url, @parser_version
 )
 ON CONFLICT (source, patch, build, revision, locale) DO UPDATE
-SET etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, fetched_at = now()
+SET etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified,
+    parser_version = EXCLUDED.parser_version, fetched_at = now()
 RETURNING *;
 
 -- name: UpsertTFTStaticObject :exec
@@ -16,7 +17,10 @@ INSERT INTO tft_static_objects (
     @snapshot_id, @object_kind, @object_id, sqlc.narg(name), sqlc.narg(purchasable), sqlc.narg(cost), @payload
 )
 ON CONFLICT (snapshot_id, object_kind, object_id) DO UPDATE
-SET name = EXCLUDED.name, purchasable = EXCLUDED.purchasable, cost = EXCLUDED.cost, payload = EXCLUDED.payload;
+SET name = COALESCE(EXCLUDED.name, tft_static_objects.name),
+    purchasable = COALESCE(EXCLUDED.purchasable, tft_static_objects.purchasable),
+    cost = COALESCE(EXCLUDED.cost, tft_static_objects.cost),
+    payload = EXCLUDED.payload;
 
 -- name: PublishTFTStaticSnapshot :execrows
 UPDATE tft_static_snapshots

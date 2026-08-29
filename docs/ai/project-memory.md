@@ -110,6 +110,12 @@ stale against code and tests before relying on it.
 - TFT entity images are served only from published local `/game-assets` static
   snapshots. Entity names and image paths are resolved per match patch so a
   cross-patch history page cannot mix versions.
+- CommunityDragon TFT client catalogs do not share one object schema:
+  `tftsets` identifies sets with `SetName`, champions nest
+  `character_record.character_id`, traits use `trait_id`, and items and portals
+  commonly use `nameId`. The parser version participates in the immutable
+  snapshot revision so parser upgrades build a new snapshot; retries of that
+  same revision merge objects idempotently and resume its static-asset jobs.
 
 ## Local development facts
 
