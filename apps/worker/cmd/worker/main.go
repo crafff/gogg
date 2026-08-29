@@ -55,6 +55,9 @@ func run() error {
 		"temporal_host", cfg.Temporal.HostPort,
 		"temporal_namespace", cfg.Temporal.Namespace,
 		"task_queues", cfg.Temporal.TaskQueues,
+		"raw_archive_enabled", cfg.RawArchive.Enabled,
+		"raw_root", cfg.RawArchive.Root,
+		"assets_root", cfg.Assets.Root,
 	)
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

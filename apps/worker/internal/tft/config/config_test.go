@@ -6,6 +6,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLoadStorageRootsFromEnvironment(t *testing.T) {
+	t.Setenv("APP_CONFIG_PATH", "")
+	t.Setenv("GOGG_RIOT_API_KEY", "test-key")
+	t.Setenv("GOGG_RAW_ARCHIVE_ROOT", "/mnt/gogg-db/riot-raw")
+	t.Setenv("GOGG_TFT_STATIC_ROOT", "/mnt/gogg-db/game-assets")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "/mnt/gogg-db/riot-raw", cfg.Raw.Root)
+	require.Equal(t, "/mnt/gogg-db/game-assets", cfg.TFT.StaticRoot)
+}
+
 func TestValidateRequiresEnglishStaticCatalog(t *testing.T) {
 	cfg := Default()
 	cfg.Riot.APIKey = "test-key"

@@ -12,11 +12,19 @@ LEFTHOOK_VERSION      ?= v1.10.0
 DEV_PG_DSN  ?= postgres://gogg:goggpass@localhost:55433/gogg?sslmode=disable
 DEV_REDIS   ?= redis://localhost:6379/0
 DEV_TEMPORAL ?= localhost:7233
-GOGG_DB_ROOT ?= /mnt/gogg-db
+ifdef GOGG_DB_ROOT
+GOGG_DATA_ROOT ?= $(GOGG_DB_ROOT)
+else
+GOGG_DATA_ROOT ?= /mnt/gogg-db
+endif
+GOGG_DB_ROOT ?= $(GOGG_DATA_ROOT)
+GOGG_RAW_ARCHIVE_ROOT ?= $(GOGG_DATA_ROOT)/riot-raw
+GOGG_ASSETS_ROOT ?= $(GOGG_DATA_ROOT)/game-assets
+GOGG_TFT_STATIC_ROOT ?= $(GOGG_ASSETS_ROOT)
 PERF_SCENARIO ?= rankings_graphql
 PERF_VUS      ?= 20
 PERF_DURATION ?= 1m
-PERF_DIR      ?= tmp/performance
+PERF_DIR      ?= $(GOGG_DATA_ROOT)/performance
 PERF_VARIANT  ?= baseline
 PERF_DB_CONTAINER ?= gogg-perf-postgres
 GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
@@ -24,7 +32,7 @@ GO_LINT_DIRS = $(shell go list -f '{{.Dir}}' ./... | grep -v '/node_modules/' | 
 
 # ── Compose ─────────────────────────────────────────────────
 COMPOSE_FILE ?= deploy/compose/docker-compose.dev.yml
-export GOGG_DB_ROOT
+export GOGG_DATA_ROOT GOGG_DB_ROOT GOGG_RAW_ARCHIVE_ROOT GOGG_ASSETS_ROOT GOGG_TFT_STATIC_ROOT PERF_DIR
 
 .PHONY: help
 help: ## Show this help
@@ -33,8 +41,8 @@ help: ## Show this help
 
 # ── Local dev ───────────────────────────────────────────────
 .PHONY: dev-storage-check
-dev-storage-check: ## Verify the external ext4 database VHDX is mounted safely
-	@GOGG_DB_ROOT="$(GOGG_DB_ROOT)" bash scripts/gogg-db-preflight.sh
+dev-storage-check: ## Verify all durable local data targets use the F-backed ext4 VHDX
+	@GOGG_DATA_ROOT="$(GOGG_DATA_ROOT)" bash scripts/gogg-db-preflight.sh
 
 .PHONY: dev
 dev: dev-storage-check ## Bring up the local dev stack (postgres + redis + temporal)
@@ -67,7 +75,7 @@ db-slow-queries: ## Show top PostgreSQL statements by total execution time
 	docker compose -f $(COMPOSE_FILE) exec -T postgres psql -U gogg -d gogg -f /dev/stdin < deploy/observability/postgres/slow-queries.sql
 
 .PHONY: perf-warm
-perf-warm: ## Run a repeatable warm-cache k6 API baseline
+perf-warm: dev-storage-check ## Run a repeatable warm-cache k6 API baseline
 	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
 		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
 		PERF_DB_CONTAINER=$(PERF_DB_CONTAINER) \
@@ -75,7 +83,7 @@ perf-warm: ## Run a repeatable warm-cache k6 API baseline
 		bash tests/performance/run-api-performance.sh warm
 
 .PHONY: perf-cold
-perf-cold: ## Flush local Compose Redis, then run the k6 baseline
+perf-cold: dev-storage-check ## Flush local Compose Redis, then run the k6 baseline
 	PERF_DIR=$(PERF_DIR) PERF_SCENARIO=$(PERF_SCENARIO) PERF_VUS=$(PERF_VUS) \
 		PERF_DURATION=$(PERF_DURATION) PERF_VARIANT=$(PERF_VARIANT) \
 		PERF_DB_CONTAINER=$(PERF_DB_CONTAINER) \
@@ -210,7 +218,7 @@ build-tft-quota-probe:
 	go build -trimpath -o bin/gogg-tft-quota-probe ./apps/worker/cmd/tft-quota-probe
 
 .PHONY: run-api
-run-api: ## Run gogg-api locally with SOPS or config/dev.yaml
+run-api: dev-storage-check ## Run gogg-api locally with SOPS or config/dev.yaml
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-api.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \
@@ -232,7 +240,7 @@ build-web: ## Type-check + production build of apps/web → apps/web/dist
 	@cd apps/web && npm run build
 
 .PHONY: run-worker
-run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
+run-worker: dev-storage-check ## Run gogg-worker locally with SOPS or config/dev.yaml
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-worker.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \
@@ -246,7 +254,7 @@ run-worker: ## Run gogg-worker locally with SOPS or config/dev.yaml
 	fi
 
 .PHONY: run-tft-worker
-run-tft-worker: ## Run the isolated TFT worker; schedules are created paused
+run-tft-worker: dev-storage-check ## Run the isolated TFT worker; schedules are created paused
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-tft-worker.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \
@@ -260,8 +268,8 @@ run-tft-worker: ## Run the isolated TFT worker; schedules are created paused
 	fi
 
 .PHONY: sync-assets
-sync-assets: ## Sync latest CommunityDragon assets; optionally pass args='--version 16.14'
-	@go run ./apps/worker/cmd/asset-sync $(args)
+sync-assets: dev-storage-check ## Sync latest CommunityDragon assets; optionally pass args='--version 16.14'
+	@go run ./apps/worker/cmd/asset-sync $(args) --root "$(GOGG_ASSETS_ROOT)"
 
 .PHONY: refresh-champion-detail
 refresh-champion-detail: ## Rebuild champion detail rollups; optionally pass args='--timeout 1h'
@@ -286,7 +294,7 @@ backfill-perks: ## Repair historical six-rune data; pass args='--dry-run' or '--
 	fi
 
 .PHONY: run-crawler-lite
-run-crawler-lite: ## Run crawler-lite; pass args='run --profile daily_kr'
+run-crawler-lite: dev-storage-check ## Run crawler-lite; pass args='run --profile daily_kr'
 	@if [ -f deploy/secrets/dev.enc.yaml ] && command -v sops >/dev/null 2>&1; then \
 		tmp=$$(mktemp -t gogg-crawler-lite.XXXXXX.yaml); \
 		trap "rm -f $$tmp" EXIT; \

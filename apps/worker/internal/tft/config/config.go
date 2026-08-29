@@ -183,6 +183,7 @@ func bindDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("database.max_idle_conns", d.Database.MaxIdleConns)
 	v.SetDefault("database.conn_max_lifetime_seconds", d.Database.ConnMaxLifetime)
 	v.SetDefault("redis.url", d.Redis.URL)
+	v.SetDefault("riot.api_key", d.Riot.APIKey)
 	v.SetDefault("raw_archive.root", d.Raw.Root)
 	v.SetDefault("raw_archive.compression_level", d.Raw.CompressionLevel)
 	v.SetDefault("logging.level", d.Logging.Level)

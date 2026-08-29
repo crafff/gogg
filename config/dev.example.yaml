@@ -13,6 +13,8 @@ api:
     - http://localhost:3000
   graphql_playground: true
 
+# `make run-api` and worker targets override these roots to the F-backed
+# GOGG_DATA_ROOT. Relative values remain useful for portable direct runs.
 assets:
   root: "data/game-assets"
 

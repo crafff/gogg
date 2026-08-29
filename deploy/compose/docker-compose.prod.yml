@@ -92,6 +92,8 @@ services:
   api:
     image: gogg-api:prod
     restart: unless-stopped
+    group_add:
+      - "${GOGG_DATA_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,7 +112,8 @@ services:
       GOGG_ASSETS_ROOT: /srv/game-assets
     volumes:
       - ./config/prod.yaml:/run/secrets/gogg-config.yaml:ro
-      - ./game-assets:/srv/game-assets:ro
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/game-assets:/srv/game-assets:ro
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/game-assets/profile-icons:/srv/game-assets/profile-icons
     healthcheck:
       test: ["CMD", "/app/gogg-api", "healthcheck"]
       disable: true

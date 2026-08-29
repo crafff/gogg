@@ -35,6 +35,7 @@ func run() error {
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
+	logger.Info("tft_storage_ready", "raw_root", cfg.Raw.Root, "static_root", cfg.TFT.StaticRoot)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	rt, err := runtime.Build(ctx, cfg)

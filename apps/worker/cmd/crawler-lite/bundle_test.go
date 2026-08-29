@@ -71,6 +71,20 @@ func TestBundleRejectsManifestTraversal(t *testing.T) {
 	}
 }
 
+func TestBundleImportTempDirLivesUnderArchiveRoot(t *testing.T) {
+	root := t.TempDir()
+	dir, err := makeBundleImportTempDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	wantParent := filepath.Join(root, ".import-tmp")
+	if filepath.Dir(dir) != wantParent {
+		t.Fatalf("temp parent = %q, want %q", filepath.Dir(dir), wantParent)
+	}
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

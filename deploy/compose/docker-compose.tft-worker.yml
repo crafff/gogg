@@ -26,6 +26,8 @@ services:
     image: gogg-tft-worker:prod
     restart: unless-stopped
     profiles: ["tft-worker"]
+    group_add:
+      - "${GOGG_DATA_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +47,7 @@ services:
     volumes:
       - ./config/prod.yaml:/run/secrets/gogg-config.yaml:ro
       - ${GOGG_DATA_ROOT:-/var/lib/gogg}/riot-raw:/srv/riot-raw
-      - ./game-assets:/srv/game-assets
+      - ${GOGG_DATA_ROOT:-/var/lib/gogg}/game-assets:/srv/game-assets
     mem_limit: 1536m
     networks: [gogg]
 

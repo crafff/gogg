@@ -17,11 +17,6 @@ networks:
   gogg-dev:
     driver: bridge
 
-volumes:
-  redis_data:
-  prometheus_data:
-  grafana_data:
-
 services:
   # ── App database ────────────────────────────────────────────
   postgres:
@@ -42,7 +37,7 @@ services:
       - "55433:5432"
     volumes:
       - type: bind
-        source: ${GOGG_DB_ROOT:-/mnt/gogg-db}/app-postgres
+        source: ${GOGG_DATA_ROOT:-/mnt/gogg-db}/app-postgres
         target: /var/lib/postgresql/data
         bind:
           create_host_path: false
@@ -62,7 +57,11 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - type: bind
+        source: ${GOGG_DATA_ROOT:-/mnt/gogg-db}/redis
+        target: /data
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -81,7 +80,7 @@ services:
       POSTGRES_DB: temporal
     volumes:
       - type: bind
-        source: ${GOGG_DB_ROOT:-/mnt/gogg-db}/temporal-postgres
+        source: ${GOGG_DATA_ROOT:-/mnt/gogg-db}/temporal-postgres
         target: /var/lib/postgresql/data
         bind:
           create_host_path: false
@@ -154,21 +153,30 @@ services:
     container_name: gogg-dev-api-observed
     profiles: [observability]
     restart: unless-stopped
+    group_add:
+      - "${GOGG_DATA_GID:-1000}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      temporal:
+        condition: service_healthy
     environment:
       GOGG_DATABASE_DSN: ${PERF_API_DATABASE_DSN:-postgres://gogg:goggpass@postgres:5432/gogg?sslmode=disable}
       GOGG_REDIS_URL: redis://redis:6379/0
+      GOGG_TEMPORAL_HOST_PORT: temporal:7233
       GOGG_API_GRAPHQL_PLAYGROUND: "false"
+      GOGG_ASSETS_ROOT: /srv/game-assets
       # Cold aggregate queries can exceed the production default while we
       # measure them. Keep the load-test connection alive so k6 records the
       # real latency instead of an artificial EOF at 15 seconds.
       GOGG_API_WRITE_TIMEOUT: 60s
     ports:
       - "18080:8080"
+    volumes:
+      - ${GOGG_DATA_ROOT:-/mnt/gogg-db}/game-assets:/srv/game-assets:ro
+      - ${GOGG_DATA_ROOT:-/mnt/gogg-db}/game-assets/profile-icons:/srv/game-assets/profile-icons
     extra_hosts:
       - host.docker.internal:host-gateway
     networks: [gogg-dev]
@@ -217,7 +225,11 @@ services:
       - --web.enable-lifecycle
     volumes:
       - ../observability/prometheus:/etc/prometheus:ro
-      - prometheus_data:/prometheus
+      - type: bind
+        source: ${GOGG_DATA_ROOT:-/mnt/gogg-db}/prometheus
+        target: /prometheus
+        bind:
+          create_host_path: false
     ports:
       - "9090:9090"
     networks: [gogg-dev]
@@ -232,7 +244,7 @@ services:
       BASE_URL: http://api-observed:8080
     volumes:
       - ../../tests/performance/k6:/scripts:ro
-      - ../../tmp/performance:/results
+      - ${PERF_DIR:-/mnt/gogg-db/performance}:/results
     networks: [gogg-dev]
 
   grafana:
@@ -251,7 +263,11 @@ services:
     volumes:
       - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
+      - type: bind
+        source: ${GOGG_DATA_ROOT:-/mnt/gogg-db}/grafana
+        target: /var/lib/grafana
+        bind:
+          create_host_path: false
     ports:
       - "3001:3000"
     networks: [gogg-dev]

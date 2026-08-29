@@ -41,6 +41,8 @@ run_profiles:
     execution: pipeline
 `)
 	t.Setenv("APP_CONFIG_PATH", path)
+	t.Setenv("GOGG_ASSETS_ROOT", "/mnt/gogg-db/game-assets")
+	t.Setenv("GOGG_RAW_ARCHIVE_ROOT", "/mnt/gogg-db/riot-raw")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -50,6 +52,8 @@ run_profiles:
 	require.Equal(t, 3*time.Second, cfg.Lite.OutageInitialInterval)
 	require.Equal(t, 90*time.Second, cfg.Lite.OutageMaxInterval)
 	require.Equal(t, 0.1, cfg.Lite.OutageJitter)
+	require.Equal(t, "/mnt/gogg-db/game-assets", cfg.Assets.Root)
+	require.Equal(t, "/mnt/gogg-db/riot-raw", cfg.RawArchive.Root)
 
 	profile, err := cfg.Profile("daily_kr")
 	require.NoError(t, err)

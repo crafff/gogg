@@ -79,8 +79,10 @@ stale against code and tests before relying on it.
 
 ## Asset contract
 
-- CommunityDragon game assets are synchronized into `data/game-assets/` and
-  served locally through `/game-assets`.
+- CommunityDragon game assets are synchronized into the configured shared
+  game-assets root and served locally through `/game-assets`. On the primary
+  workstation that root is `/mnt/gogg-db/game-assets` in the F-backed ext4
+  VHDX.
 - Item synchronization includes valid icon-bearing entries even when
   CommunityDragon marks them `inStore=false`; transformed items, quest rewards,
   and consumables can still appear in a participant's final inventory.
@@ -132,10 +134,14 @@ stale against code and tests before relying on it.
 - On the primary Windows workstation, application and Temporal PostgreSQL data
   live in the ext4 filesystem inside `F:\gogg-data\gogg-db.vhdx`. Ubuntu
   mounts filesystem UUID `3f631b73-56a3-4767-9728-92ecd0445366` at
-  `/mnt/gogg-db`; Compose bind-mounts `app-postgres` and
-  `temporal-postgres` from that root.
+  `/mnt/gogg-db`. Application and Temporal PostgreSQL, Redis, Riot raw
+  archives, game assets, Prometheus, Grafana, and performance results use
+  bind-mounted or direct subdirectories beneath that root. Ignored experiment
+  datasets and artifacts are linked to the same storage root.
 - `make dev` fails closed unless the external database filesystem has the
-  expected UUID, ext4 type, read-write state, marker, ownership, and modes.
+  expected UUID, ext4 type, read-write state, marker, data directories,
+  ownership, and modes. Local API and worker launch targets apply the same
+  preflight so a missing F mount cannot silently create split data elsewhere.
   Ubuntu startup is configured to request an on-demand elevated Windows task
   to attach the VHDX, then mount it inside the normal Ubuntu session. Windows
   logon does not start WSL for this storage path. Keep attachment and mounting

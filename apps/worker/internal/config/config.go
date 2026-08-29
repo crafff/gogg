@@ -258,6 +258,7 @@ func bindDefaults(v *viper.Viper, def Config) error {
 	v.SetDefault("raw_archive.compression_level", def.RawArchive.CompressionLevel)
 	v.SetDefault("raw_archive.enabled", def.RawArchive.Enabled)
 	v.SetDefault("raw_archive.root", def.RawArchive.Root)
+	v.SetDefault("assets.root", def.Assets.Root)
 	v.SetDefault("assets.locales", def.Assets.Locales)
 	v.SetDefault("assets.positions", def.Assets.Positions)
 	return nil

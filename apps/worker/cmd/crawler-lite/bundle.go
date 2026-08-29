@@ -290,7 +290,7 @@ func importBundle(input string) error {
 	if !rt.Cfg.RawArchive.Enabled {
 		return errors.New("raw_archive must be enabled")
 	}
-	dir, err := os.MkdirTemp("", "gogg-bundle-import-*")
+	dir, err := makeBundleImportTempDir(rt.Cfg.RawArchive.Root)
 	if err != nil {
 		return err
 	}
@@ -360,6 +360,14 @@ func importBundle(input string) error {
 		}
 	}
 	return rt.Store.RecordRawImport(ctx, manifest.BundleID, manifest.CreatedAt, len(manifest.Objects))
+}
+
+func makeBundleImportTempDir(archiveRoot string) (string, error) {
+	tempRoot := filepath.Join(archiveRoot, ".import-tmp")
+	if err := os.MkdirAll(tempRoot, 0o750); err != nil {
+		return "", fmt.Errorf("create bundle import temp root: %w", err)
+	}
+	return os.MkdirTemp(tempRoot, "gogg-bundle-import-*")
 }
 
 func extractBundle(input, dir string) error {
