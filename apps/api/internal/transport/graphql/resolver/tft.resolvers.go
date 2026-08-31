@@ -7,6 +7,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -53,6 +54,22 @@ func (r *queryResolver) TftLineups(ctx context.Context, filter gqlgenerated.TFTL
 		out.Items = append(out.Items, mapTFTLineup(item))
 	}
 	return out, nil
+}
+
+// TftObservedLineups is the resolver for the tftObservedLineups field.
+func (r *queryResolver) TftObservedLineups(ctx context.Context, filter gqlgenerated.TFTObservedLineupsFilter) (*gqlgenerated.TFTObservedLineupsResult, error) {
+	result, err := r.TFT.ObservedLineups(ctx, tft.ObservedFilter{
+		Platform: stringValue(filter.Platform), Locale: stringValue(filter.Locale),
+		MinSamples: intValue(filter.MinSamples), Limit: intValue(filter.Limit),
+	})
+	if err != nil {
+		var validation *tft.ValidationError
+		if errors.As(err, &validation) {
+			return nil, domainerr.Wrap("BAD_USER_INPUT", validation.Error(), err)
+		}
+		return nil, fmt.Errorf("TFT observed lineups: %w", err)
+	}
+	return mapTFTObservedLineups(result), nil
 }
 
 // TftMatchHistory is the resolver for the tftMatchHistory field.

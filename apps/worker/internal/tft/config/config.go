@@ -58,6 +58,8 @@ type TFTConfig struct {
 	StaticCron              string        `mapstructure:"static_cron"`
 	ProfileName             string        `mapstructure:"profile_name"`
 	MatchCountPerSeed       int           `mapstructure:"match_count_per_seed"`
+	MatchTargetPerRegion    int           `mapstructure:"match_target_per_region"`
+	MatchSelectionRevision  string        `mapstructure:"match_selection_revision"`
 	MasterLimit             int           `mapstructure:"master_limit"`
 	DiamondPerDivision      int           `mapstructure:"diamond_per_division"`
 	ScaleMasterLimit        int           `mapstructure:"scale_master_limit"`
@@ -82,7 +84,8 @@ func Default() Config {
 		Raw:      RawConfig{Root: "data/riot-raw", CompressionLevel: 6},
 		TFT: TFTConfig{
 			Platforms: append([]string(nil), SupportedPlatforms...), CrawlCron: "17 */3 * * *", StaticCron: "7 */6 * * *",
-			ProfileName: "global_high_tier", MatchCountPerSeed: 20, MasterLimit: 500, DiamondPerDivision: 50,
+			ProfileName: "global_high_tier", MatchCountPerSeed: 20, MatchTargetPerRegion: 1000,
+			MatchSelectionRevision: "route-balance-v1", MasterLimit: 500, DiamondPerDivision: 50,
 			ScaleMasterLimit: 1000, ScaleDiamondPerDivision: 100, ScaleAfter: 48 * time.Hour,
 			ScaleBelowObservations: 10000, Window: 7 * 24 * time.Hour, WindowLag: 30 * time.Minute,
 			Overlap: 6 * time.Hour, StaticRoot: "data/game-assets", StaticLocales: []string{"en_us", "zh_cn"},
@@ -169,6 +172,12 @@ func (c Config) Validate() error {
 	if c.TFT.MatchCountPerSeed < 1 || c.TFT.MatchCountPerSeed > 100 {
 		errs = append(errs, fmt.Errorf("tft.match_count_per_seed must be 1..100"))
 	}
+	if c.TFT.MatchTargetPerRegion < 1 || c.TFT.MatchTargetPerRegion > 100000 {
+		errs = append(errs, fmt.Errorf("tft.match_target_per_region must be 1..100000"))
+	}
+	if strings.TrimSpace(c.TFT.MatchSelectionRevision) == "" {
+		errs = append(errs, fmt.Errorf("tft.match_selection_revision must not be empty"))
+	}
 	if c.TFT.Window <= 0 || c.TFT.WindowLag < 0 || c.TFT.Overlap < 0 {
 		errs = append(errs, fmt.Errorf("invalid TFT collection window"))
 	}
@@ -193,6 +202,8 @@ func bindDefaults(v *viper.Viper, d Config) {
 	v.SetDefault("tft.static_cron", d.TFT.StaticCron)
 	v.SetDefault("tft.profile_name", d.TFT.ProfileName)
 	v.SetDefault("tft.match_count_per_seed", d.TFT.MatchCountPerSeed)
+	v.SetDefault("tft.match_target_per_region", d.TFT.MatchTargetPerRegion)
+	v.SetDefault("tft.match_selection_revision", d.TFT.MatchSelectionRevision)
 	v.SetDefault("tft.master_limit", d.TFT.MasterLimit)
 	v.SetDefault("tft.diamond_per_division", d.TFT.DiamondPerDivision)
 	v.SetDefault("tft.scale_master_limit", d.TFT.ScaleMasterLimit)

@@ -82,6 +82,34 @@ func (q *Queries) ClaimTFTMatchJobs(ctx context.Context, arg ClaimTFTMatchJobsPa
 	return items, nil
 }
 
+const commitTFTRunPlayerMatchSync = `-- name: CommitTFTRunPlayerMatchSync :execrows
+INSERT INTO tft_player_match_sync (
+    platform, puuid, queue_type, window_start, window_end, last_synced_at, last_match_id
+)
+SELECT platform, puuid, queue_type, window_start, window_end, last_synced_at, last_match_id
+FROM tft_run_player_match_sync
+WHERE run_id = $1
+ON CONFLICT (platform, puuid, queue_type) DO UPDATE
+SET window_start = LEAST(tft_player_match_sync.window_start, EXCLUDED.window_start),
+    window_end = GREATEST(tft_player_match_sync.window_end, EXCLUDED.window_end),
+    last_synced_at = GREATEST(tft_player_match_sync.last_synced_at, EXCLUDED.last_synced_at),
+    last_match_id = CASE
+        WHEN (EXCLUDED.window_end, EXCLUDED.last_synced_at) >=
+             (tft_player_match_sync.window_end, tft_player_match_sync.last_synced_at)
+        THEN EXCLUDED.last_match_id
+        ELSE tft_player_match_sync.last_match_id
+    END,
+    updated_at = now()
+`
+
+func (q *Queries) CommitTFTRunPlayerMatchSync(ctx context.Context, runID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, commitTFTRunPlayerMatchSync, runID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const completeTFTMatchJob = `-- name: CompleteTFTMatchJob :execrows
 UPDATE tft_match_jobs
 SET status = $1,
@@ -198,6 +226,22 @@ func (q *Queries) CreateTFTRun(ctx context.Context, arg CreateTFTRunParams) (Tft
 	return i, err
 }
 
+const enqueueBalancedTFTMatchJobs = `-- name: EnqueueBalancedTFTMatchJobs :execrows
+INSERT INTO tft_match_jobs (routing_region, match_id, platform)
+SELECT routing_region, match_id, platform
+FROM tft_run_match_candidates
+WHERE run_id = $1 AND selected
+ON CONFLICT (routing_region, match_id) DO NOTHING
+`
+
+func (q *Queries) EnqueueBalancedTFTMatchJobs(ctx context.Context, runID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, enqueueBalancedTFTMatchJobs, runID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const enqueueTFTMatchJob = `-- name: EnqueueTFTMatchJob :execrows
 INSERT INTO tft_match_jobs (routing_region, match_id, platform)
 VALUES ($1, $2, $3)
@@ -210,6 +254,48 @@ func (q *Queries) EnqueueTFTMatchJob(ctx context.Context, routingRegion string, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const ensureTFTRunMatchSampling = `-- name: EnsureTFTRunMatchSampling :exec
+INSERT INTO tft_run_match_sampling (
+    run_id, target_per_region, selection_revision
+) VALUES (
+    $1, $2, $3
+)
+ON CONFLICT (run_id) DO NOTHING
+`
+
+func (q *Queries) EnsureTFTRunMatchSampling(ctx context.Context, runID int64, targetPerRegion int32, selectionRevision string) error {
+	_, err := q.db.Exec(ctx, ensureTFTRunMatchSampling, runID, targetPerRegion, selectionRevision)
+	return err
+}
+
+const ensureTFTRunPlatformSampling = `-- name: EnsureTFTRunPlatformSampling :exec
+INSERT INTO tft_run_platform_sampling (
+    run_id, platform, master_limit, diamond_per_division, salt
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (run_id, platform) DO NOTHING
+`
+
+type EnsureTFTRunPlatformSamplingParams struct {
+	RunID              int64
+	Platform           string
+	MasterLimit        int32
+	DiamondPerDivision int32
+	Salt               string
+}
+
+func (q *Queries) EnsureTFTRunPlatformSampling(ctx context.Context, arg EnsureTFTRunPlatformSamplingParams) error {
+	_, err := q.db.Exec(ctx, ensureTFTRunPlatformSampling,
+		arg.RunID,
+		arg.Platform,
+		arg.MasterLimit,
+		arg.DiamondPerDivision,
+		arg.Salt,
+	)
+	return err
 }
 
 const failStaleTFTRuns = `-- name: FailStaleTFTRuns :execrows
@@ -425,15 +511,90 @@ func (q *Queries) GetTFTRunByWorkflowRunID(ctx context.Context, workflowRunID st
 	return i, err
 }
 
+const getTFTRunMatchSampling = `-- name: GetTFTRunMatchSampling :one
+SELECT run_id, phase, target_per_region, selection_revision, finalized_at, created_at, updated_at FROM tft_run_match_sampling WHERE run_id = $1
+`
+
+func (q *Queries) GetTFTRunMatchSampling(ctx context.Context, runID int64) (TftRunMatchSampling, error) {
+	row := q.db.QueryRow(ctx, getTFTRunMatchSampling, runID)
+	var i TftRunMatchSampling
+	err := row.Scan(
+		&i.RunID,
+		&i.Phase,
+		&i.TargetPerRegion,
+		&i.SelectionRevision,
+		&i.FinalizedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTFTRunPlatformSampling = `-- name: GetTFTRunPlatformSampling :one
+SELECT run_id, platform, master_limit, diamond_per_division, salt, resolved_at FROM tft_run_platform_sampling
+WHERE run_id = $1 AND platform = $2
+`
+
+func (q *Queries) GetTFTRunPlatformSampling(ctx context.Context, runID int64, platform string) (TftRunPlatformSampling, error) {
+	row := q.db.QueryRow(ctx, getTFTRunPlatformSampling, runID, platform)
+	var i TftRunPlatformSampling
+	err := row.Scan(
+		&i.RunID,
+		&i.Platform,
+		&i.MasterLimit,
+		&i.DiamondPerDivision,
+		&i.Salt,
+		&i.ResolvedAt,
+	)
+	return i, err
+}
+
+const getTFTRunPlayerMatchSync = `-- name: GetTFTRunPlayerMatchSync :one
+SELECT run_id, platform, puuid, queue_type, window_start, window_end, last_synced_at, last_match_id, updated_at FROM tft_run_player_match_sync
+WHERE run_id = $1
+  AND platform = $2
+  AND puuid = $3
+  AND queue_type = $4
+`
+
+type GetTFTRunPlayerMatchSyncParams struct {
+	RunID     int64
+	Platform  string
+	Puuid     string
+	QueueType string
+}
+
+func (q *Queries) GetTFTRunPlayerMatchSync(ctx context.Context, arg GetTFTRunPlayerMatchSyncParams) (TftRunPlayerMatchSync, error) {
+	row := q.db.QueryRow(ctx, getTFTRunPlayerMatchSync,
+		arg.RunID,
+		arg.Platform,
+		arg.Puuid,
+		arg.QueueType,
+	)
+	var i TftRunPlayerMatchSync
+	err := row.Scan(
+		&i.RunID,
+		&i.Platform,
+		&i.Puuid,
+		&i.QueueType,
+		&i.WindowStart,
+		&i.WindowEnd,
+		&i.LastSyncedAt,
+		&i.LastMatchID,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTFTRunProgress = `-- name: GetTFTRunProgress :one
 SELECT
     (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id) AS discovered_seeds,
     (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id AND selected) AS selected_seeds,
     (
-        SELECT COUNT(*)::bigint
+        SELECT COUNT(DISTINCT checkpoints.scope_key)::bigint
         FROM tft_crawl_checkpoints checkpoints
         WHERE checkpoints.run_id = run.id
-          AND checkpoints.stage = 'match_discovery'
+          AND checkpoints.stage IN ('match_discovery', 'match_candidates')
           AND checkpoints.processed >= (
               SELECT COUNT(*)
               FROM tft_seed_snapshots seeds
@@ -512,6 +673,58 @@ func (q *Queries) InsertTFTMatchDiscovery(ctx context.Context, arg InsertTFTMatc
 		arg.SeedPuuid,
 		arg.MatchID,
 		arg.Cohort,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertTFTRunMatchCandidateSourceIfOpen = `-- name: InsertTFTRunMatchCandidateSourceIfOpen :execrows
+WITH sampling_gate AS MATERIALIZED (
+    SELECT sampling.run_id
+    FROM tft_run_match_sampling sampling
+    WHERE sampling.run_id = $4 AND sampling.phase = 'open'
+    FOR KEY SHARE
+), candidate AS (
+    INSERT INTO tft_run_match_candidates (
+        run_id, routing_region, match_id, platform, selection_key
+    )
+    SELECT sampling_gate.run_id, $5, $6, $1, $7
+    FROM sampling_gate
+    ON CONFLICT (run_id, routing_region, match_id) DO UPDATE
+    SET selection_key = EXCLUDED.selection_key,
+        updated_at = now()
+    RETURNING run_id, routing_region, match_id
+)
+INSERT INTO tft_run_match_candidate_sources (
+    run_id, routing_region, match_id, platform, seed_puuid, cohort
+)
+SELECT candidate.run_id, candidate.routing_region, candidate.match_id,
+       $1, $2, $3
+FROM candidate
+ON CONFLICT DO NOTHING
+`
+
+type InsertTFTRunMatchCandidateSourceIfOpenParams struct {
+	Platform      string
+	SeedPuuid     string
+	Cohort        string
+	RunID         int64
+	RoutingRegion string
+	MatchID       string
+	SelectionKey  string
+}
+
+func (q *Queries) InsertTFTRunMatchCandidateSourceIfOpen(ctx context.Context, arg InsertTFTRunMatchCandidateSourceIfOpenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertTFTRunMatchCandidateSourceIfOpen,
+		arg.Platform,
+		arg.SeedPuuid,
+		arg.Cohort,
+		arg.RunID,
+		arg.RoutingRegion,
+		arg.MatchID,
+		arg.SelectionKey,
 	)
 	if err != nil {
 		return 0, err
@@ -606,6 +819,56 @@ func (q *Queries) ListSelectedTFTSeedsPage(ctx context.Context, arg ListSelected
 			&i.Selected,
 			&i.CapturedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTFTRunCandidateRouteProgress = `-- name: ListTFTRunCandidateRouteProgress :many
+WITH routes AS (
+    SELECT 'AMERICAS'::text AS routing_region
+    UNION ALL SELECT 'ASIA'::text
+    UNION ALL SELECT 'EUROPE'::text
+    UNION ALL SELECT 'SEA'::text
+), counts AS (
+    SELECT routing_region,
+           COUNT(*)::bigint AS candidate_matches,
+           COUNT(*) FILTER (WHERE selected)::bigint AS selected_matches
+    FROM tft_run_match_candidates
+    WHERE run_id = $1
+    GROUP BY routing_region
+)
+SELECT routes.routing_region,
+       COALESCE(counts.candidate_matches, 0)::bigint AS candidate_matches,
+       COALESCE(counts.selected_matches, 0)::bigint AS selected_matches
+FROM routes
+LEFT JOIN counts USING (routing_region)
+ORDER BY CASE routes.routing_region
+    WHEN 'AMERICAS' THEN 1 WHEN 'ASIA' THEN 2
+    WHEN 'EUROPE' THEN 3 WHEN 'SEA' THEN 4 END
+`
+
+type ListTFTRunCandidateRouteProgressRow struct {
+	RoutingRegion    string
+	CandidateMatches int64
+	SelectedMatches  int64
+}
+
+func (q *Queries) ListTFTRunCandidateRouteProgress(ctx context.Context, runID int64) ([]ListTFTRunCandidateRouteProgressRow, error) {
+	rows, err := q.db.Query(ctx, listTFTRunCandidateRouteProgress, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTFTRunCandidateRouteProgressRow{}
+	for rows.Next() {
+		var i ListTFTRunCandidateRouteProgressRow
+		if err := rows.Scan(&i.RoutingRegion, &i.CandidateMatches, &i.SelectedMatches); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -757,6 +1020,62 @@ func (q *Queries) ListTFTSeedsForSampling(ctx context.Context, runID int64) ([]T
 	return items, nil
 }
 
+const lockTFTRunMatchSampling = `-- name: LockTFTRunMatchSampling :one
+SELECT run_id, phase, target_per_region, selection_revision, finalized_at, created_at, updated_at FROM tft_run_match_sampling WHERE run_id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockTFTRunMatchSampling(ctx context.Context, runID int64) (TftRunMatchSampling, error) {
+	row := q.db.QueryRow(ctx, lockTFTRunMatchSampling, runID)
+	var i TftRunMatchSampling
+	err := row.Scan(
+		&i.RunID,
+		&i.Phase,
+		&i.TargetPerRegion,
+		&i.SelectionRevision,
+		&i.FinalizedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markTFTRunMatchSamplingFinalized = `-- name: MarkTFTRunMatchSamplingFinalized :execrows
+UPDATE tft_run_match_sampling
+SET phase = 'finalized', finalized_at = now(), updated_at = now()
+WHERE run_id = $1 AND phase = 'open'
+`
+
+func (q *Queries) MarkTFTRunMatchSamplingFinalized(ctx context.Context, runID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, markTFTRunMatchSamplingFinalized, runID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const projectBalancedTFTMatchDiscoveries = `-- name: ProjectBalancedTFTMatchDiscoveries :execrows
+INSERT INTO tft_match_discoveries (
+    run_id, platform, routing_region, seed_puuid, match_id, cohort
+)
+SELECT sources.run_id, sources.platform, sources.routing_region,
+       sources.seed_puuid, sources.match_id, sources.cohort
+FROM tft_run_match_candidate_sources sources
+JOIN tft_run_match_candidates candidates
+  ON candidates.run_id = sources.run_id
+ AND candidates.routing_region = sources.routing_region
+ AND candidates.match_id = sources.match_id
+WHERE candidates.run_id = $1 AND candidates.selected
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) ProjectBalancedTFTMatchDiscoveries(ctx context.Context, runID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, projectBalancedTFTMatchDiscoveries, runID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const refreshTFTRunCounts = `-- name: RefreshTFTRunCounts :exec
 UPDATE tft_crawl_runs run
 SET discovered_seeds = (
@@ -860,6 +1179,30 @@ func (q *Queries) RetryTFTMatchJob(ctx context.Context, arg RetryTFTMatchJobPara
 	return result.RowsAffected(), nil
 }
 
+const selectBalancedTFTRunMatchCandidates = `-- name: SelectBalancedTFTRunMatchCandidates :exec
+WITH ranked AS (
+    SELECT source.run_id, source.routing_region, source.match_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY source.routing_region
+               ORDER BY source.selection_key, source.match_id
+           ) <= $1::bigint AS should_select
+    FROM tft_run_match_candidates source
+    WHERE source.run_id = $2
+)
+UPDATE tft_run_match_candidates candidates
+SET selected = ranked.should_select,
+    updated_at = now()
+FROM ranked
+WHERE candidates.run_id = ranked.run_id
+  AND candidates.routing_region = ranked.routing_region
+  AND candidates.match_id = ranked.match_id
+`
+
+func (q *Queries) SelectBalancedTFTRunMatchCandidates(ctx context.Context, targetPerRoute int64, runID int64) error {
+	_, err := q.db.Exec(ctx, selectBalancedTFTRunMatchCandidates, targetPerRoute, runID)
+	return err
+}
+
 const setTFTSeedSelected = `-- name: SetTFTSeedSelected :exec
 UPDATE tft_seed_snapshots SET selected = $1 WHERE id = $2
 `
@@ -948,8 +1291,13 @@ INSERT INTO tft_player_match_sync (
 ON CONFLICT (platform, puuid, queue_type) DO UPDATE
 SET window_start = LEAST(tft_player_match_sync.window_start, EXCLUDED.window_start),
     window_end = GREATEST(tft_player_match_sync.window_end, EXCLUDED.window_end),
-    last_synced_at = EXCLUDED.last_synced_at,
-    last_match_id = EXCLUDED.last_match_id,
+    last_synced_at = GREATEST(tft_player_match_sync.last_synced_at, EXCLUDED.last_synced_at),
+    last_match_id = CASE
+        WHEN (EXCLUDED.window_end, EXCLUDED.last_synced_at) >=
+             (tft_player_match_sync.window_end, tft_player_match_sync.last_synced_at)
+        THEN EXCLUDED.last_match_id
+        ELSE tft_player_match_sync.last_match_id
+    END,
     updated_at = now()
 `
 
@@ -974,6 +1322,56 @@ func (q *Queries) UpsertTFTPlayerMatchSync(ctx context.Context, arg UpsertTFTPla
 		arg.LastMatchID,
 	)
 	return err
+}
+
+const upsertTFTRunPlayerMatchSyncIfOpen = `-- name: UpsertTFTRunPlayerMatchSyncIfOpen :execrows
+WITH sampling_gate AS MATERIALIZED (
+    SELECT sampling.run_id
+    FROM tft_run_match_sampling sampling
+    WHERE sampling.run_id = $8 AND sampling.phase = 'open'
+    FOR KEY SHARE
+)
+INSERT INTO tft_run_player_match_sync (
+    run_id, platform, puuid, queue_type, window_start, window_end,
+    last_synced_at, last_match_id
+)
+SELECT sampling_gate.run_id, $1, $2, $3,
+       $4, $5, $6, $7
+FROM sampling_gate
+ON CONFLICT (run_id, platform, puuid, queue_type) DO UPDATE
+SET window_start = LEAST(tft_run_player_match_sync.window_start, EXCLUDED.window_start),
+    window_end = GREATEST(tft_run_player_match_sync.window_end, EXCLUDED.window_end),
+    last_synced_at = EXCLUDED.last_synced_at,
+    last_match_id = EXCLUDED.last_match_id,
+    updated_at = now()
+`
+
+type UpsertTFTRunPlayerMatchSyncIfOpenParams struct {
+	Platform     string
+	Puuid        string
+	QueueType    string
+	WindowStart  pgtype.Timestamptz
+	WindowEnd    pgtype.Timestamptz
+	LastSyncedAt pgtype.Timestamptz
+	LastMatchID  *string
+	RunID        int64
+}
+
+func (q *Queries) UpsertTFTRunPlayerMatchSyncIfOpen(ctx context.Context, arg UpsertTFTRunPlayerMatchSyncIfOpenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTFTRunPlayerMatchSyncIfOpen,
+		arg.Platform,
+		arg.Puuid,
+		arg.QueueType,
+		arg.WindowStart,
+		arg.WindowEnd,
+		arg.LastSyncedAt,
+		arg.LastMatchID,
+		arg.RunID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertTFTSeedSnapshot = `-- name: UpsertTFTSeedSnapshot :exec

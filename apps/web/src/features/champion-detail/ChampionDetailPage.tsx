@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import {
+  type ChampionWinFactorsQuery,
   useChampionDetailQuery,
+  useChampionWinFactorsQuery,
   useRegionsQuery,
   useVersionsQuery,
 } from "@shared/api";
@@ -35,6 +37,7 @@ export function ChampionDetailPage() {
   const id = Number(championId);
   const [params, setParams] = useSearchParams();
   const { t, i18n } = useTranslation(["championDetail", "common"]);
+  const factorsView = params.get("view") === "factors";
   const selected: RankingsFiltersState = {
     position: (params.get("position") ?? "") as Position,
     tier: (params.get("tier") ?? "") as UiTier,
@@ -50,6 +53,13 @@ export function ChampionDetailPage() {
     else next.delete(key);
     setParams(next);
   };
+  const versions = useVersionsQuery();
+  const regions = useRegionsQuery();
+  const resolvedFilterVersion =
+    selected.version === "latest"
+      ? (versions.data?.versions[0] ?? "")
+      : selected.version;
+  const versionReady = resolvedFilterVersion !== "";
   const query = useChampionDetailQuery(
     {
       id,
@@ -57,23 +67,48 @@ export function ChampionDetailPage() {
         queueId: 420,
         position: selected.position,
         region: selected.region,
-        version: selected.version,
+        version: resolvedFilterVersion || "latest",
         tierGroup: mapToTierGroup(selected.tier),
       },
     },
-    { enabled: Number.isInteger(id) && id > 0 },
+    {
+      enabled: Number.isInteger(id) && id > 0 && !factorsView && versionReady,
+    },
   );
-  const versions = useVersionsQuery();
-  const regions = useRegionsQuery();
+  const factorsQuery = useChampionWinFactorsQuery(
+    {
+      id,
+      filter: {
+        queueId: 420,
+        position: selected.position,
+        region: selected.region,
+        version: resolvedFilterVersion || "latest",
+        tierGroup: mapToTierGroup(selected.tier),
+      },
+    },
+    {
+      enabled:
+        Number.isInteger(id) &&
+        id > 0 &&
+        factorsView &&
+        versionReady &&
+        selected.position !== "",
+    },
+  );
   const detail = query.data?.championDetail;
+  const factors = factorsQuery.data?.championWinFactors;
   const assets = useGameAssets(
     detail?.resolvedVersion ??
-      (selected.version === "latest" ? null : selected.version),
+      factors?.resolvedVersion ??
+      (resolvedFilterVersion || null),
   );
   const locale = i18n.language.toLowerCase().replace("-", "_");
   const champion = assets.manifest?.champions[String(id)];
   const name =
-    champion?.names[locale] ?? detail?.championName ?? `#${championId}`;
+    champion?.names[locale] ??
+    detail?.championName ??
+    factors?.championName ??
+    `#${championId}`;
   const filterProps: RankingsFiltersProps = {
     selected,
     availableVersions: versions.data?.versions ?? [],
@@ -106,21 +141,43 @@ export function ChampionDetailPage() {
               })}
             </p>
           )}
+          {factors && (
+            <p className="text-sm text-fg-subtle">
+              {t("factorSummary", {
+                games: factors.sampleGames,
+                players: factors.samplePlayers,
+                version: factors.resolvedVersion,
+              })}
+            </p>
+          )}
         </div>
       </header>
       <RankingsFilters {...filterProps} />
-      {query.isLoading && (
+      <nav
+        aria-label={t("viewsLabel")}
+        className="flex gap-2 border-b border-border"
+      >
+        <ViewLink params={params} view="overview" active={!factorsView}>
+          {t("overviewView")}
+        </ViewLink>
+        <ViewLink params={params} view="factors" active={factorsView}>
+          {t("factorsView")}
+        </ViewLink>
+      </nav>
+      {!factorsView && query.isLoading && (
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
         </div>
       )}
-      {query.isError && <State text={t("common:state.error")} />}
-      {!query.isLoading && !query.isError && !detail && (
+      {!factorsView && query.isError && (
+        <State text={t("common:state.error")} />
+      )}
+      {!factorsView && !query.isLoading && !query.isError && !detail && (
         <State text={t("notFound")} />
       )}
-      {detail && (
+      {!factorsView && detail && (
         <div className="grid gap-4 md:grid-cols-2">
           <BuildCard
             title={t("runes")}
@@ -203,8 +260,219 @@ export function ChampionDetailPage() {
           ))}
         </div>
       )}
+      {factorsView && selected.position === "" && (
+        <State text={t("choosePosition")} />
+      )}
+      {factorsView && selected.position !== "" && factorsQuery.isLoading && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-80 w-full" />
+          ))}
+        </div>
+      )}
+      {factorsView && factorsQuery.isError && (
+        <State text={t("common:state.error")} />
+      )}
+      {factorsView &&
+        selected.position !== "" &&
+        !factorsQuery.isLoading &&
+        !factorsQuery.isError &&
+        !factors && <State text={t("notFound")} />}
+      {factorsView && factors && factors.availability !== "AVAILABLE" && (
+        <State text={t(unavailableTranslationKey(factors.unavailableReason))} />
+      )}
+      {factorsView && factors?.availability === "AVAILABLE" && (
+        <WinFactors result={factors} />
+      )}
     </section>
   );
+}
+
+function ViewLink({
+  params,
+  view,
+  active,
+  children,
+}: {
+  params: URLSearchParams;
+  view: "overview" | "factors";
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  const next = new URLSearchParams(params);
+  if (view === "factors") next.set("view", "factors");
+  else next.delete("view");
+  return (
+    <Link
+      to={{ search: next.size > 0 ? `?${next.toString()}` : "" }}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "border-b-2 px-3 py-2 text-sm font-medium",
+        active
+          ? "border-accent text-fg-default"
+          : "border-transparent text-fg-muted hover:text-fg-default",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+type WinFactorsResult = NonNullable<
+  ChampionWinFactorsQuery["championWinFactors"]
+>;
+export type WinFactor = WinFactorsResult["factors"][number];
+
+export function WinFactors({ result }: { result: WinFactorsResult }) {
+  const { t } = useTranslation("championDetail");
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-border bg-surface-raised p-4 text-sm text-fg-muted">
+        <p>{t("observationalNotice")}</p>
+        <p className="mt-2 text-xs text-fg-subtle">
+          {t("factorCoverage", {
+            games: result.sampleGames,
+            players: result.samplePlayers,
+            region: result.regionScope,
+            tier: result.tierGroup,
+            version: result.resolvedVersion,
+          })}
+        </p>
+        {result.dataThrough && (
+          <p className="mt-1 text-xs text-fg-subtle">
+            {t("dataThrough", {
+              date: new Intl.DateTimeFormat(undefined, {
+                dateStyle: "medium",
+              }).format(new Date(result.dataThrough)),
+            })}
+          </p>
+        )}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {result.factors.map((factor) => (
+          <WinFactorCard key={factor.metricKey} factor={factor} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function WinFactorCard({ factor }: { factor: WinFactor }) {
+  const { t } = useTranslation("championDetail");
+  return (
+    <article className="overflow-hidden rounded-lg border border-border bg-surface-raised">
+      <header className="space-y-2 border-b border-border p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-fg-subtle">
+              {t("observedEvidence")}
+            </p>
+            <h2 className="font-semibold text-fg-default">
+              {t(metricTranslationKey(factor.metricKey))}
+            </h2>
+          </div>
+          <span className="rounded-full border border-border px-2 py-1 text-xs text-fg-muted">
+            {factor.startMinute}–{factor.endMinute}m
+          </span>
+        </div>
+        <dl className="grid grid-cols-3 gap-2 text-center">
+          {(["p50", "p70", "p90"] as const).map((key) => (
+            <div key={key} className="rounded bg-surface-overlay p-2">
+              <dt className="text-xs uppercase text-fg-subtle">{key}</dt>
+              <dd className="font-medium text-fg-default">
+                {formatMetricValue(factor[key], factor.unit)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <caption className="sr-only">
+            {t("bucketCaption", {
+              metric: t(metricTranslationKey(factor.metricKey)),
+            })}
+          </caption>
+          <thead className="text-fg-subtle">
+            <tr>
+              <th scope="col" className="px-3 py-2">
+                {t("range")}
+              </th>
+              <th scope="col" className="px-3 py-2">
+                {t("winRate")}
+              </th>
+              <th scope="col" className="px-3 py-2">
+                {t("delta")}
+              </th>
+              <th scope="col" className="px-3 py-2">
+                {t("sampleGames")}
+              </th>
+              <th scope="col" className="px-3 py-2">
+                {t("samplePlayers")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {factor.buckets.map((bucket) => (
+              <tr key={bucket.ordinal} className="border-t border-border">
+                <td className="px-3 py-2 text-fg-default">
+                  {formatMetricValue(bucket.lowerBound, factor.unit)}–
+                  {formatMetricValue(bucket.upperBound, factor.unit)}
+                </td>
+                <td className="px-3 py-2 text-fg-muted">
+                  {bucket.observedWinRate.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 font-medium text-fg-default">
+                  {bucket.observedWinRateDelta >= 0 ? "+" : ""}
+                  {bucket.observedWinRateDelta.toFixed(1)} pp
+                </td>
+                <td className="px-3 py-2 text-fg-muted">{bucket.games}</td>
+                <td className="px-3 py-2 text-fg-muted">
+                  {bucket.samplePlayers}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
+function formatMetricValue(value: number, unit: string) {
+  if (unit === "DAMAGE") return Math.round(value).toLocaleString();
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+const metricTranslationKeys = {
+  JUNGLE_CS_10: "metrics.JUNGLE_CS_10",
+  JUNGLE_CS_GAIN_10_15: "metrics.JUNGLE_CS_GAIN_10_15",
+  DAMAGE_TO_CHAMPIONS_10: "metrics.DAMAGE_TO_CHAMPIONS_10",
+  DAMAGE_TO_CHAMPIONS_GAIN_10_15: "metrics.DAMAGE_TO_CHAMPIONS_GAIN_10_15",
+} as const;
+
+function metricTranslationKey(metric: string) {
+  return (
+    metricTranslationKeys[metric as keyof typeof metricTranslationKeys] ??
+    "metrics.DAMAGE_TO_CHAMPIONS_10"
+  );
+}
+
+const unavailableTranslationKeys = {
+  UNSUPPORTED_POSITION: "unavailable.UNSUPPORTED_POSITION",
+  NOT_PUBLISHED: "unavailable.NOT_PUBLISHED",
+  MIN_GAMES: "unavailable.MIN_GAMES",
+  MIN_PLAYERS: "unavailable.MIN_PLAYERS",
+  SPARSE_BUCKETS: "unavailable.SPARSE_BUCKETS",
+} as const;
+
+function unavailableTranslationKey(reason: string | null | undefined) {
+  if (reason && reason in unavailableTranslationKeys) {
+    return unavailableTranslationKeys[
+      reason as keyof typeof unavailableTranslationKeys
+    ];
+  }
+  return "unavailable.UNKNOWN" as const;
 }
 
 type ChoiceBuild = {

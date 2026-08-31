@@ -275,6 +275,10 @@ sync-assets: dev-storage-check ## Sync latest CommunityDragon assets; optionally
 refresh-champion-detail: ## Rebuild champion detail rollups; optionally pass args='--timeout 1h'
 	@go run ./apps/worker/cmd/champion-detail-rollup --database-dsn "$(DEV_PG_DSN)" $(args)
 
+.PHONY: refresh-champion-insights
+refresh-champion-insights: ## Rebuild champion win-factor histograms; optionally pass args='--timeout 2h'
+	@go run ./apps/worker/cmd/champion-insights-rollup --database-dsn "$(DEV_PG_DSN)" $(args)
+
 .PHONY: refresh-rankings
 refresh-rankings: ## Rebuild rankings rollups; optionally pass args='--timeout 1h'
 	@go run ./apps/worker/cmd/rankings-rollup --database-dsn "$(DEV_PG_DSN)" $(args)

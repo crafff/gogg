@@ -60,6 +60,7 @@ func run() error {
 		if queue.name == tftcontract.SeedTaskQueue {
 			registerWorkflowCompat(w, tftworkflow.Crawl, tftcontract.CrawlWorkflowName)
 			registerWorkflowCompat(w, tftworkflow.PlatformSeed, tftcontract.PlatformWorkflowName)
+			registerWorkflowCompat(w, tftworkflow.PlatformCandidates, tftcontract.CandidateWorkflowName)
 			registerWorkflowCompat(w, tftworkflow.RouteDispatch, tftcontract.RouteWorkflowName)
 			registerWorkflowCompat(w, tftworkflow.PlayerLookup, tftcontract.PlayerLookupWorkflowName)
 		} else if queue.name == tftcontract.StaticTaskQueue {

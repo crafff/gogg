@@ -14,5 +14,34 @@
   "sample": "{{games}} / {{total}} 场",
   "empty": "当前筛选下暂无数据",
   "invalid": "英雄 ID 无效",
-  "notFound": "未找到该英雄"
+  "notFound": "未找到该英雄",
+  "viewsLabel": "英雄详情视图",
+  "overviewView": "概览",
+  "factorsView": "胜利相关因素",
+  "factorSummary": "{{games}} 场 · {{players}} 名玩家 · 数据版本 {{version}}",
+  "choosePosition": "请选择一个位置后查看胜利相关因素；不同位置的数据不会混合。",
+  "observationalNotice": "以下是同英雄、同位置群体中的观察性相关，适合作为复盘参考，不代表改变某项指标必然导致胜率变化，各项差值也不能相加。",
+  "observedEvidence": "观察性证据",
+  "factorCoverage": "{{region}} · {{tier}} · {{version}} · {{games}} 场 · {{players}} 名玩家",
+  "dataThrough": "数据截至 {{date}}",
+  "range": "指标范围",
+  "winRate": "观察胜率",
+  "delta": "相对样本均值",
+  "sampleGames": "场次",
+  "samplePlayers": "独立玩家",
+  "bucketCaption": "{{metric}}的指标范围、观察胜率、相对差值和样本量",
+  "metrics": {
+    "JUNGLE_CS_10": "10 分钟野怪数",
+    "JUNGLE_CS_GAIN_10_15": "10→15 分钟野怪增量",
+    "DAMAGE_TO_CHAMPIONS_10": "10 分钟英雄伤害",
+    "DAMAGE_TO_CHAMPIONS_GAIN_10_15": "10→15 分钟英雄伤害增量"
+  },
+  "unavailable": {
+    "UNSUPPORTED_POSITION": "首版胜利相关因素仅支持打野位置；其他位置将在完成各自验证后开放。",
+    "NOT_PUBLISHED": "当前版本和筛选范围尚未发布经过门槛检查的胜利相关因素。",
+    "MIN_GAMES": "当前筛选范围的比赛样本不足，暂不展示结果。",
+    "MIN_PLAYERS": "当前筛选范围的独立玩家样本不足，暂不展示结果。",
+    "SPARSE_BUCKETS": "部分指标分组过小，已为避免误导和隐私风险而隐藏。",
+    "UNKNOWN": "当前筛选范围暂无可展示的胜利相关因素。"
+  }
 }

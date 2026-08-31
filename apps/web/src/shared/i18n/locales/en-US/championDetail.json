@@ -14,5 +14,34 @@
   "sample": "{{games}} / {{total}} games",
   "empty": "No data for these filters",
   "invalid": "Invalid champion ID",
-  "notFound": "Champion not found"
+  "notFound": "Champion not found",
+  "viewsLabel": "Champion detail views",
+  "overviewView": "Overview",
+  "factorsView": "Win factors",
+  "factorSummary": "{{games}} games · {{players}} players · Patch {{version}}",
+  "choosePosition": "Choose a position to view win factors. Data from different positions is never blended.",
+  "observationalNotice": "These are observational associations within the same champion and position. Use them for review, not as proof that changing a metric causes a win-rate change. Deltas cannot be added together.",
+  "observedEvidence": "Observational evidence",
+  "factorCoverage": "{{region}} · {{tier}} · {{version}} · {{games}} games · {{players}} players",
+  "dataThrough": "Data through {{date}}",
+  "range": "Metric range",
+  "winRate": "Observed win rate",
+  "delta": "Vs. sample average",
+  "sampleGames": "Games",
+  "samplePlayers": "Players",
+  "bucketCaption": "Metric ranges, observed win rates, deltas, and sample sizes for {{metric}}",
+  "metrics": {
+    "JUNGLE_CS_10": "Jungle CS at 10",
+    "JUNGLE_CS_GAIN_10_15": "Jungle CS gained from 10–15",
+    "DAMAGE_TO_CHAMPIONS_10": "Champion damage at 10",
+    "DAMAGE_TO_CHAMPIONS_GAIN_10_15": "Champion damage gained from 10–15"
+  },
+  "unavailable": {
+    "UNSUPPORTED_POSITION": "The first win-factor release supports jungle only. Other positions will follow after role-specific validation.",
+    "NOT_PUBLISHED": "No win-factor publication has passed the release gates for this patch and filter.",
+    "MIN_GAMES": "This filter does not have enough games to show a reliable result.",
+    "MIN_PLAYERS": "This filter does not have enough independent players to show a reliable result.",
+    "SPARSE_BUCKETS": "Some metric groups were too small and were hidden to avoid misleading results and privacy risk.",
+    "UNKNOWN": "No win factors are available for this filter."
+  }
 }

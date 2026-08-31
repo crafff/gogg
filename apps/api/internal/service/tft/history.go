@@ -25,6 +25,11 @@ const (
 
 type FullQuerier interface {
 	Querier
+	GetLatestCompletedTFTObservedRun(context.Context, string) (sqlcgen.TftCrawlRun, error)
+	GetTFTRunByID(context.Context, int64) (sqlcgen.TftCrawlRun, error)
+	GetTFTObservedLineupPreview(context.Context, int64, string) (sqlcgen.GetTFTObservedLineupPreviewRow, error)
+	GetTFTObservedLineupDetails(context.Context, sqlcgen.GetTFTObservedLineupDetailsParams) (interface{}, error)
+	ListLatestTFTLocalizedStaticObjects(context.Context, []string, string) ([]sqlcgen.ListLatestTFTLocalizedStaticObjectsRow, error)
 	GetTFTPlayerIdentity(context.Context, string, string, string) (sqlcgen.TftPlayerIdentity, error)
 	GetTFTPlayerLookupJob(context.Context, string) (sqlcgen.TftPlayerLookupJob, error)
 	FindActiveTFTPlayerLookupJob(context.Context, string, string, string) (sqlcgen.TftPlayerLookupJob, error)

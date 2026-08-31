@@ -5,6 +5,7 @@ import "time"
 const (
 	CrawlWorkflowName        = "TFTCrawlWorkflow"
 	PlatformWorkflowName     = "TFTPlatformSeedWorkflow"
+	CandidateWorkflowName    = "TFTPlatformCandidateWorkflow"
 	RouteWorkflowName        = "TFTRouteDispatchWorkflow"
 	StaticWorkflowName       = "TFTStaticSyncWorkflow"
 	PlayerLookupWorkflowName = "TFTPlayerLookupWorkflow"
@@ -44,6 +45,12 @@ type CrawlInput struct {
 }
 
 type PlatformInput struct {
+	CrawlInput CrawlInput
+	RunID      int64
+	Platform   string
+}
+
+type CandidatePlatformInput struct {
 	CrawlInput CrawlInput
 	RunID      int64
 	Platform   string

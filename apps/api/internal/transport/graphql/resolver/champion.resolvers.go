@@ -7,9 +7,12 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/crafff/gogg/apps/api/internal/service/champion"
+	"github.com/crafff/gogg/apps/api/internal/service/championinsights"
 	"github.com/crafff/gogg/apps/api/internal/transport/graphql/domainerr"
 	gqlgenerated "github.com/crafff/gogg/apps/api/internal/transport/graphql/generated"
 )
@@ -58,6 +61,81 @@ func (r *queryResolver) ChampionDetail(ctx context.Context, id int, filter *gqlg
 	out.BootsBuilds = mapBuilds(res.BootsBuilds)
 	for _, stage := range res.ItemBuilds {
 		out.ItemBuilds = append(out.ItemBuilds, &gqlgenerated.ItemStageBuilds{Stage: stage.Stage, Builds: mapBuilds(stage.Builds)})
+	}
+	return out, nil
+}
+
+// ChampionWinFactors is the resolver for the championWinFactors field.
+func (r *queryResolver) ChampionWinFactors(ctx context.Context, id int, filter gqlgenerated.ChampionWinFactorsFilter) (*gqlgenerated.ChampionWinFactorsResult, error) {
+	f := championinsights.Filter{QueueID: 420, Version: "latest", Position: filter.Position}
+	if filter.QueueID != nil {
+		f.QueueID = *filter.QueueID
+	}
+	if filter.Version != nil {
+		f.Version = *filter.Version
+	}
+	if filter.Region != nil {
+		f.Region = *filter.Region
+	}
+	if filter.TierGroup != nil {
+		f.TierGroup = string(*filter.TierGroup)
+	}
+	res, err := r.ChampionInsights.Get(ctx, id, f)
+	if err != nil {
+		var validation *championinsights.ValidationError
+		if errors.As(err, &validation) {
+			return nil, domainerr.Wrap("BAD_USER_INPUT", validation.Error(), err)
+		}
+		return nil, fmt.Errorf("champion win factors: %w", err)
+	}
+	if res == nil {
+		return nil, nil
+	}
+	out := &gqlgenerated.ChampionWinFactorsResult{
+		ChampionID: res.ChampionID, ChampionName: res.ChampionName, Position: res.Position,
+		RegionScope:       res.RegionScope,
+		TierGroup:         gqlgenerated.TierGroup(res.TierGroup),
+		Availability:      gqlgenerated.ChampionInsightAvailability(res.Availability),
+		UnavailableReason: res.UnavailableReason,
+		SampleGames:       res.SampleGames, SamplePlayers: res.SamplePlayers,
+		Factors: []*gqlgenerated.ChampionWinFactor{},
+	}
+	if res.ResolvedVersion != "" {
+		out.ResolvedVersion = &res.ResolvedVersion
+	}
+	if res.Revision != "" {
+		out.Revision = &res.Revision
+	}
+	if res.Algorithm != "" {
+		out.Algorithm = &res.Algorithm
+	}
+	if res.CohortScope != "" {
+		out.CohortScope = &res.CohortScope
+	}
+	if res.DataThrough != nil {
+		value := res.DataThrough.UTC().Format(time.RFC3339)
+		out.DataThrough = &value
+	}
+	if res.PublishedAt != nil {
+		value := res.PublishedAt.UTC().Format(time.RFC3339)
+		out.PublishedAt = &value
+	}
+	for _, factor := range res.Factors {
+		mapped := &gqlgenerated.ChampionWinFactor{
+			MetricKey: factor.MetricKey, Kind: gqlgenerated.ChampionInsightFactorKind(factor.Kind),
+			StartMinute: factor.StartMinute, EndMinute: factor.EndMinute, Unit: factor.Unit,
+			P50: factor.P50, P70: factor.P70, P90: factor.P90,
+			EvidenceGrade: gqlgenerated.ChampionInsightEvidenceGrade(factor.EvidenceGrade),
+			DisplayOrder:  factor.DisplayOrder, Buckets: []*gqlgenerated.ChampionWinFactorBucket{},
+		}
+		for _, bucket := range factor.Buckets {
+			mapped.Buckets = append(mapped.Buckets, &gqlgenerated.ChampionWinFactorBucket{
+				Ordinal: bucket.Ordinal, LowerBound: bucket.LowerBound, UpperBound: bucket.UpperBound,
+				Games: bucket.Games, Wins: bucket.Wins, SamplePlayers: bucket.SamplePlayers,
+				ObservedWinRate: bucket.ObservedWinRate, ObservedWinRateDelta: bucket.ObservedWinRateDelta,
+			})
+		}
+		out.Factors = append(out.Factors, mapped)
 	}
 	return out, nil
 }

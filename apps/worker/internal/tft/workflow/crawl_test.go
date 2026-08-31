@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	temporalactivity "go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	temporalworkflow "go.temporal.io/sdk/workflow"
 
@@ -60,10 +63,11 @@ func TestCrawlUsesExecutionRunIDForDatabaseRunIdentity(t *testing.T) {
 	env.RegisterActivityWithOptions(activity.New(nil), temporalactivity.RegisterOptions{Name: "Activities."})
 
 	var start activity.StartRunInput
+	env.OnGetVersion(balancedMatchDiscoveryChangeID, temporalworkflow.DefaultVersion, 1).Return(temporalworkflow.Version(1)).Once()
 	env.OnActivity("Activities.ResolveTargetPatch", mock.Anything, "").Return("16.17", nil).Once()
-	env.OnActivity("Activities.StartRun", mock.Anything, mock.Anything).
+	env.OnActivity("Activities.StartBalancedRun", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { start = args.Get(1).(activity.StartRunInput) }).
-		Return(int64(0), errors.New("stop after identity capture")).
+		Return(int64(0), temporal.NewNonRetryableApplicationError("stop after identity capture", "TEST_STOP", nil)).
 		Once()
 
 	env.ExecuteWorkflow(Crawl, tftcontract.CrawlInput{Platforms: []string{"KR"}})
@@ -76,12 +80,68 @@ func TestCrawlUsesExecutionRunIDForDatabaseRunIdentity(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+func TestCrawlBalancesCandidatesBeforeRouteDispatch(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterActivityWithOptions(activity.New(nil), temporalactivity.RegisterOptions{Name: "Activities."})
+	var mu sync.Mutex
+	sequence := make([]string, 0, 6)
+	record := func(value string) {
+		mu.Lock()
+		defer mu.Unlock()
+		sequence = append(sequence, value)
+	}
+
+	env.OnGetVersion(balancedMatchDiscoveryChangeID, temporalworkflow.DefaultVersion, 1).Return(temporalworkflow.Version(1)).Once()
+	env.OnActivity("Activities.ResolveTargetPatch", mock.Anything, "").Return("16.17", nil).Once()
+	env.OnActivity("Activities.StartBalancedRun", mock.Anything, mock.Anything).Return(int64(42), nil).Once()
+	env.OnActivity("Activities.RequeueTargetPatch", mock.Anything, "16.17").Return(int64(0), nil).Once()
+	env.OnWorkflow(PlatformCandidates, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { record("candidates") }).Return(nil).Once()
+	env.OnActivity("Activities.FinalizeBalancedMatches", mock.Anything, activity.FinalizeBalancedMatchesInput{RunID: 42}).
+		Run(func(mock.Arguments) { record("finalize") }).Return(activity.FinalizeBalancedMatchesResult{TargetPerRegion: 1000}, nil).Once()
+	env.OnWorkflow(RouteDispatch, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { record("route") }).Return(nil).Times(4)
+	env.OnActivity("Activities.ListAnalysisTargets", mock.Anything, mock.Anything).Return([]activity.AnalysisTarget{}, nil).Once()
+	env.OnActivity("Activities.SetRunState", mock.Anything, mock.Anything).Return(nil).Once()
+
+	env.ExecuteWorkflow(Crawl, tftcontract.CrawlInput{Platforms: []string{"KR"}})
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	mu.Lock()
+	defer mu.Unlock()
+	candidateIndex := slices.Index(sequence, "candidates")
+	finalizeIndex := slices.Index(sequence, "finalize")
+	routeIndex := slices.Index(sequence, "route")
+	require.GreaterOrEqual(t, candidateIndex, 0, sequence)
+	require.Greater(t, finalizeIndex, candidateIndex, sequence)
+	require.Greater(t, routeIndex, finalizeIndex, sequence)
+	env.AssertExpectations(t)
+}
+
 func TestRunPlatformStageUsesCoroutineContext(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	env.OnWorkflow(PlatformSeed, mock.Anything, mock.Anything).After(time.Second).Return(nil).Twice()
 
 	env.ExecuteWorkflow(platformStageContextTestWorkflow)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var status tftcontract.CrawlStatus
+	require.NoError(t, env.GetWorkflowResult(&status))
+	require.Equal(t, 2, status.StageCompleted)
+	require.Equal(t, 2, status.StageTotal)
+	env.AssertExpectations(t)
+}
+
+func TestRunCandidatePlatformStageUsesDedicatedWorkflow(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.OnWorkflow(PlatformCandidates, mock.Anything, mock.Anything).After(time.Second).Return(nil).Twice()
+
+	env.ExecuteWorkflow(candidatePlatformStageContextTestWorkflow)
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
@@ -204,10 +264,17 @@ func platformStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract
 	return state, err
 }
 
+func candidatePlatformStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract.CrawlStatus, error) {
+	state := tftcontract.CrawlStatus{State: "running", Stage: "seed_and_candidate_discover"}
+	control := temporalworkflow.GetSignalChannel(ctx, "candidate-platform-stage-context-test-control")
+	_, _, err := runCandidatePlatformStage(ctx, control, tftcontract.CrawlInput{Platforms: []string{"NA1", "KR"}}, 42, &state)
+	return state, err
+}
+
 func routeStageContextTestWorkflow(ctx temporalworkflow.Context) (tftcontract.CrawlStatus, error) {
 	state := tftcontract.CrawlStatus{State: "running", Stage: "match_detail"}
 	control := temporalworkflow.GetSignalChannel(ctx, "route-stage-context-test-control")
-	_, _, err := runRouteStage(ctx, control, 42, "16.17", &state)
+	_, _, err := runRouteStage(ctx, control, 42, "16.17", false, &state)
 	return state, err
 }
 

@@ -28,10 +28,10 @@ SELECT
     (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id) AS discovered_seeds,
     (SELECT COUNT(*)::bigint FROM tft_seed_snapshots WHERE run_id = run.id AND selected) AS selected_seeds,
     (
-        SELECT COUNT(*)::bigint
+        SELECT COUNT(DISTINCT checkpoints.scope_key)::bigint
         FROM tft_crawl_checkpoints checkpoints
         WHERE checkpoints.run_id = run.id
-          AND checkpoints.stage = 'match_discovery'
+          AND checkpoints.stage IN ('match_discovery', 'match_candidates')
           AND checkpoints.processed >= (
               SELECT COUNT(*)
               FROM tft_seed_snapshots seeds
@@ -219,8 +219,13 @@ INSERT INTO tft_player_match_sync (
 ON CONFLICT (platform, puuid, queue_type) DO UPDATE
 SET window_start = LEAST(tft_player_match_sync.window_start, EXCLUDED.window_start),
     window_end = GREATEST(tft_player_match_sync.window_end, EXCLUDED.window_end),
-    last_synced_at = EXCLUDED.last_synced_at,
-    last_match_id = EXCLUDED.last_match_id,
+    last_synced_at = GREATEST(tft_player_match_sync.last_synced_at, EXCLUDED.last_synced_at),
+    last_match_id = CASE
+        WHEN (EXCLUDED.window_end, EXCLUDED.last_synced_at) >=
+             (tft_player_match_sync.window_end, tft_player_match_sync.last_synced_at)
+        THEN EXCLUDED.last_match_id
+        ELSE tft_player_match_sync.last_match_id
+    END,
     updated_at = now();
 
 -- name: GetTFTPlayerMatchSync :one
@@ -232,6 +237,171 @@ INSERT INTO tft_match_discoveries (
     run_id, platform, routing_region, seed_puuid, match_id, cohort
 ) VALUES (@run_id, @platform, @routing_region, @seed_puuid, @match_id, @cohort)
 ON CONFLICT DO NOTHING;
+
+-- name: EnsureTFTRunMatchSampling :exec
+INSERT INTO tft_run_match_sampling (
+    run_id, target_per_region, selection_revision
+) VALUES (
+    @run_id, @target_per_region, @selection_revision
+)
+ON CONFLICT (run_id) DO NOTHING;
+
+-- name: GetTFTRunMatchSampling :one
+SELECT * FROM tft_run_match_sampling WHERE run_id = @run_id;
+
+-- name: LockTFTRunMatchSampling :one
+SELECT * FROM tft_run_match_sampling WHERE run_id = @run_id FOR UPDATE;
+
+-- name: EnsureTFTRunPlatformSampling :exec
+INSERT INTO tft_run_platform_sampling (
+    run_id, platform, master_limit, diamond_per_division, salt
+) VALUES (
+    @run_id, @platform, @master_limit, @diamond_per_division, @salt
+)
+ON CONFLICT (run_id, platform) DO NOTHING;
+
+-- name: GetTFTRunPlatformSampling :one
+SELECT * FROM tft_run_platform_sampling
+WHERE run_id = @run_id AND platform = @platform;
+
+-- name: InsertTFTRunMatchCandidateSourceIfOpen :execrows
+WITH sampling_gate AS MATERIALIZED (
+    SELECT sampling.run_id
+    FROM tft_run_match_sampling sampling
+    WHERE sampling.run_id = sqlc.arg(run_id) AND sampling.phase = 'open'
+    FOR KEY SHARE
+), candidate AS (
+    INSERT INTO tft_run_match_candidates (
+        run_id, routing_region, match_id, platform, selection_key
+    )
+    SELECT sampling_gate.run_id, @routing_region, @match_id, @platform, @selection_key
+    FROM sampling_gate
+    ON CONFLICT (run_id, routing_region, match_id) DO UPDATE
+    SET selection_key = EXCLUDED.selection_key,
+        updated_at = now()
+    RETURNING run_id, routing_region, match_id
+)
+INSERT INTO tft_run_match_candidate_sources (
+    run_id, routing_region, match_id, platform, seed_puuid, cohort
+)
+SELECT candidate.run_id, candidate.routing_region, candidate.match_id,
+       @platform, @seed_puuid, @cohort
+FROM candidate
+ON CONFLICT DO NOTHING;
+
+-- name: GetTFTRunPlayerMatchSync :one
+SELECT * FROM tft_run_player_match_sync
+WHERE run_id = @run_id
+  AND platform = @platform
+  AND puuid = @puuid
+  AND queue_type = @queue_type;
+
+-- name: UpsertTFTRunPlayerMatchSyncIfOpen :execrows
+WITH sampling_gate AS MATERIALIZED (
+    SELECT sampling.run_id
+    FROM tft_run_match_sampling sampling
+    WHERE sampling.run_id = sqlc.arg(run_id) AND sampling.phase = 'open'
+    FOR KEY SHARE
+)
+INSERT INTO tft_run_player_match_sync (
+    run_id, platform, puuid, queue_type, window_start, window_end,
+    last_synced_at, last_match_id
+)
+SELECT sampling_gate.run_id, @platform, @puuid, @queue_type,
+       @window_start, @window_end, @last_synced_at, sqlc.narg(last_match_id)
+FROM sampling_gate
+ON CONFLICT (run_id, platform, puuid, queue_type) DO UPDATE
+SET window_start = LEAST(tft_run_player_match_sync.window_start, EXCLUDED.window_start),
+    window_end = GREATEST(tft_run_player_match_sync.window_end, EXCLUDED.window_end),
+    last_synced_at = EXCLUDED.last_synced_at,
+    last_match_id = EXCLUDED.last_match_id,
+    updated_at = now();
+
+-- name: SelectBalancedTFTRunMatchCandidates :exec
+WITH ranked AS (
+    SELECT source.run_id, source.routing_region, source.match_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY source.routing_region
+               ORDER BY source.selection_key, source.match_id
+           ) <= @target_per_route::bigint AS should_select
+    FROM tft_run_match_candidates source
+    WHERE source.run_id = @run_id
+)
+UPDATE tft_run_match_candidates candidates
+SET selected = ranked.should_select,
+    updated_at = now()
+FROM ranked
+WHERE candidates.run_id = ranked.run_id
+  AND candidates.routing_region = ranked.routing_region
+  AND candidates.match_id = ranked.match_id;
+
+-- name: ProjectBalancedTFTMatchDiscoveries :execrows
+INSERT INTO tft_match_discoveries (
+    run_id, platform, routing_region, seed_puuid, match_id, cohort
+)
+SELECT sources.run_id, sources.platform, sources.routing_region,
+       sources.seed_puuid, sources.match_id, sources.cohort
+FROM tft_run_match_candidate_sources sources
+JOIN tft_run_match_candidates candidates
+  ON candidates.run_id = sources.run_id
+ AND candidates.routing_region = sources.routing_region
+ AND candidates.match_id = sources.match_id
+WHERE candidates.run_id = @run_id AND candidates.selected
+ON CONFLICT DO NOTHING;
+
+-- name: EnqueueBalancedTFTMatchJobs :execrows
+INSERT INTO tft_match_jobs (routing_region, match_id, platform)
+SELECT routing_region, match_id, platform
+FROM tft_run_match_candidates
+WHERE run_id = @run_id AND selected
+ON CONFLICT (routing_region, match_id) DO NOTHING;
+
+-- name: CommitTFTRunPlayerMatchSync :execrows
+INSERT INTO tft_player_match_sync (
+    platform, puuid, queue_type, window_start, window_end, last_synced_at, last_match_id
+)
+SELECT platform, puuid, queue_type, window_start, window_end, last_synced_at, last_match_id
+FROM tft_run_player_match_sync
+WHERE run_id = @run_id
+ON CONFLICT (platform, puuid, queue_type) DO UPDATE
+SET window_start = LEAST(tft_player_match_sync.window_start, EXCLUDED.window_start),
+    window_end = GREATEST(tft_player_match_sync.window_end, EXCLUDED.window_end),
+    last_synced_at = GREATEST(tft_player_match_sync.last_synced_at, EXCLUDED.last_synced_at),
+    last_match_id = CASE
+        WHEN (EXCLUDED.window_end, EXCLUDED.last_synced_at) >=
+             (tft_player_match_sync.window_end, tft_player_match_sync.last_synced_at)
+        THEN EXCLUDED.last_match_id
+        ELSE tft_player_match_sync.last_match_id
+    END,
+    updated_at = now();
+
+-- name: MarkTFTRunMatchSamplingFinalized :execrows
+UPDATE tft_run_match_sampling
+SET phase = 'finalized', finalized_at = now(), updated_at = now()
+WHERE run_id = @run_id AND phase = 'open';
+
+-- name: ListTFTRunCandidateRouteProgress :many
+WITH routes AS (
+    SELECT 'AMERICAS'::text AS routing_region
+    UNION ALL SELECT 'ASIA'::text
+    UNION ALL SELECT 'EUROPE'::text
+    UNION ALL SELECT 'SEA'::text
+), counts AS (
+    SELECT routing_region,
+           COUNT(*)::bigint AS candidate_matches,
+           COUNT(*) FILTER (WHERE selected)::bigint AS selected_matches
+    FROM tft_run_match_candidates
+    WHERE run_id = @run_id
+    GROUP BY routing_region
+)
+SELECT routes.routing_region,
+       COALESCE(counts.candidate_matches, 0)::bigint AS candidate_matches,
+       COALESCE(counts.selected_matches, 0)::bigint AS selected_matches
+FROM routes
+LEFT JOIN counts USING (routing_region)
+ORDER BY CASE routes.routing_region
+    WHEN 'AMERICAS' THEN 1 WHEN 'ASIA' THEN 2
+    WHEN 'EUROPE' THEN 3 WHEN 'SEA' THEN 4 END;
 
 -- name: EnqueueTFTMatchJob :execrows
 INSERT INTO tft_match_jobs (routing_region, match_id, platform)

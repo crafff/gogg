@@ -30,6 +30,7 @@ import (
 	"github.com/crafff/gogg/apps/api/internal/config"
 	"github.com/crafff/gogg/apps/api/internal/service/catalog"
 	"github.com/crafff/gogg/apps/api/internal/service/champion"
+	"github.com/crafff/gogg/apps/api/internal/service/championinsights"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
 	summonersvc "github.com/crafff/gogg/apps/api/internal/service/summoner"
 	tftsvc "github.com/crafff/gogg/apps/api/internal/service/tft"
@@ -228,6 +229,7 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	catalogSvc := catalog.New(queries)
 	baseRankings := rankings.New(queries, versionResolverAdapter{queries: queries})
 	championSvc := champion.New(queries, versionResolverAdapter{queries: queries})
+	championInsightsSvc := championinsights.New(queries)
 	summonerSvc := summonersvc.New(queries, redisClient, workflowStarter, summonersvc.Config{
 		Freshness: cfg.Summoner.Freshness, IPLimit: cfg.Summoner.IPLimit, IPWindow: cfg.Summoner.IPLimitWindow,
 		RegionTaskQueues: cfg.Temporal.RegionTaskQueues,
@@ -252,7 +254,7 @@ func buildRouter(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, red
 	// stays mounted until the Phase D frontend cuts over. Resolvers
 	// reuse the same service instances — caching applies to /graphql
 	// requests for free.
-	gqlRoot := &resolver.Resolver{Catalog: catalogSvc, Rankings: rankingsSvc, Champion: championSvc, Summoners: summonerSvc, Users: userService, TFT: tftService}
+	gqlRoot := &resolver.Resolver{Catalog: catalogSvc, Rankings: rankingsSvc, Champion: championSvc, ChampionInsights: championInsightsSvc, Summoners: summonerSvc, Users: userService, TFT: tftService}
 	r.Handle("/graphql", gqlserver.NewHandler(gqlRoot))
 	if cfg.API.GraphQLPlayground {
 		r.Handle("/graphql/playground", gqlserver.NewPlaygroundHandler("/graphql"))

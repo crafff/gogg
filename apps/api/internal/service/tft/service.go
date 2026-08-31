@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 )
@@ -19,11 +22,14 @@ type Querier interface {
 }
 
 type Service struct {
-	q       FullQuerier
-	limiter FixedWindowLimiter
-	starter WorkflowStarter
-	cfg     RuntimeConfig
-	now     func() time.Time
+	q            FullQuerier
+	limiter      FixedWindowLimiter
+	starter      WorkflowStarter
+	cfg          RuntimeConfig
+	now          func() time.Time
+	previewMu    sync.RWMutex
+	previewCache map[string]observedCacheEntry
+	previewSF    singleflight.Group
 }
 
 func New(q FullQuerier, limiter FixedWindowLimiter, starter WorkflowStarter, cfg RuntimeConfig) *Service {
@@ -36,7 +42,10 @@ func New(q FullQuerier, limiter FixedWindowLimiter, starter WorkflowStarter, cfg
 	if cfg.IPWindow <= 0 {
 		cfg.IPWindow = 10 * time.Minute
 	}
-	return &Service{q: q, limiter: limiter, starter: starter, cfg: cfg, now: time.Now}
+	return &Service{
+		q: q, limiter: limiter, starter: starter, cfg: cfg, now: time.Now,
+		previewCache: make(map[string]observedCacheEntry),
+	}
 }
 
 type Filter struct {
@@ -64,6 +73,34 @@ type Count struct {
 	Count  int
 	Rate   float64
 }
+type UnitItems struct {
+	Unit                                                          Entity
+	CommonItems                                                   []Count
+	CoreRank                                                      *int
+	AverageItems, ItemInvestmentRate, EquippedRate, ThreeItemRate float64
+	KnownStarSamples, UnknownStarSamples                          int64
+	StarCoverage                                                  float64
+	StarDistribution                                              []UnitStarStrength
+}
+type UnitStarStrength struct {
+	Stars, SampleSize                 int
+	Rate, KnownRate                   float64
+	AvgPlacement, FirstRate, Top4Rate *float64
+}
+type StarLevelStrength struct {
+	TotalStars                              int
+	SampleSize, LobbyCount                  int64
+	Rate, AvgPlacement, FirstRate, Top4Rate float64
+}
+type StarCount struct {
+	Stars, UnitCount int
+}
+type StarCompositionStrength struct {
+	Levels                            []StarCount
+	TotalStars, SampleSize            int
+	Rate                              float64
+	AvgPlacement, FirstRate, Top4Rate *float64
+}
 type Metrics struct {
 	SampleSize, LobbyCount                                     int64
 	PickRate, AvgPlacement, FirstRate, Top4Rate, ContestedRate float64
@@ -72,6 +109,12 @@ type Lineup struct {
 	ID                                        string
 	CoreUnits                                 []Entity
 	CommonItems, CommonAugments, CommonTraits []Count
+	UnitItems                                 []UnitItems
+	StarLevels                                []StarLevelStrength
+	StarCompositionKnownSamples               int64
+	StarCompositionUnknownSamples             int64
+	StarCompositionCoverage                   float64
+	StarCompositions                          []StarCompositionStrength
 	Metrics                                   Metrics
 }
 type Result struct {

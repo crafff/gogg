@@ -82,6 +82,58 @@ type ChampionRankingsFilter struct {
 	Position *string `json:"position,omitempty"`
 }
 
+type ChampionWinFactor struct {
+	MetricKey     string                       `json:"metricKey"`
+	Kind          ChampionInsightFactorKind    `json:"kind"`
+	StartMinute   int                          `json:"startMinute"`
+	EndMinute     int                          `json:"endMinute"`
+	Unit          string                       `json:"unit"`
+	P50           float64                      `json:"p50"`
+	P70           float64                      `json:"p70"`
+	P90           float64                      `json:"p90"`
+	EvidenceGrade ChampionInsightEvidenceGrade `json:"evidenceGrade"`
+	DisplayOrder  int                          `json:"displayOrder"`
+	Buckets       []*ChampionWinFactorBucket   `json:"buckets"`
+}
+
+type ChampionWinFactorBucket struct {
+	Ordinal              int     `json:"ordinal"`
+	LowerBound           float64 `json:"lowerBound"`
+	UpperBound           float64 `json:"upperBound"`
+	Games                int     `json:"games"`
+	Wins                 int     `json:"wins"`
+	SamplePlayers        int     `json:"samplePlayers"`
+	ObservedWinRate      float64 `json:"observedWinRate"`
+	ObservedWinRateDelta float64 `json:"observedWinRateDelta"`
+}
+
+type ChampionWinFactorsFilter struct {
+	QueueID   *int       `json:"queueId,omitempty"`
+	Version   *string    `json:"version,omitempty"`
+	Region    *string    `json:"region,omitempty"`
+	TierGroup *TierGroup `json:"tierGroup,omitempty"`
+	Position  string     `json:"position"`
+}
+
+type ChampionWinFactorsResult struct {
+	ChampionID        int                         `json:"championId"`
+	ChampionName      string                      `json:"championName"`
+	Position          string                      `json:"position"`
+	ResolvedVersion   *string                     `json:"resolvedVersion,omitempty"`
+	RegionScope       string                      `json:"regionScope"`
+	TierGroup         TierGroup                   `json:"tierGroup"`
+	Revision          *string                     `json:"revision,omitempty"`
+	Algorithm         *string                     `json:"algorithm,omitempty"`
+	DataThrough       *string                     `json:"dataThrough,omitempty"`
+	PublishedAt       *string                     `json:"publishedAt,omitempty"`
+	Availability      ChampionInsightAvailability `json:"availability"`
+	UnavailableReason *string                     `json:"unavailableReason,omitempty"`
+	CohortScope       *string                     `json:"cohortScope,omitempty"`
+	SampleGames       int                         `json:"sampleGames"`
+	SamplePlayers     int                         `json:"samplePlayers"`
+	Factors           []*ChampionWinFactor        `json:"factors"`
+}
+
 type CurrentUser struct {
 	ID          string           `json:"id"`
 	DisplayName string           `json:"displayName"`
@@ -387,12 +439,18 @@ type TFTIdentityInput struct {
 }
 
 type TFTLineup struct {
-	ID             string            `json:"id"`
-	CoreUnits      []*TFTEntity      `json:"coreUnits"`
-	CommonItems    []*TFTEntityCount `json:"commonItems"`
-	CommonAugments []*TFTEntityCount `json:"commonAugments"`
-	CommonTraits   []*TFTEntityCount `json:"commonTraits"`
-	Metrics        *TFTLineupMetrics `json:"metrics"`
+	ID                            string                      `json:"id"`
+	CoreUnits                     []*TFTEntity                `json:"coreUnits"`
+	CommonItems                   []*TFTEntityCount           `json:"commonItems"`
+	CommonAugments                []*TFTEntityCount           `json:"commonAugments"`
+	CommonTraits                  []*TFTEntityCount           `json:"commonTraits"`
+	UnitItems                     []*TFTLineupUnitItems       `json:"unitItems"`
+	StarLevels                    []*TFTLineupStarStrength    `json:"starLevels"`
+	StarCompositionKnownSamples   int                         `json:"starCompositionKnownSamples"`
+	StarCompositionUnknownSamples int                         `json:"starCompositionUnknownSamples"`
+	StarCompositionCoverage       float64                     `json:"starCompositionCoverage"`
+	StarCompositions              []*TFTLineupStarComposition `json:"starCompositions"`
+	Metrics                       *TFTLineupMetrics           `json:"metrics"`
 }
 
 type TFTLineupMetrics struct {
@@ -403,6 +461,56 @@ type TFTLineupMetrics struct {
 	FirstRate     float64 `json:"firstRate"`
 	Top4Rate      float64 `json:"top4Rate"`
 	ContestedRate float64 `json:"contestedRate"`
+}
+
+type TFTLineupStarComposition struct {
+	Levels       []*TFTLineupStarCount `json:"levels"`
+	TotalStars   int                   `json:"totalStars"`
+	SampleSize   int                   `json:"sampleSize"`
+	Rate         float64               `json:"rate"`
+	AvgPlacement *float64              `json:"avgPlacement,omitempty"`
+	FirstRate    *float64              `json:"firstRate,omitempty"`
+	Top4Rate     *float64              `json:"top4Rate,omitempty"`
+}
+
+type TFTLineupStarCount struct {
+	Stars     int `json:"stars"`
+	UnitCount int `json:"unitCount"`
+}
+
+type TFTLineupStarStrength struct {
+	TotalStars   int     `json:"totalStars"`
+	SampleSize   int     `json:"sampleSize"`
+	LobbyCount   int     `json:"lobbyCount"`
+	Rate         float64 `json:"rate"`
+	AvgPlacement float64 `json:"avgPlacement"`
+	FirstRate    float64 `json:"firstRate"`
+	Top4Rate     float64 `json:"top4Rate"`
+}
+
+type TFTLineupUnitItems struct {
+	Unit               *TFTEntity                 `json:"unit"`
+	CommonItems        []*TFTEntityCount          `json:"commonItems"`
+	IsCore             bool                       `json:"isCore"`
+	CoreRank           *int                       `json:"coreRank,omitempty"`
+	AverageItems       float64                    `json:"averageItems"`
+	ItemInvestmentRate float64                    `json:"itemInvestmentRate"`
+	EquippedRate       float64                    `json:"equippedRate"`
+	ThreeItemRate      float64                    `json:"threeItemRate"`
+	KnownStarSamples   int                        `json:"knownStarSamples"`
+	UnknownStarSamples int                        `json:"unknownStarSamples"`
+	StarCoverage       float64                    `json:"starCoverage"`
+	StarDistribution   []*TFTLineupUnitStarBucket `json:"starDistribution"`
+}
+
+type TFTLineupUnitStarBucket struct {
+	Stars        int      `json:"stars"`
+	SampleSize   int      `json:"sampleSize"`
+	Rate         float64  `json:"rate"`
+	KnownRate    float64  `json:"knownRate"`
+	AvgPlacement *float64 `json:"avgPlacement,omitempty"`
+	FirstRate    *float64 `json:"firstRate,omitempty"`
+	Top4Rate     *float64 `json:"top4Rate,omitempty"`
 }
 
 type TFTLineupsFilter struct {
@@ -454,6 +562,41 @@ type TFTMatchPageInfo struct {
 	Returned    int     `json:"returned"`
 }
 
+type TFTObservedLineupsFilter struct {
+	Platform   *string `json:"platform,omitempty"`
+	Locale     *string `json:"locale,omitempty"`
+	MinSamples *int    `json:"minSamples,omitempty"`
+	Limit      *int    `json:"limit,omitempty"`
+}
+
+type TFTObservedLineupsResult struct {
+	DataKind           TFTObservedDataKind        `json:"dataKind"`
+	RunID              string                     `json:"runId"`
+	Platform           string                     `json:"platform"`
+	Platforms          []string                   `json:"platforms"`
+	QueueID            int                        `json:"queueId"`
+	SetNumber          int                        `json:"setNumber"`
+	Patch              *string                    `json:"patch,omitempty"`
+	RawGameVersions    []string                   `json:"rawGameVersions"`
+	Locale             string                     `json:"locale"`
+	AlgorithmVersion   string                     `json:"algorithmVersion"`
+	CatalogSnapshot    *TFTObservedStaticSnapshot `json:"catalogSnapshot"`
+	AssetSnapshot      *TFTObservedStaticSnapshot `json:"assetSnapshot,omitempty"`
+	SourceMatches      int                        `json:"sourceMatches"`
+	SourceParticipants int                        `json:"sourceParticipants"`
+	UsableParticipants int                        `json:"usableParticipants"`
+	ExactLineups       int                        `json:"exactLineups"`
+	WindowStart        string                     `json:"windowStart"`
+	WindowEnd          string                     `json:"windowEnd"`
+	Items              []*TFTLineup               `json:"items"`
+}
+
+type TFTObservedStaticSnapshot struct {
+	Source   string `json:"source"`
+	Patch    string `json:"patch"`
+	Revision string `json:"revision"`
+}
+
 type TFTPlayerProfile struct {
 	Platform        string  `json:"platform"`
 	GameName        string  `json:"gameName"`
@@ -466,6 +609,169 @@ type TFTRefreshResult struct {
 	Fresh  bool          `json:"fresh"`
 	Reused bool          `json:"reused"`
 	Job    *TFTLookupJob `json:"job,omitempty"`
+}
+
+type ChampionInsightAvailability string
+
+const (
+	ChampionInsightAvailabilityAvailable          ChampionInsightAvailability = "AVAILABLE"
+	ChampionInsightAvailabilityInsufficientSample ChampionInsightAvailability = "INSUFFICIENT_SAMPLE"
+	ChampionInsightAvailabilityUnavailable        ChampionInsightAvailability = "UNAVAILABLE"
+)
+
+var AllChampionInsightAvailability = []ChampionInsightAvailability{
+	ChampionInsightAvailabilityAvailable,
+	ChampionInsightAvailabilityInsufficientSample,
+	ChampionInsightAvailabilityUnavailable,
+}
+
+func (e ChampionInsightAvailability) IsValid() bool {
+	switch e {
+	case ChampionInsightAvailabilityAvailable, ChampionInsightAvailabilityInsufficientSample, ChampionInsightAvailabilityUnavailable:
+		return true
+	}
+	return false
+}
+
+func (e ChampionInsightAvailability) String() string {
+	return string(e)
+}
+
+func (e *ChampionInsightAvailability) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ChampionInsightAvailability(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ChampionInsightAvailability", str)
+	}
+	return nil
+}
+
+func (e ChampionInsightAvailability) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ChampionInsightAvailability) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ChampionInsightAvailability) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ChampionInsightEvidenceGrade string
+
+const (
+	ChampionInsightEvidenceGradeObserved ChampionInsightEvidenceGrade = "OBSERVED"
+)
+
+var AllChampionInsightEvidenceGrade = []ChampionInsightEvidenceGrade{
+	ChampionInsightEvidenceGradeObserved,
+}
+
+func (e ChampionInsightEvidenceGrade) IsValid() bool {
+	switch e {
+	case ChampionInsightEvidenceGradeObserved:
+		return true
+	}
+	return false
+}
+
+func (e ChampionInsightEvidenceGrade) String() string {
+	return string(e)
+}
+
+func (e *ChampionInsightEvidenceGrade) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ChampionInsightEvidenceGrade(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ChampionInsightEvidenceGrade", str)
+	}
+	return nil
+}
+
+func (e ChampionInsightEvidenceGrade) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ChampionInsightEvidenceGrade) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ChampionInsightEvidenceGrade) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ChampionInsightFactorKind string
+
+const (
+	ChampionInsightFactorKindBehaviorMetric ChampionInsightFactorKind = "BEHAVIOR_METRIC"
+)
+
+var AllChampionInsightFactorKind = []ChampionInsightFactorKind{
+	ChampionInsightFactorKindBehaviorMetric,
+}
+
+func (e ChampionInsightFactorKind) IsValid() bool {
+	switch e {
+	case ChampionInsightFactorKindBehaviorMetric:
+		return true
+	}
+	return false
+}
+
+func (e ChampionInsightFactorKind) String() string {
+	return string(e)
+}
+
+func (e *ChampionInsightFactorKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ChampionInsightFactorKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ChampionInsightFactorKind", str)
+	}
+	return nil
+}
+
+func (e ChampionInsightFactorKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ChampionInsightFactorKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ChampionInsightFactorKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type SummonerLookupStage string
@@ -825,6 +1131,59 @@ func (e *TFTLookupStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e TFTLookupStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TFTObservedDataKind string
+
+const (
+	TFTObservedDataKindObservedRunPreview TFTObservedDataKind = "OBSERVED_RUN_PREVIEW"
+)
+
+var AllTFTObservedDataKind = []TFTObservedDataKind{
+	TFTObservedDataKindObservedRunPreview,
+}
+
+func (e TFTObservedDataKind) IsValid() bool {
+	switch e {
+	case TFTObservedDataKindObservedRunPreview:
+		return true
+	}
+	return false
+}
+
+func (e TFTObservedDataKind) String() string {
+	return string(e)
+}
+
+func (e *TFTObservedDataKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TFTObservedDataKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TFTObservedDataKind", str)
+	}
+	return nil
+}
+
+func (e TFTObservedDataKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TFTObservedDataKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TFTObservedDataKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

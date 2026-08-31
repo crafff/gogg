@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -307,12 +308,38 @@ type StartRunInput struct {
 }
 
 func (a *Activities) StartRun(ctx context.Context, in StartRunInput) (int64, error) {
-	if existing, err := a.rt.Queries.GetTFTRunByWorkflowRunID(ctx, in.WorkflowRunID); err == nil {
+	return a.startRun(ctx, in, false)
+}
+
+func (a *Activities) StartBalancedRun(ctx context.Context, in StartRunInput) (result int64, resultErr error) {
+	return a.startRun(ctx, in, true)
+}
+
+func (a *Activities) startRun(ctx context.Context, in StartRunInput, balanced bool) (result int64, resultErr error) {
+	tx, err := a.rt.Pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin TFT run: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) && resultErr == nil {
+			resultErr = fmt.Errorf("rollback TFT run: %w", rollbackErr)
+		}
+	}()
+	queries := a.rt.Queries.WithTx(tx)
+	if existing, err := queries.GetTFTRunByWorkflowRunID(ctx, in.WorkflowRunID); err == nil {
+		if balanced {
+			if err := queries.EnsureTFTRunMatchSampling(ctx, existing.ID, int32(a.rt.Cfg.TFT.MatchTargetPerRegion), a.rt.Cfg.TFT.MatchSelectionRevision); err != nil {
+				return 0, err
+			}
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return 0, fmt.Errorf("commit existing TFT run: %w", err)
+		}
 		return existing.ID, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return 0, err
 	}
-	if _, err := a.rt.Queries.FailStaleTFTRuns(ctx, sqlcgen.FailStaleTFTRunsParams{
+	if _, err := queries.FailStaleTFTRuns(ctx, sqlcgen.FailStaleTFTRunsParams{
 		ScheduleID: in.ScheduleID, ProfileName: in.ProfileName,
 		Platform: "GLOBAL", WorkflowRunID: in.WorkflowRunID,
 	}); err != nil {
@@ -322,12 +349,22 @@ func (a *Activities) StartRun(ctx context.Context, in StartRunInput) (int64, err
 	if len(platforms) == 0 {
 		platforms = a.rt.Cfg.TFT.Platforms
 	}
-	cfg, _ := json.Marshal(map[string]any{
+	configValues := map[string]any{
 		"platforms": platforms, "queue_type": "RANKED_TFT", "queue_id": 1100,
 		"master_limit": a.rt.Cfg.TFT.MasterLimit, "diamond_per_division": a.rt.Cfg.TFT.DiamondPerDivision,
 		"match_count_per_seed": a.rt.Cfg.TFT.MatchCountPerSeed,
-	})
-	run, err := a.rt.Queries.CreateTFTRun(ctx, sqlcgen.CreateTFTRunParams{
+	}
+	if balanced {
+		configValues["match_target_per_region"] = a.rt.Cfg.TFT.MatchTargetPerRegion
+		configValues["match_selection_revision"] = a.rt.Cfg.TFT.MatchSelectionRevision
+		configValues["overlap_nanoseconds"] = int64(a.rt.Cfg.TFT.Overlap)
+		configValues["scale_master_limit"] = a.rt.Cfg.TFT.ScaleMasterLimit
+		configValues["scale_diamond_per_division"] = a.rt.Cfg.TFT.ScaleDiamondPerDivision
+		configValues["scale_after_nanoseconds"] = int64(a.rt.Cfg.TFT.ScaleAfter)
+		configValues["scale_below_observations"] = a.rt.Cfg.TFT.ScaleBelowObservations
+	}
+	cfg, _ := json.Marshal(configValues)
+	run, err := queries.CreateTFTRun(ctx, sqlcgen.CreateTFTRunParams{
 		WorkflowID: in.WorkflowID, WorkflowRunID: in.WorkflowRunID, ScheduleID: in.ScheduleID, ProfileName: in.ProfileName,
 		Platform: "GLOBAL", RoutingRegion: "GLOBAL", QueueType: "RANKED_TFT", QueueID: 1100,
 		Status: "running", TargetPatch: optionalString(in.Patch), TargetSet: optionalString(in.Set),
@@ -335,6 +372,14 @@ func (a *Activities) StartRun(ctx context.Context, in StartRunInput) (int64, err
 	})
 	if err != nil {
 		return 0, fmt.Errorf("create TFT run: %w", err)
+	}
+	if balanced {
+		if err := queries.EnsureTFTRunMatchSampling(ctx, run.ID, int32(a.rt.Cfg.TFT.MatchTargetPerRegion), a.rt.Cfg.TFT.MatchSelectionRevision); err != nil {
+			return 0, fmt.Errorf("initialize balanced TFT match sampling: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit TFT run: %w", err)
 	}
 	return run.ID, nil
 }
@@ -537,6 +582,63 @@ func (a *Activities) ApplySampling(ctx context.Context, in ApplySamplingInput) (
 	return len(selected), nil
 }
 
+func (a *Activities) ApplyBalancedSampling(ctx context.Context, in ApplySamplingInput) (int, error) {
+	policy, err := a.loadBalancedRunConfig(ctx, in.RunID)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := a.rt.Queries.ListTFTSeedsForSampling(ctx, in.RunID)
+	if err != nil {
+		return 0, err
+	}
+	seeds := make([]sampling.Seed, 0, len(rows))
+	for _, row := range rows {
+		if row.Platform != strings.ToUpper(in.Platform) {
+			continue
+		}
+		seeds = append(seeds, sampling.Seed{ID: row.ID, Puuid: row.Puuid, Tier: row.Tier, Division: value(row.Division), LeaguePoints: int(value32(row.LeaguePoints))})
+	}
+	patch, patchAge := in.Patch, time.Duration(0)
+	if snapshot, snapshotErr := a.rt.Queries.GetLatestTFTStaticSnapshotAnyStatus(ctx, "cdragon", "en_us"); snapshotErr == nil {
+		if patch == "" {
+			patch = snapshot.Patch
+		}
+		patchAge = time.Since(snapshot.FetchedAt.Time)
+	}
+	var observations int64
+	if patch != "" {
+		observations, _ = a.rt.Queries.CountTFTEligibleObservations(ctx, strings.ToUpper(in.Platform), patch)
+	}
+	limits := sampling.EffectiveLimits(patchAge, int(observations),
+		sampling.Limits{Master: policy.MasterLimit, DiamondPerDivision: policy.DiamondPerDivision},
+		sampling.Limits{Master: policy.ScaleMasterLimit, DiamondPerDivision: policy.ScaleDiamondPerDivision},
+		time.Duration(policy.ScaleAfterNanoseconds), policy.ScaleBelowObservations)
+	platform := strings.ToUpper(in.Platform)
+	salt := in.Salt
+	if salt == "" {
+		salt = platform + "|" + patch
+	}
+	if err := a.rt.Queries.EnsureTFTRunPlatformSampling(ctx, sqlcgen.EnsureTFTRunPlatformSamplingParams{
+		RunID: in.RunID, Platform: platform, MasterLimit: int32(limits.Master),
+		DiamondPerDivision: int32(limits.DiamondPerDivision), Salt: salt,
+	}); err != nil {
+		return 0, err
+	}
+	frozen, err := a.rt.Queries.GetTFTRunPlatformSampling(ctx, in.RunID, platform)
+	if err != nil {
+		return 0, err
+	}
+	selected := sampling.Select(seeds, frozen.Salt, sampling.Limits{
+		Master: int(frozen.MasterLimit), DiamondPerDivision: int(frozen.DiamondPerDivision),
+	})
+	for _, seed := range seeds {
+		if err := a.rt.Queries.SetTFTSeedSelected(ctx, selected[seed.ID], seed.ID); err != nil {
+			return 0, err
+		}
+	}
+	return len(selected), nil
+}
+
 type DiscoverInput struct {
 	RunID                  int64
 	Platform               string
@@ -606,6 +708,187 @@ func (a *Activities) DiscoverMatches(ctx context.Context, in DiscoverInput) (Bat
 		return BatchResult{}, err
 	}
 	return BatchResult{Processed: len(seeds), Created: created, HasMore: len(seeds) == in.Limit}, nil
+}
+
+type balancedRunConfig struct {
+	MasterLimit             int    `json:"master_limit"`
+	DiamondPerDivision      int    `json:"diamond_per_division"`
+	ScaleMasterLimit        int    `json:"scale_master_limit"`
+	ScaleDiamondPerDivision int    `json:"scale_diamond_per_division"`
+	ScaleAfterNanoseconds   int64  `json:"scale_after_nanoseconds"`
+	ScaleBelowObservations  int    `json:"scale_below_observations"`
+	MatchCountPerSeed       int    `json:"match_count_per_seed"`
+	MatchTargetPerRegion    int    `json:"match_target_per_region"`
+	MatchSelectionRevision  string `json:"match_selection_revision"`
+	OverlapNanoseconds      int64  `json:"overlap_nanoseconds"`
+}
+
+func (a *Activities) DiscoverMatchCandidates(ctx context.Context, in DiscoverInput) (BatchResult, error) {
+	policy, err := a.loadBalancedRunConfig(ctx, in.RunID)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	samplingState, err := a.rt.Queries.GetTFTRunMatchSampling(ctx, in.RunID)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	if samplingState.Phase == "finalized" {
+		return BatchResult{}, nil
+	}
+	seeds, err := a.rt.Queries.ListSelectedTFTSeedsPage(ctx, sqlcgen.ListSelectedTFTSeedsPageParams{
+		RunID: in.RunID, Platform: strings.ToUpper(in.Platform), RowOffset: int32(in.Offset), RowLimit: int32(in.Limit),
+	})
+	if err != nil {
+		return BatchResult{}, err
+	}
+	client, err := a.rt.Client(in.Platform)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	created := 0
+	for _, seed := range seeds {
+		windowStart := in.WindowStart
+		staged, stagedErr := a.rt.Queries.GetTFTRunPlayerMatchSync(ctx, sqlcgen.GetTFTRunPlayerMatchSyncParams{
+			RunID: in.RunID, Platform: seed.Platform, Puuid: seed.Puuid, QueueType: "RANKED_TFT",
+		})
+		if stagedErr == nil && staged.WindowEnd.Valid {
+			windowStart = effectiveWindowStart(windowStart, staged.WindowEnd.Time, time.Duration(policy.OverlapNanoseconds))
+		} else if stagedErr != nil && !errors.Is(stagedErr, pgx.ErrNoRows) {
+			return BatchResult{}, stagedErr
+		} else {
+			previous, syncErr := a.rt.Queries.GetTFTPlayerMatchSync(ctx, seed.Platform, seed.Puuid, "RANKED_TFT")
+			if syncErr == nil && previous.WindowEnd.Valid {
+				windowStart = effectiveWindowStart(windowStart, previous.WindowEnd.Time, time.Duration(policy.OverlapNanoseconds))
+			} else if syncErr != nil && !errors.Is(syncErr, pgx.ErrNoRows) {
+				return BatchResult{}, syncErr
+			}
+		}
+		release, err := a.rt.Gate.Acquire(ctx, in.Platform, "")
+		if err != nil {
+			return BatchResult{}, err
+		}
+		callCtx := rawarchive.WithRunID(ctx, in.RunID)
+		ids, callErr := client.GetTFTMatchIDsByPUUID(callCtx, seed.Puuid, windowStart.Unix(), in.WindowEnd.Unix(), 0, policy.MatchCountPerSeed)
+		release()
+		if callErr != nil {
+			return BatchResult{}, collectionError(callErr)
+		}
+		route := config.RoutingRegion(seed.Platform)
+		for _, matchID := range ids {
+			selectionKey := balancedSelectionKey(policy.MatchSelectionRevision, in.RunID, route, matchID)
+			n, err := a.rt.Queries.InsertTFTRunMatchCandidateSourceIfOpen(ctx, sqlcgen.InsertTFTRunMatchCandidateSourceIfOpenParams{
+				RunID: in.RunID, RoutingRegion: route, MatchID: matchID, Platform: seed.Platform,
+				SeedPuuid: seed.Puuid, Cohort: seed.Cohort, SelectionKey: selectionKey,
+			})
+			if err != nil {
+				return BatchResult{}, err
+			}
+			created += int(n)
+		}
+		var last *string
+		if len(ids) > 0 {
+			last = &ids[0]
+		}
+		if _, err := a.rt.Queries.UpsertTFTRunPlayerMatchSyncIfOpen(ctx, sqlcgen.UpsertTFTRunPlayerMatchSyncIfOpenParams{
+			RunID: in.RunID, Platform: seed.Platform, Puuid: seed.Puuid, QueueType: "RANKED_TFT",
+			WindowStart: timestamp(windowStart), WindowEnd: timestamp(in.WindowEnd),
+			LastSyncedAt: timestamp(time.Now()), LastMatchID: last,
+		}); err != nil {
+			return BatchResult{}, err
+		}
+	}
+	if err := a.saveCheckpoint(ctx, in.RunID, "match_candidates", strings.ToUpper(in.Platform), map[string]any{"next_offset": in.Offset + len(seeds)}, int64(in.Offset+len(seeds))); err != nil {
+		return BatchResult{}, err
+	}
+	return BatchResult{Processed: len(seeds), Created: created, HasMore: len(seeds) == in.Limit}, nil
+}
+
+type FinalizeBalancedMatchesInput struct{ RunID int64 }
+
+type BalancedRouteResult struct {
+	RoutingRegion    string
+	CandidateMatches int64
+	SelectedMatches  int64
+}
+
+type FinalizeBalancedMatchesResult struct {
+	TargetPerRegion int
+	Routes          []BalancedRouteResult
+}
+
+func (a *Activities) FinalizeBalancedMatches(ctx context.Context, in FinalizeBalancedMatchesInput) (result FinalizeBalancedMatchesResult, resultErr error) {
+	tx, err := a.rt.Pool.Begin(ctx)
+	if err != nil {
+		return result, fmt.Errorf("begin balanced TFT match selection: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) && resultErr == nil {
+			resultErr = fmt.Errorf("rollback balanced TFT match selection: %w", rollbackErr)
+		}
+	}()
+	queries := a.rt.Queries.WithTx(tx)
+	samplingState, err := queries.LockTFTRunMatchSampling(ctx, in.RunID)
+	if err != nil {
+		return result, err
+	}
+	if samplingState.Phase == "open" {
+		if err := queries.SelectBalancedTFTRunMatchCandidates(ctx, int64(samplingState.TargetPerRegion), in.RunID); err != nil {
+			return result, err
+		}
+		if _, err := queries.ProjectBalancedTFTMatchDiscoveries(ctx, in.RunID); err != nil {
+			return result, err
+		}
+		if _, err := queries.EnqueueBalancedTFTMatchJobs(ctx, in.RunID); err != nil {
+			return result, err
+		}
+		if _, err := queries.CommitTFTRunPlayerMatchSync(ctx, in.RunID); err != nil {
+			return result, err
+		}
+		if err := queries.RefreshTFTRunCounts(ctx, in.RunID); err != nil {
+			return result, err
+		}
+		if changed, err := queries.MarkTFTRunMatchSamplingFinalized(ctx, in.RunID); err != nil {
+			return result, err
+		} else if changed != 1 {
+			return result, fmt.Errorf("finalize balanced TFT match sampling: expected one open run, updated %d", changed)
+		}
+	}
+	rows, err := queries.ListTFTRunCandidateRouteProgress(ctx, in.RunID)
+	if err != nil {
+		return result, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return result, fmt.Errorf("commit balanced TFT match selection: %w", err)
+	}
+	result.TargetPerRegion = int(samplingState.TargetPerRegion)
+	result.Routes = make([]BalancedRouteResult, 0, len(rows))
+	for _, row := range rows {
+		result.Routes = append(result.Routes, BalancedRouteResult{
+			RoutingRegion: row.RoutingRegion, CandidateMatches: row.CandidateMatches, SelectedMatches: row.SelectedMatches,
+		})
+	}
+	return result, nil
+}
+
+func (a *Activities) loadBalancedRunConfig(ctx context.Context, runID int64) (balancedRunConfig, error) {
+	run, err := a.rt.Queries.GetTFTRunByID(ctx, runID)
+	if err != nil {
+		return balancedRunConfig{}, err
+	}
+	var policy balancedRunConfig
+	if err := json.Unmarshal(run.Config, &policy); err != nil {
+		return balancedRunConfig{}, fmt.Errorf("decode TFT run %d balance config: %w", runID, err)
+	}
+	if policy.MasterLimit < 0 || policy.DiamondPerDivision < 0 || policy.ScaleMasterLimit < 0 || policy.ScaleDiamondPerDivision < 0 ||
+		policy.ScaleAfterNanoseconds < 0 || policy.ScaleBelowObservations < 0 || policy.MatchCountPerSeed < 1 || policy.MatchCountPerSeed > 100 ||
+		policy.MatchTargetPerRegion < 1 || strings.TrimSpace(policy.MatchSelectionRevision) == "" || policy.OverlapNanoseconds < 0 {
+		return balancedRunConfig{}, temporal.NewNonRetryableApplicationError("TFT run balance config is invalid", "INVALID_CONFIG", nil)
+	}
+	return policy, nil
+}
+
+func balancedSelectionKey(revision string, runID int64, routingRegion, matchID string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%s|%s", revision, runID, routingRegion, matchID))))
 }
 
 type DispatchInput struct {

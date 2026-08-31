@@ -86,6 +86,14 @@ The crawl status command combines Temporal's live control state with a
 read-only, repeatable-read PostgreSQL snapshot. It reports completed platform
 children, selected seeds, unique run-scoped matches, terminal outcomes,
 pending/retry/leased/not-enqueued work, and a four-routing-region breakdown.
+New runs first show `candidates`, the frozen `target`, and
+`admitted=pending`. After all platform match lists finish, they show the
+deterministically admitted count and an explicit `shortfall` for routes whose
+candidate pool did not reach the target. Only admitted matches enter
+`run_matches` and lineup analysis; candidate rows never enter the global detail
+queue by themselves. Candidate discovery also stages player watermarks inside
+the run. A failed or cancelled run cannot advance the global success cursor;
+the cursor moves only in the same transaction that seals admission.
 `global_queue_remaining` is deliberately separate because route workers may
 also be draining jobs discovered by older scheduled runs. During seed
 discovery the match total is still growing, so no percentage is claimed; once
@@ -159,6 +167,15 @@ player watermark minus a six-hour overlap. If a patch is older than 48 hours
 and has fewer than 10,000 eligible participant observations, the sample caps
 increase once to 1,000 Master and 100 per Diamond division; lower tiers remain
 out of scope.
+
+Match-list IDs are candidate data, not immediately scheduled detail work. The
+default `match_target_per_region: 1000` admits up to 1,000 unique matches from
+each of AMERICAS, ASIA, EUROPE, and SEA using
+`match_selection_revision: route-balance-v1`. Both values are frozen in the run
+record. Change them only for future runs; changing worker configuration cannot
+alter an active run's sample. The target balances raw unique lobbies. Queue,
+patch, participant-shape, and static-catalog eligibility are known only after
+detail ingestion and may reduce the final analyzable sample.
 
 Raw captures, discovery edges, jobs, normalized matches and participants,
 static snapshots, exact rollups, and immutable lineup publications are all

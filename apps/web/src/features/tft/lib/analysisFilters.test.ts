@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   catalogOptions,
   readMinSamples,
+  readPreviewMinSamples,
   selectCatalogEntry,
   type TftCatalogEntry,
 } from "./analysisFilters";
@@ -72,5 +73,7 @@ describe("TFT analysis filters", () => {
     expect(readMinSamples("0")).toBe(200);
     expect(readMinSamples("1250")).toBe(1250);
     expect(readMinSamples("9999999")).toBe(100_000);
+    expect(readPreviewMinSamples(null)).toBe(20);
+    expect(readPreviewMinSamples("50")).toBe(50);
   });
 });

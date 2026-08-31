@@ -11,6 +11,40 @@ import (
 	gqlgenerated "github.com/crafff/gogg/apps/api/internal/transport/graphql/generated"
 )
 
+func mapTFTObservedLineups(result *tft.ObservedResult) *gqlgenerated.TFTObservedLineupsResult {
+	if result == nil {
+		return nil
+	}
+	out := &gqlgenerated.TFTObservedLineupsResult{
+		DataKind: gqlgenerated.TFTObservedDataKind(result.DataKind), RunID: fmt.Sprint(result.RunID),
+		Platform: result.Platform, Platforms: result.Platforms,
+		QueueID: result.QueueID, SetNumber: result.SetNumber, Patch: result.Patch,
+		RawGameVersions: result.RawGameVersions, Locale: result.Locale,
+		AlgorithmVersion: result.AlgorithmVersion,
+		SourceMatches:    int(result.SourceMatches), SourceParticipants: int(result.SourceParticipants),
+		UsableParticipants: int(result.UsableParticipants), ExactLineups: int(result.ExactLineups),
+		WindowStart: result.WindowStart.UTC().Format(time.RFC3339),
+		WindowEnd:   result.WindowEnd.UTC().Format(time.RFC3339),
+		Items:       make([]*gqlgenerated.TFTLineup, 0, len(result.Items)),
+	}
+	if result.CatalogSnapshot != nil {
+		out.CatalogSnapshot = &gqlgenerated.TFTObservedStaticSnapshot{
+			Source: result.CatalogSnapshot.Source,
+			Patch:  result.CatalogSnapshot.Patch, Revision: result.CatalogSnapshot.Revision,
+		}
+	}
+	if result.AssetSnapshot != nil {
+		out.AssetSnapshot = &gqlgenerated.TFTObservedStaticSnapshot{
+			Source: result.AssetSnapshot.Source,
+			Patch:  result.AssetSnapshot.Patch, Revision: result.AssetSnapshot.Revision,
+		}
+	}
+	for _, item := range result.Items {
+		out.Items = append(out.Items, mapTFTLineup(item))
+	}
+	return out
+}
+
 func mapTFTCoverage(coverage tft.Coverage) *gqlgenerated.TFTAnalysisCoverage {
 	windowStart, windowEnd := "", ""
 	if !coverage.WindowStart.IsZero() {
@@ -24,11 +58,17 @@ func mapTFTCoverage(coverage tft.Coverage) *gqlgenerated.TFTAnalysisCoverage {
 
 func mapTFTLineup(item tft.Lineup) *gqlgenerated.TFTLineup {
 	return &gqlgenerated.TFTLineup{
-		ID:             item.ID,
-		CoreUnits:      mapTFTEntities(item.CoreUnits),
-		CommonItems:    mapTFTCounts(item.CommonItems),
-		CommonAugments: mapTFTCounts(item.CommonAugments),
-		CommonTraits:   mapTFTCounts(item.CommonTraits),
+		ID:                            item.ID,
+		CoreUnits:                     mapTFTEntities(item.CoreUnits),
+		CommonItems:                   mapTFTCounts(item.CommonItems),
+		CommonAugments:                mapTFTCounts(item.CommonAugments),
+		CommonTraits:                  mapTFTCounts(item.CommonTraits),
+		UnitItems:                     mapTFTUnitItems(item.UnitItems),
+		StarLevels:                    mapTFTStarLevels(item.StarLevels),
+		StarCompositionKnownSamples:   int(item.StarCompositionKnownSamples),
+		StarCompositionUnknownSamples: int(item.StarCompositionUnknownSamples),
+		StarCompositionCoverage:       item.StarCompositionCoverage,
+		StarCompositions:              mapTFTStarCompositions(item.StarCompositions),
 		Metrics: &gqlgenerated.TFTLineupMetrics{
 			SampleSize: int(item.Metrics.SampleSize), LobbyCount: int(item.Metrics.LobbyCount),
 			PickRate: item.Metrics.PickRate, AvgPlacement: item.Metrics.AvgPlacement,
@@ -36,6 +76,62 @@ func mapTFTLineup(item tft.Lineup) *gqlgenerated.TFTLineup {
 			ContestedRate: item.Metrics.ContestedRate,
 		},
 	}
+}
+
+func mapTFTUnitItems(items []tft.UnitItems) []*gqlgenerated.TFTLineupUnitItems {
+	out := make([]*gqlgenerated.TFTLineupUnitItems, 0, len(items))
+	for _, item := range items {
+		starDistribution := make([]*gqlgenerated.TFTLineupUnitStarBucket, 0, len(item.StarDistribution))
+		for _, level := range item.StarDistribution {
+			starDistribution = append(starDistribution, &gqlgenerated.TFTLineupUnitStarBucket{
+				Stars: level.Stars, SampleSize: level.SampleSize,
+				Rate: level.Rate, KnownRate: level.KnownRate,
+				AvgPlacement: level.AvgPlacement, FirstRate: level.FirstRate,
+				Top4Rate: level.Top4Rate,
+			})
+		}
+		out = append(out, &gqlgenerated.TFTLineupUnitItems{
+			Unit: mapTFTEntities([]tft.Entity{item.Unit})[0], CommonItems: mapTFTCounts(item.CommonItems),
+			IsCore: item.CoreRank != nil, CoreRank: item.CoreRank,
+			AverageItems: item.AverageItems, ItemInvestmentRate: item.ItemInvestmentRate,
+			EquippedRate: item.EquippedRate, ThreeItemRate: item.ThreeItemRate,
+			KnownStarSamples: int(item.KnownStarSamples), UnknownStarSamples: int(item.UnknownStarSamples),
+			StarCoverage: item.StarCoverage, StarDistribution: starDistribution,
+		})
+	}
+	return out
+}
+
+func mapTFTStarCompositions(items []tft.StarCompositionStrength) []*gqlgenerated.TFTLineupStarComposition {
+	out := make([]*gqlgenerated.TFTLineupStarComposition, 0, len(items))
+	for _, item := range items {
+		levels := make([]*gqlgenerated.TFTLineupStarCount, 0, len(item.Levels))
+		for _, level := range item.Levels {
+			levels = append(levels, &gqlgenerated.TFTLineupStarCount{
+				Stars: level.Stars, UnitCount: level.UnitCount,
+			})
+		}
+		out = append(out, &gqlgenerated.TFTLineupStarComposition{
+			Levels: levels, TotalStars: item.TotalStars,
+			SampleSize: item.SampleSize, Rate: item.Rate,
+			AvgPlacement: item.AvgPlacement, FirstRate: item.FirstRate,
+			Top4Rate: item.Top4Rate,
+		})
+	}
+	return out
+}
+
+func mapTFTStarLevels(items []tft.StarLevelStrength) []*gqlgenerated.TFTLineupStarStrength {
+	out := make([]*gqlgenerated.TFTLineupStarStrength, 0, len(items))
+	for _, item := range items {
+		out = append(out, &gqlgenerated.TFTLineupStarStrength{
+			TotalStars: item.TotalStars,
+			SampleSize: int(item.SampleSize), LobbyCount: int(item.LobbyCount),
+			Rate: item.Rate, AvgPlacement: item.AvgPlacement,
+			FirstRate: item.FirstRate, Top4Rate: item.Top4Rate,
+		})
+	}
+	return out
 }
 
 func mapTFTEntities(items []tft.Entity) []*gqlgenerated.TFTEntity {

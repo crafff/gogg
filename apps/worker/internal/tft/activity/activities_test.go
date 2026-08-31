@@ -33,3 +33,12 @@ func TestClonePlayerHeartbeatOwnsWorksetSlices(t *testing.T) {
 	require.Equal(t, []string{"KR_1", "KR_2"}, original.MatchIDs)
 	require.Equal(t, []string{"KR_1"}, original.CompletedMatchIDs)
 }
+
+func TestBalancedSelectionKeyIsStableAndSeparatesRuns(t *testing.T) {
+	key := balancedSelectionKey("route-balance-v1", 42, "SEA", "VN2_123")
+	require.Equal(t, key, balancedSelectionKey("route-balance-v1", 42, "SEA", "VN2_123"))
+	require.NotEqual(t, key, balancedSelectionKey("route-balance-v2", 42, "SEA", "VN2_123"))
+	require.NotEqual(t, key, balancedSelectionKey("route-balance-v1", 43, "SEA", "VN2_123"))
+	require.NotEqual(t, key, balancedSelectionKey("route-balance-v1", 42, "ASIA", "VN2_123"))
+	require.NotEqual(t, key, balancedSelectionKey("route-balance-v1", 42, "SEA", "VN2_124"))
+}

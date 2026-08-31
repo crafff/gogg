@@ -1,6 +1,6 @@
 # GOGG durable project memory
 
-Last evidence review: 2026-08-28.
+Last evidence review: 2026-08-29.
 
 This file records stable project facts and proven lessons for future human and
 agent sessions. It is not a task tracker. Validate any fact that may have gone
@@ -26,6 +26,13 @@ stale against code and tests before relying on it.
 - Champion-detail rune signatures preserve two style IDs, all six selected
   perk IDs, and three stat-shard IDs. Do not omit `perk5` when rebuilding the
   rollup or shift the API slice boundaries back to the old ten-field shape.
+- Champion win factors use immutable `ranked-solo-v1` publications rather than
+  online snapshot scans. The first evidence version is JUNGLE-only and exposes
+  four observed 10/15-minute CS/damage metrics behind explicit cohort and
+  per-bucket game/player gates; `championWinFactors` is lazy-loaded from
+  `?view=factors` and never uses causal wording. Its revision is a content
+  fingerprint and an empty build cannot replace the prior publication. Rebuild
+  it independently with `make refresh-champion-insights`.
 
 ## Current summoner-history contract
 
@@ -98,9 +105,28 @@ stale against code and tests before relying on it.
   Scheduled crawl and static-data schedules are deployed paused and controlled
   independently from LoL work.
 - Standard ranked analysis uses immutable published lineup datasets. The React
-  `/tft` page reads only catalog-backed filter combinations through
+  `/tft` page prefers catalog-backed filter combinations through
   `tftAnalysisCatalog` and `tftLineups`; URLs preserve the selected platform,
-  patch, set, cohort, window, and sample threshold.
+  patch, set, cohort, window, and sample threshold. Before the first formal
+  publication, a separate `tftObservedLineups` contract can show exact final
+  boards from one completed crawl run. That preview keeps the match patch null,
+  omits cohort claims, de-duplicates discovery provenance by match, and labels
+  the independently selected DDragon catalog snapshot used to recognize
+  purchasable units and the CDragon asset snapshot used to render local names
+  and icons. Its cached base rollup pins detail aggregation to the same catalog
+  snapshot; requested detail subsets are serialized per run, platform, and
+  catalog and cached incrementally so filter variants cannot start concurrent
+  full scans. A completed in-flight detail query serves its current callers even
+  if the base cache TTL expires before the result can be stored. The public
+  preview limit is 30. Per-unit item rates count distinct
+  final boards. An item core is a neutral, data-derived label for units whose
+  capped item-slot investment is at least 0.60 and at least 75% of the lineup
+  maximum; identical investment metrics share a rank, and the label must not be
+  presented as a carry or tank classification. Star
+  analysis exposes each unique unit's known/unknown tier distribution and
+  groups lineup performance by complete star composition, not only total
+  stars. Duplicate units use their highest final tier, low-sample strength
+  metrics remain hidden, and all results remain explicitly non-causal.
 - TFT player history has a separate 15-platform identity and lookup-job model.
   `/tft/player/:platform/:gameName/:tagLine` reconnects to stable Temporal jobs,
   polls their persisted status, and reads canonical match facts with cursor
@@ -126,6 +152,20 @@ stale against code and tests before relying on it.
   must remain distinct from the shared global routing queues. Operator status
   reads a consistent PostgreSQL snapshot, exposes not-yet-enqueued discoveries,
   and falls back to the latest persisted run after the Temporal execution ends.
+- New TFT crawls separate platform match-list candidates from admitted matches.
+  After all platform candidate children finish, a Temporal-versioned finalizer
+  uses a run-frozen stable hash and per-routing-region target (default 1,000) to
+  select the formal discovery/job set. Candidate arrival order and global job
+  cache state cannot bias selection; routes that cannot reach the target expose
+  an explicit shortfall. Admission is sealed once, and only that finalizer
+  transaction promotes run-local player watermarks to the global success
+  cursor. Legacy active histories keep the original direct discovery path
+  through `workflow.GetVersion`.
+- Riot TFT match detail may return `game_version` as
+  `TFT Unreal Version ?.?.?.?` even for otherwise valid ranked lobbies. Do not
+  silently label those rows with the run's target patch: a seven-day discovery
+  window can cross a patch boundary. Keep the raw capture replayable and treat
+  the match as patch-unknown until a provenance-backed patch resolver exists.
 
 ## Local development facts
 

@@ -11,3 +11,45 @@ query ChampionDetail($id: Int!, $filter: ChampionDetailFilter) {
     itemBuilds { stage builds { ids games eligibleGames pickRate winRate } }
   }
 }
+
+query ChampionWinFactors($id: Int!, $filter: ChampionWinFactorsFilter!) {
+  championWinFactors(id: $id, filter: $filter) {
+    championId
+    championName
+    position
+    resolvedVersion
+    regionScope
+    tierGroup
+    revision
+    algorithm
+    dataThrough
+    publishedAt
+    availability
+    unavailableReason
+    cohortScope
+    sampleGames
+    samplePlayers
+    factors {
+      metricKey
+      kind
+      startMinute
+      endMinute
+      unit
+      p50
+      p70
+      p90
+      evidenceGrade
+      displayOrder
+      buckets {
+        ordinal
+        lowerBound
+        upperBound
+        games
+        wins
+        samplePlayers
+        observedWinRate
+        observedWinRateDelta
+      }
+    }
+  }
+}

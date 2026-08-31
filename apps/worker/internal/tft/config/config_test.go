@@ -45,3 +45,14 @@ func TestValidateRequiresSafeStaticDownloadBatchRatio(t *testing.T) {
 
 	require.ErrorContains(t, cfg.Validate(), "must not exceed 8 times")
 }
+
+func TestValidateRequiresBalancedMatchPolicy(t *testing.T) {
+	cfg := Default()
+	cfg.Riot.APIKey = "test-key"
+	cfg.TFT.MatchTargetPerRegion = 0
+	cfg.TFT.MatchSelectionRevision = ""
+
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "tft.match_target_per_region must be 1..100000")
+	require.ErrorContains(t, err, "tft.match_selection_revision must not be empty")
+}

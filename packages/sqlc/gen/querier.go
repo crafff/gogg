@@ -18,6 +18,7 @@ type Querier interface {
 	ClaimTFTMatchJobs(ctx context.Context, arg ClaimTFTMatchJobsParams) ([]TftMatchJob, error)
 	ClaimTFTStaticAssetGroups(ctx context.Context, arg ClaimTFTStaticAssetGroupsParams) ([]ClaimTFTStaticAssetGroupsRow, error)
 	ClaimTFTStaticAssetJobs(ctx context.Context, leaseOwner *string, leaseSeconds int32, rowLimit int32) ([]TftStaticAssetJob, error)
+	CommitTFTRunPlayerMatchSync(ctx context.Context, runID int64) (int64, error)
 	CompleteTFTMatchJob(ctx context.Context, arg CompleteTFTMatchJobParams) (int64, error)
 	CompleteTFTStaticAssetGroup(ctx context.Context, arg CompleteTFTStaticAssetGroupParams) (int64, error)
 	CompleteTFTStaticAssetJob(ctx context.Context, arg CompleteTFTStaticAssetJobParams) (int64, error)
@@ -52,8 +53,11 @@ type Querier interface {
 	DeleteTFTExactRollupSlice(ctx context.Context, arg DeleteTFTExactRollupSliceParams) error
 	DeleteTFTLineupPublicationFamilies(ctx context.Context, publicationID int64) error
 	DeleteTFTMatchParticipants(ctx context.Context, matchID string) error
+	EnqueueBalancedTFTMatchJobs(ctx context.Context, runID int64) (int64, error)
 	EnqueueTFTMatchJob(ctx context.Context, routingRegion string, matchID string, platform string) (int64, error)
 	EnqueueTFTStaticAsset(ctx context.Context, arg EnqueueTFTStaticAssetParams) (int64, error)
+	EnsureTFTRunMatchSampling(ctx context.Context, runID int64, targetPerRegion int32, selectionRevision string) error
+	EnsureTFTRunPlatformSampling(ctx context.Context, arg EnsureTFTRunPlatformSamplingParams) error
 	FailStaleTFTRuns(ctx context.Context, arg FailStaleTFTRunsParams) (int64, error)
 	FailTFTStaticAssetGroup(ctx context.Context, arg FailTFTStaticAssetGroupParams) (int64, error)
 	FailTFTStaticAssetJob(ctx context.Context, arg FailTFTStaticAssetJobParams) (int64, error)
@@ -65,6 +69,8 @@ type Querier interface {
 	FinishTFTPlayerLookupJob(ctx context.Context, arg FinishTFTPlayerLookupJobParams) error
 	GetActiveUserSessionByHash(ctx context.Context, tokenHash []byte) (UserSession, error)
 	GetChampionIdentity(ctx context.Context, championID int32) (GetChampionIdentityRow, error)
+	GetLatestChampionInsightVersion(ctx context.Context) (string, error)
+	GetLatestCompletedTFTObservedRun(ctx context.Context, platform string) (TftCrawlRun, error)
 	// Queries on game_versions + published statistics rollups.
 	// "latest" on the statistics surface means the newest version with a
 	// published, non-empty rollup. Collector bundles can contain newer raw match
@@ -74,6 +80,8 @@ type Querier interface {
 	GetLatestPublishedTFTStaticSnapshotAnyPatch(ctx context.Context, source string, locale string) (TftStaticSnapshot, error)
 	GetLatestTFTRunByScheduleID(ctx context.Context, scheduleID string) (TftCrawlRun, error)
 	GetLatestTFTStaticSnapshotAnyStatus(ctx context.Context, source string, locale string) (TftStaticSnapshot, error)
+	GetPublishedChampionInsightCohort(ctx context.Context, arg GetPublishedChampionInsightCohortParams) (GetPublishedChampionInsightCohortRow, error)
+	GetPublishedChampionInsightIdentity(ctx context.Context, championID int32) (GetPublishedChampionInsightIdentityRow, error)
 	// Look up a refresh token by its hash. Caller is responsible for
 	// checking revoked_at and expires_at; we keep both so audit queries
 	// can see rotation history.
@@ -86,12 +94,17 @@ type Querier interface {
 	GetTFTCheckpoint(ctx context.Context, runID int64, stage string, scopeKey string) (TftCrawlCheckpoint, error)
 	GetTFTLineupPublication(ctx context.Context, arg GetTFTLineupPublicationParams) (TftLineupPublication, error)
 	GetTFTMatchQueueState(ctx context.Context, routingRegion string) (GetTFTMatchQueueStateRow, error)
+	GetTFTObservedLineupDetails(ctx context.Context, arg GetTFTObservedLineupDetailsParams) (interface{}, error)
+	GetTFTObservedLineupPreview(ctx context.Context, runID int64, platform string) (GetTFTObservedLineupPreviewRow, error)
 	// TFT player identity, refresh jobs, and read-optimised history assembly.
 	GetTFTPlayerIdentity(ctx context.Context, platform string, gameName string, tagLine string) (TftPlayerIdentity, error)
 	GetTFTPlayerLookupJob(ctx context.Context, id string) (TftPlayerLookupJob, error)
 	GetTFTPlayerMatchSync(ctx context.Context, platform string, puuid string, queueType string) (TftPlayerMatchSync, error)
 	GetTFTRunByID(ctx context.Context, id int64) (TftCrawlRun, error)
 	GetTFTRunByWorkflowRunID(ctx context.Context, workflowRunID string) (TftCrawlRun, error)
+	GetTFTRunMatchSampling(ctx context.Context, runID int64) (TftRunMatchSampling, error)
+	GetTFTRunPlatformSampling(ctx context.Context, runID int64, platform string) (TftRunPlatformSampling, error)
+	GetTFTRunPlayerMatchSync(ctx context.Context, arg GetTFTRunPlayerMatchSyncParams) (TftRunPlayerMatchSync, error)
 	GetTFTRunProgress(ctx context.Context, runID int64) (GetTFTRunProgressRow, error)
 	GetTFTStaticAssetQueueState(ctx context.Context) (GetTFTStaticAssetQueueStateRow, error)
 	GetTFTStaticAssetQueueStateForSnapshots(ctx context.Context, snapshotIds []int64) (GetTFTStaticAssetQueueStateForSnapshotsRow, error)
@@ -111,8 +124,10 @@ type Querier interface {
 	InsertTFTMatchUnit(ctx context.Context, arg InsertTFTMatchUnitParams) error
 	InsertTFTMatchUnitItem(ctx context.Context, arg InsertTFTMatchUnitItemParams) error
 	InsertTFTRawCapture(ctx context.Context, arg InsertTFTRawCaptureParams) (TftRawCapture, error)
+	InsertTFTRunMatchCandidateSourceIfOpen(ctx context.Context, arg InsertTFTRunMatchCandidateSourceIfOpenParams) (int64, error)
 	ListChampionDetailBuilds(ctx context.Context, arg ListChampionDetailBuildsParams) ([]ListChampionDetailBuildsRow, error)
 	ListGameVersions(ctx context.Context, limit int32) ([]ListGameVersionsRow, error)
+	ListLatestTFTLocalizedStaticObjects(ctx context.Context, objectKinds []string, locale string) ([]ListLatestTFTLocalizedStaticObjectsRow, error)
 	// Champion rankings served from narrow additive rollups. The refresh job
 	// scans the raw match facts; online API requests only combine these tables.
 	//
@@ -123,6 +138,7 @@ type Querier interface {
 	// denominator; their cross-champion totals are not expected to equal 100%.
 	ListOverallRankings(ctx context.Context, arg ListOverallRankingsParams) ([]ListOverallRankingsRow, error)
 	ListPendingTFTRawCaptures(ctx context.Context, limit int32) ([]TftRawCapture, error)
+	ListPublishedChampionInsightFactors(ctx context.Context, cohortID int64) ([]ListPublishedChampionInsightFactorsRow, error)
 	ListRankingsByPosition(ctx context.Context, arg ListRankingsByPositionParams) ([]ListRankingsByPositionRow, error)
 	// Queries on regions with published statistics rollups.
 	// Keep the rankings filter catalog aligned with slices that can return data.
@@ -146,6 +162,7 @@ type Querier interface {
 	ListTFTMatchUnitsForHistory(ctx context.Context, matchIds []string) ([]TftMatchUnit, error)
 	ListTFTPlayerMatches(ctx context.Context, arg ListTFTPlayerMatchesParams) ([]ListTFTPlayerMatchesRow, error)
 	ListTFTPurchasableUnits(ctx context.Context, snapshotID int64) ([]ListTFTPurchasableUnitsRow, error)
+	ListTFTRunCandidateRouteProgress(ctx context.Context, runID int64) ([]ListTFTRunCandidateRouteProgressRow, error)
 	ListTFTRunRouteProgress(ctx context.Context, runID int64) ([]ListTFTRunRouteProgressRow, error)
 	ListTFTSeedsForSampling(ctx context.Context, runID int64) ([]TftSeedSnapshot, error)
 	ListUserOAuthIdentities(ctx context.Context, userID pgtype.UUID) ([]UserOauthIdentity, error)
@@ -153,12 +170,15 @@ type Querier interface {
 	// catalog. Raw-only versions remain available to summoner match history but do
 	// not produce an empty option in the rankings UI.
 	ListVersionsWithData(ctx context.Context) ([]string, error)
+	LockTFTRunMatchSampling(ctx context.Context, runID int64) (TftRunMatchSampling, error)
 	MarkLatestTFTRawCaptureParsed(ctx context.Context, arg MarkLatestTFTRawCaptureParsedParams) error
 	MarkSummonerLookupJobRunning(ctx context.Context, stage string, puuid *string, iD string) error
 	MarkSummonerLookupParticipantUnranked(ctx context.Context, jobID string, puuid *string) error
 	MarkTFTPlayerLookupJobRunning(ctx context.Context, stage string, puuid *string, iD string) error
 	MarkTFTPlayerMatchesRefreshed(ctx context.Context, refreshedAt pgtype.Timestamptz, platform string, puuid string) error
 	MarkTFTRawCaptureParsed(ctx context.Context, arg MarkTFTRawCaptureParsedParams) error
+	MarkTFTRunMatchSamplingFinalized(ctx context.Context, runID int64) (int64, error)
+	ProjectBalancedTFTMatchDiscoveries(ctx context.Context, runID int64) (int64, error)
 	PublishTFTLineupPublication(ctx context.Context, publicationID int64) error
 	PublishTFTStaticSnapshot(ctx context.Context, id int64) (int64, error)
 	RefreshTFTRunCounts(ctx context.Context, id int64) error
@@ -173,6 +193,7 @@ type Querier interface {
 	RevokeAllRefreshTokensForUser(ctx context.Context, userID pgtype.UUID) error
 	RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error
 	RevokeUserSessionByHash(ctx context.Context, tokenHash []byte) (int64, error)
+	SelectBalancedTFTRunMatchCandidates(ctx context.Context, targetPerRoute int64, runID int64) error
 	SetTFTSeedSelected(ctx context.Context, selected bool, iD int64) error
 	SkipTFTStaticAssetGroup(ctx context.Context, arg SkipTFTStaticAssetGroupParams) (int64, error)
 	SkipTFTStaticAssetJob(ctx context.Context, arg SkipTFTStaticAssetJobParams) (int64, error)
@@ -194,6 +215,7 @@ type Querier interface {
 	UpsertTFTPlayerIdentity(ctx context.Context, arg UpsertTFTPlayerIdentityParams) (TftPlayerIdentity, error)
 	UpsertTFTPlayerMatchSync(ctx context.Context, arg UpsertTFTPlayerMatchSyncParams) error
 	UpsertTFTRawObject(ctx context.Context, arg UpsertTFTRawObjectParams) error
+	UpsertTFTRunPlayerMatchSyncIfOpen(ctx context.Context, arg UpsertTFTRunPlayerMatchSyncIfOpenParams) (int64, error)
 	UpsertTFTSeedSnapshot(ctx context.Context, arg UpsertTFTSeedSnapshotParams) error
 	UpsertTFTStaticObject(ctx context.Context, arg UpsertTFTStaticObjectParams) error
 }

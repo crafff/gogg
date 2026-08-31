@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.temporal.io/sdk/client"
 
+	"github.com/crafff/gogg/apps/worker/internal/tft/config"
 	sqlcgen "github.com/crafff/gogg/packages/sqlc/gen"
 	"github.com/crafff/gogg/packages/tftcontract"
 )
@@ -20,9 +21,11 @@ import (
 const progressQueryTimeout = 5 * time.Second
 
 type crawlProgressSnapshot struct {
-	Run      sqlcgen.TftCrawlRun
-	Progress sqlcgen.GetTFTRunProgressRow
-	Routes   []sqlcgen.ListTFTRunRouteProgressRow
+	Run        sqlcgen.TftCrawlRun
+	Progress   sqlcgen.GetTFTRunProgressRow
+	Routes     []sqlcgen.ListTFTRunRouteProgressRow
+	Candidates []sqlcgen.ListTFTRunCandidateRouteProgressRow
+	Sampling   *sqlcgen.TftRunMatchSampling
 }
 
 func printCrawlProgress(ctx context.Context, temporal client.Client, description *client.ScheduleDescription, scheduleID, databaseDSN string, output io.Writer) error {
@@ -164,6 +167,16 @@ func loadProgress(ctx context.Context, pool *pgxpool.Pool, lookup func(*sqlcgen.
 	if err != nil {
 		return snapshot, err
 	}
+	snapshot.Candidates, err = queries.ListTFTRunCandidateRouteProgress(ctx, snapshot.Run.ID)
+	if err != nil {
+		return snapshot, err
+	}
+	sampling, err := queries.GetTFTRunMatchSampling(ctx, snapshot.Run.ID)
+	if err == nil {
+		snapshot.Sampling = &sampling
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return snapshot, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return snapshot, err
 	}
@@ -200,7 +213,8 @@ func renderCrawlProgress(output io.Writer, snapshot crawlProgressSnapshot, liveS
 		platforms = fmt.Sprintf("%d/%d", progress.CompletedPlatforms, platformTotal)
 	}
 	percent := "growing"
-	stableTotal := stableMatchTotal(stage) || (platformTotal > 0 && progress.CompletedPlatforms >= platformTotal)
+	samplingFinalized := snapshot.Sampling != nil && snapshot.Sampling.Phase == "finalized"
+	stableTotal := stableMatchTotal(stage) || samplingFinalized || (platformTotal > 0 && progress.CompletedPlatforms >= platformTotal)
 	if matches.DiscoveredMatches == 0 && stableTotal {
 		percent = "100.0"
 	} else if matches.DiscoveredMatches > 0 && stableTotal {
@@ -210,12 +224,34 @@ func renderCrawlProgress(output io.Writer, snapshot crawlProgressSnapshot, liveS
 		run.ID, platforms, progress.DiscoveredSeeds, progress.SelectedSeeds, resolved, matches.DiscoveredMatches, percent,
 		matches.CompletedMatches, matches.TerminalMatches, remaining, matches.PendingMatches, matches.RetryMatches,
 		matches.LeasedMatches, matches.NotEnqueuedMatches)
+	targetPerRoute, balanced := configuredMatchBalance(run.Config)
+	if snapshot.Sampling != nil && snapshot.Sampling.TargetPerRegion > 0 {
+		targetPerRoute = int(snapshot.Sampling.TargetPerRegion)
+		balanced = true
+	}
+	configuredRoutes := configuredRoutingRegions(run.Config)
+	candidatesByRoute := make(map[string]sqlcgen.ListTFTRunCandidateRouteProgressRow, len(snapshot.Candidates))
+	for _, candidate := range snapshot.Candidates {
+		candidatesByRoute[candidate.RoutingRegion] = candidate
+	}
+	finalized := samplingFinalized
 	for _, route := range snapshot.Routes {
 		routeResolved := route.CompletedMatches + route.TerminalMatches
 		routeRemaining := route.PendingMatches + route.RetryMatches + route.LeasedMatches + route.NotEnqueuedMatches
 		globalRemaining := route.GlobalPendingMatches + route.GlobalRetryMatches + route.GlobalLeasedMatches
-		fmt.Fprintf(output, "route=%s run_matches=%d/%d completed=%d terminal=%d run_remaining=%d pending=%d retry=%d leased=%d not_enqueued=%d global_queue_remaining=%d\n",
-			route.RoutingRegion, routeResolved, route.DiscoveredMatches, route.CompletedMatches, route.TerminalMatches,
+		fmt.Fprintf(output, "route=%s", route.RoutingRegion)
+		if balanced && (configuredRoutes[route.RoutingRegion] || candidatesByRoute[route.RoutingRegion].CandidateMatches > 0) {
+			candidate := candidatesByRoute[route.RoutingRegion]
+			fmt.Fprintf(output, " candidates=%d target=%d", candidate.CandidateMatches, targetPerRoute)
+			if finalized {
+				shortfall := max(int64(targetPerRoute)-candidate.SelectedMatches, 0)
+				fmt.Fprintf(output, " admitted=%d shortfall=%d", candidate.SelectedMatches, shortfall)
+			} else {
+				fmt.Fprint(output, " admitted=pending shortfall=pending")
+			}
+		}
+		fmt.Fprintf(output, " run_matches=%d/%d completed=%d terminal=%d run_remaining=%d pending=%d retry=%d leased=%d not_enqueued=%d global_queue_remaining=%d\n",
+			routeResolved, route.DiscoveredMatches, route.CompletedMatches, route.TerminalMatches,
 			routeRemaining, route.PendingMatches, route.RetryMatches, route.LeasedMatches, route.NotEnqueuedMatches, globalRemaining)
 	}
 }
@@ -256,6 +292,33 @@ func configuredPlatformCount(raw []byte) int64 {
 		return 0
 	}
 	return int64(len(config.Platforms))
+}
+
+func configuredMatchBalance(raw []byte) (int, bool) {
+	var config struct {
+		Target   int    `json:"match_target_per_region"`
+		Revision string `json:"match_selection_revision"`
+	}
+	if json.Unmarshal(raw, &config) != nil || config.Target < 1 || strings.TrimSpace(config.Revision) == "" {
+		return 0, false
+	}
+	return config.Target, true
+}
+
+func configuredRoutingRegions(raw []byte) map[string]bool {
+	var runConfig struct {
+		Platforms []string `json:"platforms"`
+	}
+	routes := make(map[string]bool)
+	if json.Unmarshal(raw, &runConfig) != nil {
+		return routes
+	}
+	for _, platform := range runConfig.Platforms {
+		if route := config.RoutingRegion(platform); route != "" {
+			routes[route] = true
+		}
+	}
+	return routes
 }
 
 func stableMatchTotal(stage string) bool {

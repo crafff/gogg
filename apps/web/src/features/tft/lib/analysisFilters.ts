@@ -11,10 +11,18 @@ export interface TftCatalogEntry extends TftCatalogSelection {
 }
 
 export const DEFAULT_MIN_SAMPLES = 200;
+export const DEFAULT_PREVIEW_MIN_SAMPLES = 20;
 
 export function readMinSamples(value: string | null): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) return DEFAULT_MIN_SAMPLES;
+  return Math.min(parsed, 100_000);
+}
+
+export function readPreviewMinSamples(value: string | null): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < DEFAULT_PREVIEW_MIN_SAMPLES)
+    return DEFAULT_PREVIEW_MIN_SAMPLES;
   return Math.min(parsed, 100_000);
 }
 

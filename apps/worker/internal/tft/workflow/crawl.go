@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	activityBatchSize = 10
-	maxDiamondPages   = 1000
+	activityBatchSize              = 10
+	maxDiamondPages                = 1000
+	balancedMatchDiscoveryChangeID = "tft-balanced-match-discovery-v1"
 )
 
 func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
@@ -44,6 +45,7 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 	if len(in.Platforms) == 0 {
 		return temporal.NewNonRetryableApplicationError("TFT platforms are empty", "INVALID_CONFIG", nil)
 	}
+	balancedDiscovery := workflow.GetVersion(ctx, balancedMatchDiscoveryChangeID, workflow.DefaultVersion, 1) == 1
 
 	base := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 5 * time.Minute,
@@ -56,7 +58,11 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 	in.Patch = targetPatch
 	info := workflow.GetInfo(ctx)
 	var runID int64
-	if err := workflow.ExecuteActivity(base, "Activities.StartRun", activity.StartRunInput{
+	startActivity := "Activities.StartRun"
+	if balancedDiscovery {
+		startActivity = "Activities.StartBalancedRun"
+	}
+	if err := workflow.ExecuteActivity(base, startActivity, activity.StartRunInput{
 		WorkflowID: info.WorkflowExecution.ID, WorkflowRunID: info.WorkflowExecution.RunID, ScheduleID: tftcontract.DefaultScheduleID,
 		ProfileName: in.ProfileName, Patch: in.Patch, Set: in.Set, WindowStart: in.WindowStart, WindowEnd: in.WindowEnd,
 		Platforms: append([]string(nil), in.Platforms...),
@@ -67,6 +73,9 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 	var requeued int64
 	if err := workflow.ExecuteActivity(base, "Activities.RequeueTargetPatch", in.Patch).Get(ctx, &requeued); err != nil {
 		return failRun(base, runID, "starting", err)
+	}
+	if balancedDiscovery {
+		return runBalancedCrawl(base, control, in, runID, &state)
 	}
 
 	for {
@@ -101,9 +110,8 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 				continue
 			}
 		}
-
 		state.Stage = "match_detail"
-		paused, cancelled, err = runRouteStage(base, control, runID, in.Patch, &state)
+		paused, cancelled, err = runRouteStage(base, control, runID, in.Patch, false, &state)
 		if cancelled {
 			return setTerminal(base, runID, "cancelled", state.Stage, nil)
 		}
@@ -155,6 +163,115 @@ func Crawl(ctx workflow.Context, in tftcontract.CrawlInput) error {
 		}
 		state.State, state.Stage = "completed", "completed"
 		return setTerminal(base, runID, "completed", "completed", nil)
+	}
+}
+
+func runBalancedCrawl(ctx workflow.Context, control workflow.ReceiveChannel, in tftcontract.CrawlInput, runID int64, state *tftcontract.CrawlStatus) error {
+	platformComplete, balanceComplete, routesComplete := false, false, false
+	for {
+		state.State, state.PausePending = "running", false
+		if !platformComplete {
+			state.Stage = "seed_and_candidate_discover"
+			paused, cancelled, err := runCandidatePlatformStage(ctx, control, in, runID, state)
+			if cancelled {
+				return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+			}
+			if err != nil {
+				if resume, cancel, handled, waitErr := handleAuthError(ctx, control, runID, state, err); handled {
+					if waitErr != nil {
+						return failRun(ctx, runID, state.Stage, waitErr)
+					}
+					if cancel {
+						return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+					}
+					if resume {
+						continue
+					}
+				}
+				return failRun(ctx, runID, state.Stage, err)
+			}
+			if paused {
+				resume, cancel, waitErr := waitPaused(ctx, control, runID, state)
+				if waitErr != nil {
+					return failRun(ctx, runID, state.Stage, waitErr)
+				}
+				if cancel {
+					return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+				}
+				if resume {
+					continue
+				}
+			}
+			platformComplete = true
+		}
+
+		if !balanceComplete {
+			state.Stage, state.StageCompleted, state.StageTotal = "balance_matches", 0, 1
+			var balanced activity.FinalizeBalancedMatchesResult
+			if err := workflow.ExecuteActivity(ctx, "Activities.FinalizeBalancedMatches", activity.FinalizeBalancedMatchesInput{RunID: runID}).Get(ctx, &balanced); err != nil {
+				return failRun(ctx, runID, state.Stage, err)
+			}
+			state.StageCompleted = 1
+			balanceComplete = true
+		}
+
+		if !routesComplete {
+			state.Stage = "match_detail"
+			paused, cancelled, err := runRouteStage(ctx, control, runID, in.Patch, true, state)
+			if cancelled {
+				return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+			}
+			if err != nil {
+				if resume, cancel, handled, waitErr := handleAuthError(ctx, control, runID, state, err); handled {
+					if waitErr != nil {
+						return failRun(ctx, runID, state.Stage, waitErr)
+					}
+					if cancel {
+						return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+					}
+					if resume {
+						continue
+					}
+				}
+				return failRun(ctx, runID, state.Stage, err)
+			}
+			if paused {
+				resume, cancel, waitErr := waitPaused(ctx, control, runID, state)
+				if waitErr != nil {
+					return failRun(ctx, runID, state.Stage, waitErr)
+				}
+				if cancel {
+					return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+				}
+				if resume {
+					continue
+				}
+			}
+			routesComplete = true
+		}
+
+		state.Stage = "analysis"
+		paused, cancelled, err := runAnalysisStage(ctx, control, in, runID, state)
+		if cancelled {
+			return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+		}
+		if err != nil {
+			return failRun(ctx, runID, state.Stage, err)
+		}
+		if paused {
+			resume, cancel, waitErr := waitPaused(ctx, control, runID, state)
+			if waitErr != nil {
+				return failRun(ctx, runID, state.Stage, waitErr)
+			}
+			if cancel {
+				return setTerminal(ctx, runID, "cancelled", state.Stage, nil)
+			}
+			if resume {
+				continue
+			}
+		}
+		state.State, state.Stage = "completed", "completed"
+		return setTerminal(ctx, runID, "completed", "completed", nil)
 	}
 }
 
@@ -226,6 +343,10 @@ func PlatformSeed(ctx workflow.Context, in tftcontract.PlatformInput) error {
 	return seedAndDiscover(withCrawlActivityOptions(ctx), in.CrawlInput, in.RunID, strings.ToUpper(in.Platform))
 }
 
+func PlatformCandidates(ctx workflow.Context, in tftcontract.CandidatePlatformInput) error {
+	return seedAndDiscoverCandidates(withCrawlActivityOptions(ctx), in.CrawlInput, in.RunID, strings.ToUpper(in.Platform))
+}
+
 func seedAndDiscover(ctx workflow.Context, in tftcontract.CrawlInput, runID int64, platform string) error {
 	for _, tier := range []string{"CHALLENGER", "GRANDMASTER", "MASTER"} {
 		var count int
@@ -263,7 +384,63 @@ func seedAndDiscover(ctx workflow.Context, in tftcontract.CrawlInput, runID int6
 	return nil
 }
 
-func runRouteStage(ctx workflow.Context, control workflow.ReceiveChannel, runID int64, patch string, state *tftcontract.CrawlStatus) (bool, bool, error) {
+func seedAndDiscoverCandidates(ctx workflow.Context, in tftcontract.CrawlInput, runID int64, platform string) error {
+	for _, tier := range []string{"CHALLENGER", "GRANDMASTER", "MASTER"} {
+		var count int
+		if err := workflow.ExecuteActivity(ctx, "Activities.FetchTopTier", activity.SeedTierInput{RunID: runID, Platform: platform, Tier: tier}).Get(ctx, &count); err != nil {
+			return fmt.Errorf("seed %s %s: %w", platform, tier, err)
+		}
+	}
+	for _, division := range []string{"I", "II", "III", "IV"} {
+		for page := 1; page <= maxDiamondPages; page++ {
+			var result activity.PageResult
+			if err := workflow.ExecuteActivity(ctx, "Activities.FetchDiamondPage", activity.DiamondPageInput{RunID: runID, Platform: platform, Division: division, Page: page}).Get(ctx, &result); err != nil {
+				return fmt.Errorf("seed %s diamond %s page %d: %w", platform, division, page, err)
+			}
+			if !result.HasMore {
+				break
+			}
+			if page == maxDiamondPages {
+				return temporal.NewNonRetryableApplicationError("TFT Diamond pagination exceeded safety bound", "PAGINATION_INVARIANT", nil, platform, division)
+			}
+		}
+	}
+	var selected int
+	if err := workflow.ExecuteActivity(ctx, "Activities.ApplyBalancedSampling", activity.ApplySamplingInput{RunID: runID, Platform: platform, Patch: in.Patch}).Get(ctx, &selected); err != nil {
+		return err
+	}
+	for offset := 0; ; offset += activityBatchSize {
+		var result activity.BatchResult
+		if err := workflow.ExecuteActivity(ctx, "Activities.DiscoverMatchCandidates", activity.DiscoverInput{RunID: runID, Platform: platform, Offset: offset, Limit: activityBatchSize, WindowStart: in.WindowStart, WindowEnd: in.WindowEnd}).Get(ctx, &result); err != nil {
+			return err
+		}
+		if !result.HasMore {
+			break
+		}
+	}
+	return nil
+}
+
+func runCandidatePlatformStage(ctx workflow.Context, control workflow.ReceiveChannel, in tftcontract.CrawlInput, runID int64, state *tftcontract.CrawlStatus) (bool, bool, error) {
+	state.StageCompleted, state.StageTotal = 0, len(in.Platforms)
+	stageCtx, cancelActivities := workflow.WithCancel(ctx)
+	results := workflow.NewBufferedChannel(ctx, len(in.Platforms))
+	for _, platformValue := range in.Platforms {
+		platform := strings.ToUpper(platformValue)
+		workflow.Go(stageCtx, func(gctx workflow.Context) {
+			childCtx := workflow.WithChildOptions(gctx, workflow.ChildWorkflowOptions{
+				WorkflowID: fmt.Sprintf("tft-platform-candidates-%d-%s", runID, strings.ToLower(platform)),
+				TaskQueue:  tftcontract.SeedTaskQueue, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_TERMINATE,
+				WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE, WaitForCancellation: true,
+			})
+			err := workflow.ExecuteChildWorkflow(childCtx, PlatformCandidates, tftcontract.CandidatePlatformInput{CrawlInput: in, RunID: runID, Platform: platform}).Get(gctx, nil)
+			results.Send(gctx, stageResult{Key: platform, Err: err})
+		})
+	}
+	return waitStage(ctx, control, results, len(in.Platforms), cancelActivities, state)
+}
+
+func runRouteStage(ctx workflow.Context, control workflow.ReceiveChannel, runID int64, patch string, allowDuplicate bool, state *tftcontract.CrawlStatus) (bool, bool, error) {
 	routes := []string{"AMERICAS", "ASIA", "EUROPE", "SEA"}
 	state.StageCompleted, state.StageTotal = 0, len(routes)
 	stageCtx, cancelActivities := workflow.WithCancel(ctx)
@@ -271,10 +448,15 @@ func runRouteStage(ctx workflow.Context, control workflow.ReceiveChannel, runID 
 	for _, routeValue := range routes {
 		route := routeValue
 		workflow.Go(stageCtx, func(gctx workflow.Context) {
-			childCtx := workflow.WithChildOptions(gctx, workflow.ChildWorkflowOptions{
+			options := workflow.ChildWorkflowOptions{
 				WorkflowID: fmt.Sprintf("tft-route-%d-%s", runID, strings.ToLower(route)),
 				TaskQueue:  tftcontract.SeedTaskQueue, ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_TERMINATE,
-			})
+			}
+			if allowDuplicate {
+				options.WorkflowIDReusePolicy = enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE
+				options.WaitForCancellation = true
+			}
+			childCtx := workflow.WithChildOptions(gctx, options)
 			stageErr := workflow.ExecuteChildWorkflow(childCtx, RouteDispatch, tftcontract.RouteInput{RunID: runID, RoutingRegion: route, Patch: patch}).Get(gctx, nil)
 			results.Send(gctx, stageResult{Key: route, Err: stageErr})
 		})

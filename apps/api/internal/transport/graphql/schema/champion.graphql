@@ -6,6 +6,72 @@ input ChampionDetailFilter {
   position: String = ""
 }
 
+input ChampionWinFactorsFilter {
+  queueId: Int = 420
+  version: String = "latest"
+  region: String = ""
+  tierGroup: TierGroup = ALL
+  position: String!
+}
+
+enum ChampionInsightAvailability {
+  AVAILABLE
+  INSUFFICIENT_SAMPLE
+  UNAVAILABLE
+}
+
+enum ChampionInsightFactorKind {
+  BEHAVIOR_METRIC
+}
+
+enum ChampionInsightEvidenceGrade {
+  OBSERVED
+}
+
+type ChampionWinFactorBucket {
+  ordinal: Int!
+  lowerBound: Float!
+  upperBound: Float!
+  games: Int!
+  wins: Int!
+  samplePlayers: Int!
+  observedWinRate: Float!
+  observedWinRateDelta: Float!
+}
+
+type ChampionWinFactor {
+  metricKey: String!
+  kind: ChampionInsightFactorKind!
+  startMinute: Int!
+  endMinute: Int!
+  unit: String!
+  p50: Float!
+  p70: Float!
+  p90: Float!
+  evidenceGrade: ChampionInsightEvidenceGrade!
+  displayOrder: Int!
+  buckets: [ChampionWinFactorBucket!]!
+}
+
+type ChampionWinFactorsResult {
+  championId: Int!
+  championName: String!
+  position: String!
+  resolvedVersion: String
+  regionScope: String!
+  tierGroup: TierGroup!
+  revision: String
+  algorithm: String
+  dataThrough: String
+  publishedAt: String
+  availability: ChampionInsightAvailability!
+  unavailableReason: String
+  cohortScope: String
+  sampleGames: Int!
+  samplePlayers: Int!
+  factors: [ChampionWinFactor!]!
+}
+
 type BuildChoice {
   ids: [Int!]!
   games: Int!
@@ -44,4 +110,5 @@ type ChampionDetailResult {
 
 extend type Query {
   championDetail(id: Int!, filter: ChampionDetailFilter): ChampionDetailResult
+  championWinFactors(id: Int!, filter: ChampionWinFactorsFilter!): ChampionWinFactorsResult
 }

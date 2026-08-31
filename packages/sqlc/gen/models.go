@@ -214,6 +214,37 @@ type TftRawCapture struct {
 	CapturedAt         pgtype.Timestamptz
 }
 
+type TftRunMatchSampling struct {
+	RunID             int64
+	Phase             string
+	TargetPerRegion   int32
+	SelectionRevision string
+	FinalizedAt       pgtype.Timestamptz
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type TftRunPlatformSampling struct {
+	RunID              int64
+	Platform           string
+	MasterLimit        int32
+	DiamondPerDivision int32
+	Salt               string
+	ResolvedAt         pgtype.Timestamptz
+}
+
+type TftRunPlayerMatchSync struct {
+	RunID        int64
+	Platform     string
+	Puuid        string
+	QueueType    string
+	WindowStart  pgtype.Timestamptz
+	WindowEnd    pgtype.Timestamptz
+	LastSyncedAt pgtype.Timestamptz
+	LastMatchID  *string
+	UpdatedAt    pgtype.Timestamptz
+}
+
 type TftSeedSnapshot struct {
 	ID           int64
 	RunID        int64

@@ -23,6 +23,15 @@ analysis semantics from League of Legends.
   logical workflow.
 - Fan one crawl workflow out over all supported platform routes and four match
   routing regions. Keep platform and routing-region identity on every record.
+- Treat platform match-list responses as run-scoped candidates. After every
+  platform has completed discovery, deterministically admit at most the frozen
+  per-routing-region target by a versioned stable hash, then project only the
+  admitted candidates into discovery provenance and the global detail-job
+  queue. Candidate arrival order, activity retries, and cached global jobs must
+  not change the admitted sample; a route with insufficient candidates reports
+  a shortfall instead of silently shrinking healthy routes. Keep player match
+  watermarks run-local while candidates are open; the finalizer atomically
+  seals admission, enqueues detail jobs, and commits those watermarks.
 - Make a dedicated no-eviction Redis the fail-closed request authority shared
   by LoL and TFT workers.
   Application and conservative routing-family budgets omit the product name;
@@ -54,3 +63,6 @@ obey one cross-process rate authority. The extra raw and publication layers
 increase storage use, but preserve upstream evidence, replayability, and stable
 read behavior during rebuilds. Redis is required by both production workers;
 if it is unavailable, Riot requests stop instead of running uncoordinated.
+The candidate/admission split adds temporary run-scoped rows, but prevents
+large platform ladders from dominating a routing-region comparison and keeps
+unselected cached matches out of analysis publications.

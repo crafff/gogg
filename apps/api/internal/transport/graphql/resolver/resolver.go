@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/crafff/gogg/apps/api/internal/service/champion"
+	"github.com/crafff/gogg/apps/api/internal/service/championinsights"
 	"github.com/crafff/gogg/apps/api/internal/service/rankings"
 	summonersvc "github.com/crafff/gogg/apps/api/internal/service/summoner"
 	tftsvc "github.com/crafff/gogg/apps/api/internal/service/tft"
@@ -41,6 +42,10 @@ type ChampionService interface {
 	Get(ctx context.Context, championID int, f champion.Filter) (*champion.Result, error)
 }
 
+type ChampionInsightsService interface {
+	Get(ctx context.Context, championID int, f championinsights.Filter) (*championinsights.Result, error)
+}
+
 type SummonerService interface {
 	Get(context.Context, summonersvc.Identity, summonersvc.PageRequest) (*summonersvc.Result, error)
 	Refresh(context.Context, summonersvc.Identity, string) (summonersvc.RefreshResult, error)
@@ -55,6 +60,7 @@ type UserService interface {
 type TFTService interface {
 	Catalog(context.Context) ([]tftsvc.CatalogEntry, error)
 	Lineups(context.Context, tftsvc.Filter) (tftsvc.Result, error)
+	ObservedLineups(context.Context, tftsvc.ObservedFilter) (*tftsvc.ObservedResult, error)
 	History(context.Context, tftsvc.HistoryFilter) (*tftsvc.HistoryResult, error)
 	Refresh(context.Context, tftsvc.Identity, string) (tftsvc.RefreshResult, error)
 	GetJob(context.Context, string) (*tftsvc.Job, error)
@@ -64,10 +70,11 @@ type TFTService interface {
 // constructed with. main.go builds one and hands it to
 // gqlgenerated.NewExecutableSchema.
 type Resolver struct {
-	Catalog   CatalogService
-	Rankings  RankingsService
-	Champion  ChampionService
-	Summoners SummonerService
-	Users     UserService
-	TFT       TFTService
+	Catalog          CatalogService
+	Rankings         RankingsService
+	Champion         ChampionService
+	ChampionInsights ChampionInsightsService
+	Summoners        SummonerService
+	Users            UserService
+	TFT              TFTService
 }

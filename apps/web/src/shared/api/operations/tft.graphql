@@ -43,6 +43,131 @@ query TFTLineups($filter: TFTLineupsFilter!) {
       commonItems { entity { id name iconUrl } count rate }
       commonAugments { entity { id name iconUrl } count rate }
       commonTraits { entity { id name iconUrl } count rate }
+      unitItems {
+        unit { id name iconUrl }
+        commonItems { entity { id name iconUrl } count rate }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels { stars unitCount }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      metrics {
+        sampleSize
+        lobbyCount
+        pickRate
+        avgPlacement
+        firstRate
+        top4Rate
+        contestedRate
+      }
+    }
+  }
+}
+
+query TFTObservedLineups($filter: TFTObservedLineupsFilter!) {
+  tftObservedLineups(filter: $filter) {
+    dataKind
+    runId
+    platform
+    platforms
+    queueId
+    setNumber
+    patch
+    rawGameVersions
+    locale
+    algorithmVersion
+    catalogSnapshot { source patch revision }
+    assetSnapshot { source patch revision }
+    sourceMatches
+    sourceParticipants
+    usableParticipants
+    exactLineups
+    windowStart
+    windowEnd
+    items {
+      id
+      coreUnits { id name iconUrl }
+      commonItems { entity { id name iconUrl } count rate }
+      commonAugments { entity { id name iconUrl } count rate }
+      commonTraits { entity { id name iconUrl } count rate }
+      unitItems {
+        unit { id name iconUrl }
+        commonItems { entity { id name iconUrl } count rate }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels { stars unitCount }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
       metrics {
         sampleSize
         lobbyCount

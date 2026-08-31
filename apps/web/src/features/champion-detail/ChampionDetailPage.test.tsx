@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest";
 
 import type { GameAssetEntry } from "@features/rankings/hooks/useGameAssets";
 
-import { RuneChoice } from "./ChampionDetailPage";
+import {
+  RuneChoice,
+  WinFactorCard,
+  type WinFactor,
+} from "./ChampionDetailPage";
 
 function entry(id: number, name: string): GameAssetEntry {
   return {
@@ -58,5 +62,42 @@ describe("RuneChoice", () => {
     expect(within(shards).getAllByRole("img")).toHaveLength(3);
     expect(screen.queryByText("8000")).not.toBeInTheDocument();
     expect(screen.queryByText("8300")).not.toBeInTheDocument();
+  });
+});
+
+describe("WinFactorCard", () => {
+  it("renders observed rates and match/player sample sizes as text", () => {
+    const factor: WinFactor = {
+      metricKey: "JUNGLE_CS_10",
+      kind: "BEHAVIOR_METRIC",
+      startMinute: 0,
+      endMinute: 10,
+      unit: "COUNT",
+      p50: 60,
+      p70: 70,
+      p90: 80,
+      evidenceGrade: "OBSERVED",
+      displayOrder: 1,
+      buckets: [
+        {
+          ordinal: 1,
+          lowerBound: 30,
+          upperBound: 59,
+          games: 500,
+          wins: 220,
+          samplePlayers: 175,
+          observedWinRate: 44,
+          observedWinRateDelta: -6,
+        },
+      ],
+    };
+
+    render(<WinFactorCard factor={factor} />);
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByText("44.0%")).toBeInTheDocument();
+    expect(screen.getByText("-6.0 pp")).toBeInTheDocument();
+    expect(screen.getByText("500")).toBeInTheDocument();
+    expect(screen.getByText("175")).toBeInTheDocument();
   });
 });

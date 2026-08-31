@@ -93,6 +93,10 @@ tft:
   static_cron: "7 */6 * * *"
   profile_name: global_high_tier
   match_count_per_seed: 20
+  # Match-list responses are candidates. After all platforms finish, each
+  # routing region admits at most this many unique matches by stable hash.
+  match_target_per_region: 1000
+  match_selection_revision: route-balance-v1
   master_limit: 500
   diamond_per_division: 50
   scale_master_limit: 1000

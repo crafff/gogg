@@ -215,6 +215,71 @@ useChampionDetailQuery.getKey = (variables: Operations.ChampionDetailQueryVariab
 
 useChampionDetailQuery.fetcher = (variables: Operations.ChampionDetailQueryVariables, options?: RequestInit['headers']) => fetcher<Operations.ChampionDetailQuery, Operations.ChampionDetailQueryVariables>(ChampionDetailDocument, variables, options);
 
+export const ChampionWinFactorsDocument = new TypedDocumentString(`
+    query ChampionWinFactors($id: Int!, $filter: ChampionWinFactorsFilter!) {
+  championWinFactors(id: $id, filter: $filter) {
+    championId
+    championName
+    position
+    resolvedVersion
+    regionScope
+    tierGroup
+    revision
+    algorithm
+    dataThrough
+    publishedAt
+    availability
+    unavailableReason
+    cohortScope
+    sampleGames
+    samplePlayers
+    factors {
+      metricKey
+      kind
+      startMinute
+      endMinute
+      unit
+      p50
+      p70
+      p90
+      evidenceGrade
+      displayOrder
+      buckets {
+        ordinal
+        lowerBound
+        upperBound
+        games
+        wins
+        samplePlayers
+        observedWinRate
+        observedWinRateDelta
+      }
+    }
+  }
+}
+    `);
+
+export const useChampionWinFactorsQuery = <
+      TData = Operations.ChampionWinFactorsQuery,
+      TError = unknown
+    >(
+      variables: Operations.ChampionWinFactorsQueryVariables,
+      options?: Omit<UseQueryOptions<Operations.ChampionWinFactorsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<Operations.ChampionWinFactorsQuery, TError, TData>['queryKey'] }
+    ) => {
+
+    return useQuery<Operations.ChampionWinFactorsQuery, TError, TData>(
+      {
+    queryKey: ['ChampionWinFactors', variables],
+    queryFn: fetcher<Operations.ChampionWinFactorsQuery, Operations.ChampionWinFactorsQueryVariables>(ChampionWinFactorsDocument, variables),
+    ...options
+  }
+    )};
+
+useChampionWinFactorsQuery.getKey = (variables: Operations.ChampionWinFactorsQueryVariables) => ['ChampionWinFactors', variables];
+
+
+useChampionWinFactorsQuery.fetcher = (variables: Operations.ChampionWinFactorsQueryVariables, options?: RequestInit['headers']) => fetcher<Operations.ChampionWinFactorsQuery, Operations.ChampionWinFactorsQueryVariables>(ChampionWinFactorsDocument, variables, options);
+
 export const ChampionRankingsDocument = new TypedDocumentString(`
     query ChampionRankings($filter: ChampionRankingsFilter) {
   championRankings(filter: $filter) {
@@ -557,6 +622,64 @@ export const TftLineupsDocument = new TypedDocumentString(`
         count
         rate
       }
+      unitItems {
+        unit {
+          id
+          name
+          iconUrl
+        }
+        commonItems {
+          entity {
+            id
+            name
+            iconUrl
+          }
+          count
+          rate
+        }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels {
+          stars
+          unitCount
+        }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
       metrics {
         sampleSize
         lobbyCount
@@ -591,6 +714,162 @@ useTftLineupsQuery.getKey = (variables: Operations.TftLineupsQueryVariables) => 
 
 
 useTftLineupsQuery.fetcher = (variables: Operations.TftLineupsQueryVariables, options?: RequestInit['headers']) => fetcher<Operations.TftLineupsQuery, Operations.TftLineupsQueryVariables>(TftLineupsDocument, variables, options);
+
+export const TftObservedLineupsDocument = new TypedDocumentString(`
+    query TFTObservedLineups($filter: TFTObservedLineupsFilter!) {
+  tftObservedLineups(filter: $filter) {
+    dataKind
+    runId
+    platform
+    platforms
+    queueId
+    setNumber
+    patch
+    rawGameVersions
+    locale
+    algorithmVersion
+    catalogSnapshot {
+      source
+      patch
+      revision
+    }
+    assetSnapshot {
+      source
+      patch
+      revision
+    }
+    sourceMatches
+    sourceParticipants
+    usableParticipants
+    exactLineups
+    windowStart
+    windowEnd
+    items {
+      id
+      coreUnits {
+        id
+        name
+        iconUrl
+      }
+      commonItems {
+        entity {
+          id
+          name
+          iconUrl
+        }
+        count
+        rate
+      }
+      commonAugments {
+        entity {
+          id
+          name
+          iconUrl
+        }
+        count
+        rate
+      }
+      commonTraits {
+        entity {
+          id
+          name
+          iconUrl
+        }
+        count
+        rate
+      }
+      unitItems {
+        unit {
+          id
+          name
+          iconUrl
+        }
+        commonItems {
+          entity {
+            id
+            name
+            iconUrl
+          }
+          count
+          rate
+        }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels {
+          stars
+          unitCount
+        }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      metrics {
+        sampleSize
+        lobbyCount
+        pickRate
+        avgPlacement
+        firstRate
+        top4Rate
+        contestedRate
+      }
+    }
+  }
+}
+    `);
+
+export const useTftObservedLineupsQuery = <
+      TData = Operations.TftObservedLineupsQuery,
+      TError = unknown
+    >(
+      variables: Operations.TftObservedLineupsQueryVariables,
+      options?: Omit<UseQueryOptions<Operations.TftObservedLineupsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<Operations.TftObservedLineupsQuery, TError, TData>['queryKey'] }
+    ) => {
+
+    return useQuery<Operations.TftObservedLineupsQuery, TError, TData>(
+      {
+    queryKey: ['TFTObservedLineups', variables],
+    queryFn: fetcher<Operations.TftObservedLineupsQuery, Operations.TftObservedLineupsQueryVariables>(TftObservedLineupsDocument, variables),
+    ...options
+  }
+    )};
+
+useTftObservedLineupsQuery.getKey = (variables: Operations.TftObservedLineupsQueryVariables) => ['TFTObservedLineups', variables];
+
+
+useTftObservedLineupsQuery.fetcher = (variables: Operations.TftObservedLineupsQueryVariables, options?: RequestInit['headers']) => fetcher<Operations.TftObservedLineupsQuery, Operations.TftObservedLineupsQueryVariables>(TftObservedLineupsDocument, variables, options);
 
 export const TftMatchHistoryDocument = new TypedDocumentString(`
     query TFTMatchHistory($input: TFTHistoryInput!) {

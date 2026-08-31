@@ -72,6 +72,50 @@ type ComplexityRoot struct {
 		Wins         func(childComplexity int) int
 	}
 
+	ChampionWinFactor struct {
+		Buckets       func(childComplexity int) int
+		DisplayOrder  func(childComplexity int) int
+		EndMinute     func(childComplexity int) int
+		EvidenceGrade func(childComplexity int) int
+		Kind          func(childComplexity int) int
+		MetricKey     func(childComplexity int) int
+		P50           func(childComplexity int) int
+		P70           func(childComplexity int) int
+		P90           func(childComplexity int) int
+		StartMinute   func(childComplexity int) int
+		Unit          func(childComplexity int) int
+	}
+
+	ChampionWinFactorBucket struct {
+		Games                func(childComplexity int) int
+		LowerBound           func(childComplexity int) int
+		ObservedWinRate      func(childComplexity int) int
+		ObservedWinRateDelta func(childComplexity int) int
+		Ordinal              func(childComplexity int) int
+		SamplePlayers        func(childComplexity int) int
+		UpperBound           func(childComplexity int) int
+		Wins                 func(childComplexity int) int
+	}
+
+	ChampionWinFactorsResult struct {
+		Algorithm         func(childComplexity int) int
+		Availability      func(childComplexity int) int
+		ChampionID        func(childComplexity int) int
+		ChampionName      func(childComplexity int) int
+		CohortScope       func(childComplexity int) int
+		DataThrough       func(childComplexity int) int
+		Factors           func(childComplexity int) int
+		Position          func(childComplexity int) int
+		PublishedAt       func(childComplexity int) int
+		RegionScope       func(childComplexity int) int
+		ResolvedVersion   func(childComplexity int) int
+		Revision          func(childComplexity int) int
+		SampleGames       func(childComplexity int) int
+		SamplePlayers     func(childComplexity int) int
+		TierGroup         func(childComplexity int) int
+		UnavailableReason func(childComplexity int) int
+	}
+
 	CurrentUser struct {
 		AvatarURL   func(childComplexity int) int
 		DisplayName func(childComplexity int) int
@@ -100,6 +144,7 @@ type ComplexityRoot struct {
 		AuthProviders      func(childComplexity int) int
 		ChampionDetail     func(childComplexity int, id int, filter *ChampionDetailFilter) int
 		ChampionRankings   func(childComplexity int, filter *ChampionRankingsFilter) int
+		ChampionWinFactors func(childComplexity int, id int, filter ChampionWinFactorsFilter) int
 		Me                 func(childComplexity int) int
 		Ok                 func(childComplexity int) int
 		Regions            func(childComplexity int) int
@@ -109,6 +154,7 @@ type ComplexityRoot struct {
 		TftLineups         func(childComplexity int, filter TFTLineupsFilter) int
 		TftLookupJob       func(childComplexity int, id string) int
 		TftMatchHistory    func(childComplexity int, input TFTHistoryInput) int
+		TftObservedLineups func(childComplexity int, filter TFTObservedLineupsFilter) int
 		Versions           func(childComplexity int) int
 	}
 
@@ -357,12 +403,18 @@ type ComplexityRoot struct {
 	}
 
 	TFTLineup struct {
-		CommonAugments func(childComplexity int) int
-		CommonItems    func(childComplexity int) int
-		CommonTraits   func(childComplexity int) int
-		CoreUnits      func(childComplexity int) int
-		ID             func(childComplexity int) int
-		Metrics        func(childComplexity int) int
+		CommonAugments                func(childComplexity int) int
+		CommonItems                   func(childComplexity int) int
+		CommonTraits                  func(childComplexity int) int
+		CoreUnits                     func(childComplexity int) int
+		ID                            func(childComplexity int) int
+		Metrics                       func(childComplexity int) int
+		StarCompositionCoverage       func(childComplexity int) int
+		StarCompositionKnownSamples   func(childComplexity int) int
+		StarCompositionUnknownSamples func(childComplexity int) int
+		StarCompositions              func(childComplexity int) int
+		StarLevels                    func(childComplexity int) int
+		UnitItems                     func(childComplexity int) int
 	}
 
 	TFTLineupMetrics struct {
@@ -373,6 +425,56 @@ type ComplexityRoot struct {
 		PickRate      func(childComplexity int) int
 		SampleSize    func(childComplexity int) int
 		Top4Rate      func(childComplexity int) int
+	}
+
+	TFTLineupStarComposition struct {
+		AvgPlacement func(childComplexity int) int
+		FirstRate    func(childComplexity int) int
+		Levels       func(childComplexity int) int
+		Rate         func(childComplexity int) int
+		SampleSize   func(childComplexity int) int
+		Top4Rate     func(childComplexity int) int
+		TotalStars   func(childComplexity int) int
+	}
+
+	TFTLineupStarCount struct {
+		Stars     func(childComplexity int) int
+		UnitCount func(childComplexity int) int
+	}
+
+	TFTLineupStarStrength struct {
+		AvgPlacement func(childComplexity int) int
+		FirstRate    func(childComplexity int) int
+		LobbyCount   func(childComplexity int) int
+		Rate         func(childComplexity int) int
+		SampleSize   func(childComplexity int) int
+		Top4Rate     func(childComplexity int) int
+		TotalStars   func(childComplexity int) int
+	}
+
+	TFTLineupUnitItems struct {
+		AverageItems       func(childComplexity int) int
+		CommonItems        func(childComplexity int) int
+		CoreRank           func(childComplexity int) int
+		EquippedRate       func(childComplexity int) int
+		IsCore             func(childComplexity int) int
+		ItemInvestmentRate func(childComplexity int) int
+		KnownStarSamples   func(childComplexity int) int
+		StarCoverage       func(childComplexity int) int
+		StarDistribution   func(childComplexity int) int
+		ThreeItemRate      func(childComplexity int) int
+		Unit               func(childComplexity int) int
+		UnknownStarSamples func(childComplexity int) int
+	}
+
+	TFTLineupUnitStarBucket struct {
+		AvgPlacement func(childComplexity int) int
+		FirstRate    func(childComplexity int) int
+		KnownRate    func(childComplexity int) int
+		Rate         func(childComplexity int) int
+		SampleSize   func(childComplexity int) int
+		Stars        func(childComplexity int) int
+		Top4Rate     func(childComplexity int) int
 	}
 
 	TFTLineupsResult struct {
@@ -413,6 +515,34 @@ type ComplexityRoot struct {
 		Returned    func(childComplexity int) int
 	}
 
+	TFTObservedLineupsResult struct {
+		AlgorithmVersion   func(childComplexity int) int
+		AssetSnapshot      func(childComplexity int) int
+		CatalogSnapshot    func(childComplexity int) int
+		DataKind           func(childComplexity int) int
+		ExactLineups       func(childComplexity int) int
+		Items              func(childComplexity int) int
+		Locale             func(childComplexity int) int
+		Patch              func(childComplexity int) int
+		Platform           func(childComplexity int) int
+		Platforms          func(childComplexity int) int
+		QueueID            func(childComplexity int) int
+		RawGameVersions    func(childComplexity int) int
+		RunID              func(childComplexity int) int
+		SetNumber          func(childComplexity int) int
+		SourceMatches      func(childComplexity int) int
+		SourceParticipants func(childComplexity int) int
+		UsableParticipants func(childComplexity int) int
+		WindowEnd          func(childComplexity int) int
+		WindowStart        func(childComplexity int) int
+	}
+
+	TFTObservedStaticSnapshot struct {
+		Patch    func(childComplexity int) int
+		Revision func(childComplexity int) int
+		Source   func(childComplexity int) int
+	}
+
 	TFTPlayerProfile struct {
 		GameName        func(childComplexity int) int
 		IsStale         func(childComplexity int) int
@@ -443,11 +573,13 @@ type QueryResolver interface {
 	Versions(ctx context.Context) ([]string, error)
 	Regions(ctx context.Context) ([]string, error)
 	ChampionDetail(ctx context.Context, id int, filter *ChampionDetailFilter) (*ChampionDetailResult, error)
+	ChampionWinFactors(ctx context.Context, id int, filter ChampionWinFactorsFilter) (*ChampionWinFactorsResult, error)
 	ChampionRankings(ctx context.Context, filter *ChampionRankingsFilter) (*RankingsResult, error)
 	Summoner(ctx context.Context, identity SummonerIdentityInput, history *SummonerHistoryInput) (*SummonerResult, error)
 	SummonerLookupJob(ctx context.Context, id string) (*SummonerLookupJob, error)
 	TftAnalysisCatalog(ctx context.Context) ([]*TFTAnalysisCatalogEntry, error)
 	TftLineups(ctx context.Context, filter TFTLineupsFilter) (*TFTLineupsResult, error)
+	TftObservedLineups(ctx context.Context, filter TFTObservedLineupsFilter) (*TFTObservedLineupsResult, error)
 	TftMatchHistory(ctx context.Context, input TFTHistoryInput) (*TFTHistoryResult, error)
 	TftLookupJob(ctx context.Context, id string) (*TFTLookupJob, error)
 }
@@ -624,6 +756,219 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ChampionRanking.Wins(childComplexity), true
 
+	case "ChampionWinFactor.buckets":
+		if e.ComplexityRoot.ChampionWinFactor.Buckets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.Buckets(childComplexity), true
+	case "ChampionWinFactor.displayOrder":
+		if e.ComplexityRoot.ChampionWinFactor.DisplayOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.DisplayOrder(childComplexity), true
+	case "ChampionWinFactor.endMinute":
+		if e.ComplexityRoot.ChampionWinFactor.EndMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.EndMinute(childComplexity), true
+	case "ChampionWinFactor.evidenceGrade":
+		if e.ComplexityRoot.ChampionWinFactor.EvidenceGrade == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.EvidenceGrade(childComplexity), true
+	case "ChampionWinFactor.kind":
+		if e.ComplexityRoot.ChampionWinFactor.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.Kind(childComplexity), true
+	case "ChampionWinFactor.metricKey":
+		if e.ComplexityRoot.ChampionWinFactor.MetricKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.MetricKey(childComplexity), true
+	case "ChampionWinFactor.p50":
+		if e.ComplexityRoot.ChampionWinFactor.P50 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.P50(childComplexity), true
+	case "ChampionWinFactor.p70":
+		if e.ComplexityRoot.ChampionWinFactor.P70 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.P70(childComplexity), true
+	case "ChampionWinFactor.p90":
+		if e.ComplexityRoot.ChampionWinFactor.P90 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.P90(childComplexity), true
+	case "ChampionWinFactor.startMinute":
+		if e.ComplexityRoot.ChampionWinFactor.StartMinute == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.StartMinute(childComplexity), true
+	case "ChampionWinFactor.unit":
+		if e.ComplexityRoot.ChampionWinFactor.Unit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactor.Unit(childComplexity), true
+
+	case "ChampionWinFactorBucket.games":
+		if e.ComplexityRoot.ChampionWinFactorBucket.Games == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.Games(childComplexity), true
+	case "ChampionWinFactorBucket.lowerBound":
+		if e.ComplexityRoot.ChampionWinFactorBucket.LowerBound == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.LowerBound(childComplexity), true
+	case "ChampionWinFactorBucket.observedWinRate":
+		if e.ComplexityRoot.ChampionWinFactorBucket.ObservedWinRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.ObservedWinRate(childComplexity), true
+	case "ChampionWinFactorBucket.observedWinRateDelta":
+		if e.ComplexityRoot.ChampionWinFactorBucket.ObservedWinRateDelta == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.ObservedWinRateDelta(childComplexity), true
+	case "ChampionWinFactorBucket.ordinal":
+		if e.ComplexityRoot.ChampionWinFactorBucket.Ordinal == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.Ordinal(childComplexity), true
+	case "ChampionWinFactorBucket.samplePlayers":
+		if e.ComplexityRoot.ChampionWinFactorBucket.SamplePlayers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.SamplePlayers(childComplexity), true
+	case "ChampionWinFactorBucket.upperBound":
+		if e.ComplexityRoot.ChampionWinFactorBucket.UpperBound == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.UpperBound(childComplexity), true
+	case "ChampionWinFactorBucket.wins":
+		if e.ComplexityRoot.ChampionWinFactorBucket.Wins == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorBucket.Wins(childComplexity), true
+
+	case "ChampionWinFactorsResult.algorithm":
+		if e.ComplexityRoot.ChampionWinFactorsResult.Algorithm == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.Algorithm(childComplexity), true
+	case "ChampionWinFactorsResult.availability":
+		if e.ComplexityRoot.ChampionWinFactorsResult.Availability == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.Availability(childComplexity), true
+	case "ChampionWinFactorsResult.championId":
+		if e.ComplexityRoot.ChampionWinFactorsResult.ChampionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.ChampionID(childComplexity), true
+	case "ChampionWinFactorsResult.championName":
+		if e.ComplexityRoot.ChampionWinFactorsResult.ChampionName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.ChampionName(childComplexity), true
+	case "ChampionWinFactorsResult.cohortScope":
+		if e.ComplexityRoot.ChampionWinFactorsResult.CohortScope == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.CohortScope(childComplexity), true
+	case "ChampionWinFactorsResult.dataThrough":
+		if e.ComplexityRoot.ChampionWinFactorsResult.DataThrough == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.DataThrough(childComplexity), true
+	case "ChampionWinFactorsResult.factors":
+		if e.ComplexityRoot.ChampionWinFactorsResult.Factors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.Factors(childComplexity), true
+	case "ChampionWinFactorsResult.position":
+		if e.ComplexityRoot.ChampionWinFactorsResult.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.Position(childComplexity), true
+	case "ChampionWinFactorsResult.publishedAt":
+		if e.ComplexityRoot.ChampionWinFactorsResult.PublishedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.PublishedAt(childComplexity), true
+	case "ChampionWinFactorsResult.regionScope":
+		if e.ComplexityRoot.ChampionWinFactorsResult.RegionScope == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.RegionScope(childComplexity), true
+	case "ChampionWinFactorsResult.resolvedVersion":
+		if e.ComplexityRoot.ChampionWinFactorsResult.ResolvedVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.ResolvedVersion(childComplexity), true
+	case "ChampionWinFactorsResult.revision":
+		if e.ComplexityRoot.ChampionWinFactorsResult.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.Revision(childComplexity), true
+	case "ChampionWinFactorsResult.sampleGames":
+		if e.ComplexityRoot.ChampionWinFactorsResult.SampleGames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.SampleGames(childComplexity), true
+	case "ChampionWinFactorsResult.samplePlayers":
+		if e.ComplexityRoot.ChampionWinFactorsResult.SamplePlayers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.SamplePlayers(childComplexity), true
+	case "ChampionWinFactorsResult.tierGroup":
+		if e.ComplexityRoot.ChampionWinFactorsResult.TierGroup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.TierGroup(childComplexity), true
+	case "ChampionWinFactorsResult.unavailableReason":
+		if e.ComplexityRoot.ChampionWinFactorsResult.UnavailableReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChampionWinFactorsResult.UnavailableReason(childComplexity), true
+
 	case "CurrentUser.avatarUrl":
 		if e.ComplexityRoot.CurrentUser.AvatarURL == nil {
 			break
@@ -738,6 +1083,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ChampionRankings(childComplexity, args["filter"].(*ChampionRankingsFilter)), true
+	case "Query.championWinFactors":
+		if e.ComplexityRoot.Query.ChampionWinFactors == nil {
+			break
+		}
+
+		args, err := ec.field_Query_championWinFactors_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ChampionWinFactors(childComplexity, args["id"].(int), args["filter"].(ChampionWinFactorsFilter)), true
 
 	case "Query.me":
 		if e.ComplexityRoot.Query.Me == nil {
@@ -818,6 +1174,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.TftMatchHistory(childComplexity, args["input"].(TFTHistoryInput)), true
+	case "Query.tftObservedLineups":
+		if e.ComplexityRoot.Query.TftObservedLineups == nil {
+			break
+		}
+
+		args, err := ec.field_Query_tftObservedLineups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TftObservedLineups(childComplexity, args["filter"].(TFTObservedLineupsFilter)), true
 	case "Query.versions":
 		if e.ComplexityRoot.Query.Versions == nil {
 			break
@@ -1968,6 +2335,42 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TFTLineup.Metrics(childComplexity), true
+	case "TFTLineup.starCompositionCoverage":
+		if e.ComplexityRoot.TFTLineup.StarCompositionCoverage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.StarCompositionCoverage(childComplexity), true
+	case "TFTLineup.starCompositionKnownSamples":
+		if e.ComplexityRoot.TFTLineup.StarCompositionKnownSamples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.StarCompositionKnownSamples(childComplexity), true
+	case "TFTLineup.starCompositionUnknownSamples":
+		if e.ComplexityRoot.TFTLineup.StarCompositionUnknownSamples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.StarCompositionUnknownSamples(childComplexity), true
+	case "TFTLineup.starCompositions":
+		if e.ComplexityRoot.TFTLineup.StarCompositions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.StarCompositions(childComplexity), true
+	case "TFTLineup.starLevels":
+		if e.ComplexityRoot.TFTLineup.StarLevels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.StarLevels(childComplexity), true
+	case "TFTLineup.unitItems":
+		if e.ComplexityRoot.TFTLineup.UnitItems == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineup.UnitItems(childComplexity), true
 
 	case "TFTLineupMetrics.avgPlacement":
 		if e.ComplexityRoot.TFTLineupMetrics.AvgPlacement == nil {
@@ -2011,6 +2414,221 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TFTLineupMetrics.Top4Rate(childComplexity), true
+
+	case "TFTLineupStarComposition.avgPlacement":
+		if e.ComplexityRoot.TFTLineupStarComposition.AvgPlacement == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.AvgPlacement(childComplexity), true
+	case "TFTLineupStarComposition.firstRate":
+		if e.ComplexityRoot.TFTLineupStarComposition.FirstRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.FirstRate(childComplexity), true
+	case "TFTLineupStarComposition.levels":
+		if e.ComplexityRoot.TFTLineupStarComposition.Levels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.Levels(childComplexity), true
+	case "TFTLineupStarComposition.rate":
+		if e.ComplexityRoot.TFTLineupStarComposition.Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.Rate(childComplexity), true
+	case "TFTLineupStarComposition.sampleSize":
+		if e.ComplexityRoot.TFTLineupStarComposition.SampleSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.SampleSize(childComplexity), true
+	case "TFTLineupStarComposition.top4Rate":
+		if e.ComplexityRoot.TFTLineupStarComposition.Top4Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.Top4Rate(childComplexity), true
+	case "TFTLineupStarComposition.totalStars":
+		if e.ComplexityRoot.TFTLineupStarComposition.TotalStars == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarComposition.TotalStars(childComplexity), true
+
+	case "TFTLineupStarCount.stars":
+		if e.ComplexityRoot.TFTLineupStarCount.Stars == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarCount.Stars(childComplexity), true
+	case "TFTLineupStarCount.unitCount":
+		if e.ComplexityRoot.TFTLineupStarCount.UnitCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarCount.UnitCount(childComplexity), true
+
+	case "TFTLineupStarStrength.avgPlacement":
+		if e.ComplexityRoot.TFTLineupStarStrength.AvgPlacement == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.AvgPlacement(childComplexity), true
+	case "TFTLineupStarStrength.firstRate":
+		if e.ComplexityRoot.TFTLineupStarStrength.FirstRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.FirstRate(childComplexity), true
+	case "TFTLineupStarStrength.lobbyCount":
+		if e.ComplexityRoot.TFTLineupStarStrength.LobbyCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.LobbyCount(childComplexity), true
+	case "TFTLineupStarStrength.rate":
+		if e.ComplexityRoot.TFTLineupStarStrength.Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.Rate(childComplexity), true
+	case "TFTLineupStarStrength.sampleSize":
+		if e.ComplexityRoot.TFTLineupStarStrength.SampleSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.SampleSize(childComplexity), true
+	case "TFTLineupStarStrength.top4Rate":
+		if e.ComplexityRoot.TFTLineupStarStrength.Top4Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.Top4Rate(childComplexity), true
+	case "TFTLineupStarStrength.totalStars":
+		if e.ComplexityRoot.TFTLineupStarStrength.TotalStars == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupStarStrength.TotalStars(childComplexity), true
+
+	case "TFTLineupUnitItems.averageItems":
+		if e.ComplexityRoot.TFTLineupUnitItems.AverageItems == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.AverageItems(childComplexity), true
+	case "TFTLineupUnitItems.commonItems":
+		if e.ComplexityRoot.TFTLineupUnitItems.CommonItems == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.CommonItems(childComplexity), true
+	case "TFTLineupUnitItems.coreRank":
+		if e.ComplexityRoot.TFTLineupUnitItems.CoreRank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.CoreRank(childComplexity), true
+	case "TFTLineupUnitItems.equippedRate":
+		if e.ComplexityRoot.TFTLineupUnitItems.EquippedRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.EquippedRate(childComplexity), true
+	case "TFTLineupUnitItems.isCore":
+		if e.ComplexityRoot.TFTLineupUnitItems.IsCore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.IsCore(childComplexity), true
+	case "TFTLineupUnitItems.itemInvestmentRate":
+		if e.ComplexityRoot.TFTLineupUnitItems.ItemInvestmentRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.ItemInvestmentRate(childComplexity), true
+	case "TFTLineupUnitItems.knownStarSamples":
+		if e.ComplexityRoot.TFTLineupUnitItems.KnownStarSamples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.KnownStarSamples(childComplexity), true
+	case "TFTLineupUnitItems.starCoverage":
+		if e.ComplexityRoot.TFTLineupUnitItems.StarCoverage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.StarCoverage(childComplexity), true
+	case "TFTLineupUnitItems.starDistribution":
+		if e.ComplexityRoot.TFTLineupUnitItems.StarDistribution == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.StarDistribution(childComplexity), true
+	case "TFTLineupUnitItems.threeItemRate":
+		if e.ComplexityRoot.TFTLineupUnitItems.ThreeItemRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.ThreeItemRate(childComplexity), true
+	case "TFTLineupUnitItems.unit":
+		if e.ComplexityRoot.TFTLineupUnitItems.Unit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.Unit(childComplexity), true
+	case "TFTLineupUnitItems.unknownStarSamples":
+		if e.ComplexityRoot.TFTLineupUnitItems.UnknownStarSamples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitItems.UnknownStarSamples(childComplexity), true
+
+	case "TFTLineupUnitStarBucket.avgPlacement":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.AvgPlacement == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.AvgPlacement(childComplexity), true
+	case "TFTLineupUnitStarBucket.firstRate":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.FirstRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.FirstRate(childComplexity), true
+	case "TFTLineupUnitStarBucket.knownRate":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.KnownRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.KnownRate(childComplexity), true
+	case "TFTLineupUnitStarBucket.rate":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.Rate(childComplexity), true
+	case "TFTLineupUnitStarBucket.sampleSize":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.SampleSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.SampleSize(childComplexity), true
+	case "TFTLineupUnitStarBucket.stars":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.Stars == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.Stars(childComplexity), true
+	case "TFTLineupUnitStarBucket.top4Rate":
+		if e.ComplexityRoot.TFTLineupUnitStarBucket.Top4Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTLineupUnitStarBucket.Top4Rate(childComplexity), true
 
 	case "TFTLineupsResult.algorithmVersion":
 		if e.ComplexityRoot.TFTLineupsResult.AlgorithmVersion == nil {
@@ -2189,6 +2807,140 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TFTMatchPageInfo.Returned(childComplexity), true
 
+	case "TFTObservedLineupsResult.algorithmVersion":
+		if e.ComplexityRoot.TFTObservedLineupsResult.AlgorithmVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.AlgorithmVersion(childComplexity), true
+	case "TFTObservedLineupsResult.assetSnapshot":
+		if e.ComplexityRoot.TFTObservedLineupsResult.AssetSnapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.AssetSnapshot(childComplexity), true
+	case "TFTObservedLineupsResult.catalogSnapshot":
+		if e.ComplexityRoot.TFTObservedLineupsResult.CatalogSnapshot == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.CatalogSnapshot(childComplexity), true
+	case "TFTObservedLineupsResult.dataKind":
+		if e.ComplexityRoot.TFTObservedLineupsResult.DataKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.DataKind(childComplexity), true
+	case "TFTObservedLineupsResult.exactLineups":
+		if e.ComplexityRoot.TFTObservedLineupsResult.ExactLineups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.ExactLineups(childComplexity), true
+	case "TFTObservedLineupsResult.items":
+		if e.ComplexityRoot.TFTObservedLineupsResult.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.Items(childComplexity), true
+	case "TFTObservedLineupsResult.locale":
+		if e.ComplexityRoot.TFTObservedLineupsResult.Locale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.Locale(childComplexity), true
+	case "TFTObservedLineupsResult.patch":
+		if e.ComplexityRoot.TFTObservedLineupsResult.Patch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.Patch(childComplexity), true
+	case "TFTObservedLineupsResult.platform":
+		if e.ComplexityRoot.TFTObservedLineupsResult.Platform == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.Platform(childComplexity), true
+	case "TFTObservedLineupsResult.platforms":
+		if e.ComplexityRoot.TFTObservedLineupsResult.Platforms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.Platforms(childComplexity), true
+	case "TFTObservedLineupsResult.queueId":
+		if e.ComplexityRoot.TFTObservedLineupsResult.QueueID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.QueueID(childComplexity), true
+	case "TFTObservedLineupsResult.rawGameVersions":
+		if e.ComplexityRoot.TFTObservedLineupsResult.RawGameVersions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.RawGameVersions(childComplexity), true
+	case "TFTObservedLineupsResult.runId":
+		if e.ComplexityRoot.TFTObservedLineupsResult.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.RunID(childComplexity), true
+	case "TFTObservedLineupsResult.setNumber":
+		if e.ComplexityRoot.TFTObservedLineupsResult.SetNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.SetNumber(childComplexity), true
+	case "TFTObservedLineupsResult.sourceMatches":
+		if e.ComplexityRoot.TFTObservedLineupsResult.SourceMatches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.SourceMatches(childComplexity), true
+	case "TFTObservedLineupsResult.sourceParticipants":
+		if e.ComplexityRoot.TFTObservedLineupsResult.SourceParticipants == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.SourceParticipants(childComplexity), true
+	case "TFTObservedLineupsResult.usableParticipants":
+		if e.ComplexityRoot.TFTObservedLineupsResult.UsableParticipants == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.UsableParticipants(childComplexity), true
+	case "TFTObservedLineupsResult.windowEnd":
+		if e.ComplexityRoot.TFTObservedLineupsResult.WindowEnd == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.WindowEnd(childComplexity), true
+	case "TFTObservedLineupsResult.windowStart":
+		if e.ComplexityRoot.TFTObservedLineupsResult.WindowStart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedLineupsResult.WindowStart(childComplexity), true
+
+	case "TFTObservedStaticSnapshot.patch":
+		if e.ComplexityRoot.TFTObservedStaticSnapshot.Patch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedStaticSnapshot.Patch(childComplexity), true
+	case "TFTObservedStaticSnapshot.revision":
+		if e.ComplexityRoot.TFTObservedStaticSnapshot.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedStaticSnapshot.Revision(childComplexity), true
+	case "TFTObservedStaticSnapshot.source":
+		if e.ComplexityRoot.TFTObservedStaticSnapshot.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TFTObservedStaticSnapshot.Source(childComplexity), true
+
 	case "TFTPlayerProfile.gameName":
 		if e.ComplexityRoot.TFTPlayerProfile.GameName == nil {
 			break
@@ -2249,11 +3001,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputChampionDetailFilter,
 		ec.unmarshalInputChampionRankingsFilter,
+		ec.unmarshalInputChampionWinFactorsFilter,
 		ec.unmarshalInputSummonerHistoryInput,
 		ec.unmarshalInputSummonerIdentityInput,
 		ec.unmarshalInputTFTHistoryInput,
 		ec.unmarshalInputTFTIdentityInput,
 		ec.unmarshalInputTFTLineupsFilter,
+		ec.unmarshalInputTFTObservedLineupsFilter,
 	)
 	first := true
 
@@ -2378,6 +3132,72 @@ extend type Query {
   position: String = ""
 }
 
+input ChampionWinFactorsFilter {
+  queueId: Int = 420
+  version: String = "latest"
+  region: String = ""
+  tierGroup: TierGroup = ALL
+  position: String!
+}
+
+enum ChampionInsightAvailability {
+  AVAILABLE
+  INSUFFICIENT_SAMPLE
+  UNAVAILABLE
+}
+
+enum ChampionInsightFactorKind {
+  BEHAVIOR_METRIC
+}
+
+enum ChampionInsightEvidenceGrade {
+  OBSERVED
+}
+
+type ChampionWinFactorBucket {
+  ordinal: Int!
+  lowerBound: Float!
+  upperBound: Float!
+  games: Int!
+  wins: Int!
+  samplePlayers: Int!
+  observedWinRate: Float!
+  observedWinRateDelta: Float!
+}
+
+type ChampionWinFactor {
+  metricKey: String!
+  kind: ChampionInsightFactorKind!
+  startMinute: Int!
+  endMinute: Int!
+  unit: String!
+  p50: Float!
+  p70: Float!
+  p90: Float!
+  evidenceGrade: ChampionInsightEvidenceGrade!
+  displayOrder: Int!
+  buckets: [ChampionWinFactorBucket!]!
+}
+
+type ChampionWinFactorsResult {
+  championId: Int!
+  championName: String!
+  position: String!
+  resolvedVersion: String
+  regionScope: String!
+  tierGroup: TierGroup!
+  revision: String
+  algorithm: String
+  dataThrough: String
+  publishedAt: String
+  availability: ChampionInsightAvailability!
+  unavailableReason: String
+  cohortScope: String
+  sampleGames: Int!
+  samplePlayers: Int!
+  factors: [ChampionWinFactor!]!
+}
+
 type BuildChoice {
   ids: [Int!]!
   games: Int!
@@ -2416,6 +3236,7 @@ type ChampionDetailResult {
 
 extend type Query {
   championDetail(id: Int!, filter: ChampionDetailFilter): ChampionDetailResult
+  championWinFactors(id: Int!, filter: ChampionWinFactorsFilter!): ChampionWinFactorsResult
 }
 `, BuiltIn: false},
 	{Name: "../schema/common.graphql", Input: `# Common GraphQL definitions shared by every domain in the schema.
@@ -2713,6 +3534,43 @@ input TFTLineupsFilter {
   limit: Int = 50
 }
 
+enum TFTObservedDataKind { OBSERVED_RUN_PREVIEW }
+
+input TFTObservedLineupsFilter {
+  platform: String = "KR"
+  locale: String = "en_us"
+  minSamples: Int = 20
+  limit: Int = 30
+}
+
+type TFTObservedStaticSnapshot {
+  source: String!
+  patch: String!
+  revision: String!
+}
+
+type TFTObservedLineupsResult {
+  dataKind: TFTObservedDataKind!
+  runId: ID!
+  platform: String!
+  platforms: [String!]!
+  queueId: Int!
+  setNumber: Int!
+  patch: String
+  rawGameVersions: [String!]!
+  locale: String!
+  algorithmVersion: String!
+  catalogSnapshot: TFTObservedStaticSnapshot!
+  assetSnapshot: TFTObservedStaticSnapshot
+  sourceMatches: Int!
+  sourceParticipants: Int!
+  usableParticipants: Int!
+  exactLineups: Int!
+  windowStart: String!
+  windowEnd: String!
+  items: [TFTLineup!]!
+}
+
 type TFTAnalysisCatalogEntry {
   platform: String!
   patch: String!
@@ -2744,12 +3602,63 @@ type TFTLineupMetrics {
   top4Rate: Float!
   contestedRate: Float!
 }
+type TFTLineupUnitItems {
+  unit: TFTEntity!
+  commonItems: [TFTEntityCount!]!
+  isCore: Boolean!
+  coreRank: Int
+  averageItems: Float!
+  itemInvestmentRate: Float!
+  equippedRate: Float!
+  threeItemRate: Float!
+  knownStarSamples: Int!
+  unknownStarSamples: Int!
+  starCoverage: Float!
+  starDistribution: [TFTLineupUnitStarBucket!]!
+}
+type TFTLineupUnitStarBucket {
+  stars: Int!
+  sampleSize: Int!
+  rate: Float!
+  knownRate: Float!
+  avgPlacement: Float
+  firstRate: Float
+  top4Rate: Float
+}
+type TFTLineupStarStrength {
+  totalStars: Int!
+  sampleSize: Int!
+  lobbyCount: Int!
+  rate: Float!
+  avgPlacement: Float!
+  firstRate: Float!
+  top4Rate: Float!
+}
+type TFTLineupStarCount {
+  stars: Int!
+  unitCount: Int!
+}
+type TFTLineupStarComposition {
+  levels: [TFTLineupStarCount!]!
+  totalStars: Int!
+  sampleSize: Int!
+  rate: Float!
+  avgPlacement: Float
+  firstRate: Float
+  top4Rate: Float
+}
 type TFTLineup {
   id: ID!
   coreUnits: [TFTEntity!]!
   commonItems: [TFTEntityCount!]!
   commonAugments: [TFTEntityCount!]!
   commonTraits: [TFTEntityCount!]!
+  unitItems: [TFTLineupUnitItems!]!
+  starLevels: [TFTLineupStarStrength!]!
+  starCompositionKnownSamples: Int!
+  starCompositionUnknownSamples: Int!
+  starCompositionCoverage: Float!
+  starCompositions: [TFTLineupStarComposition!]!
   metrics: TFTLineupMetrics!
 }
 type TFTLineupsResult {
@@ -2771,6 +3680,7 @@ type TFTLineupsResult {
 extend type Query {
   tftAnalysisCatalog: [TFTAnalysisCatalogEntry!]!
   tftLineups(filter: TFTLineupsFilter!): TFTLineupsResult!
+  tftObservedLineups(filter: TFTObservedLineupsFilter!): TFTObservedLineupsResult
   tftMatchHistory(input: TFTHistoryInput!): TFTHistoryResult
   tftLookupJob(id: ID!): TFTLookupJob
 }
@@ -2977,6 +3887,94 @@ func (ec *executionContext) childFields_ChampionRanking(ctx context.Context, fie
 		return ec.fieldContext_ChampionRanking_kda(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ChampionRanking", field.Name)
+}
+
+func (ec *executionContext) childFields_ChampionWinFactor(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "metricKey":
+		return ec.fieldContext_ChampionWinFactor_metricKey(ctx, field)
+	case "kind":
+		return ec.fieldContext_ChampionWinFactor_kind(ctx, field)
+	case "startMinute":
+		return ec.fieldContext_ChampionWinFactor_startMinute(ctx, field)
+	case "endMinute":
+		return ec.fieldContext_ChampionWinFactor_endMinute(ctx, field)
+	case "unit":
+		return ec.fieldContext_ChampionWinFactor_unit(ctx, field)
+	case "p50":
+		return ec.fieldContext_ChampionWinFactor_p50(ctx, field)
+	case "p70":
+		return ec.fieldContext_ChampionWinFactor_p70(ctx, field)
+	case "p90":
+		return ec.fieldContext_ChampionWinFactor_p90(ctx, field)
+	case "evidenceGrade":
+		return ec.fieldContext_ChampionWinFactor_evidenceGrade(ctx, field)
+	case "displayOrder":
+		return ec.fieldContext_ChampionWinFactor_displayOrder(ctx, field)
+	case "buckets":
+		return ec.fieldContext_ChampionWinFactor_buckets(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ChampionWinFactor", field.Name)
+}
+
+func (ec *executionContext) childFields_ChampionWinFactorBucket(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "ordinal":
+		return ec.fieldContext_ChampionWinFactorBucket_ordinal(ctx, field)
+	case "lowerBound":
+		return ec.fieldContext_ChampionWinFactorBucket_lowerBound(ctx, field)
+	case "upperBound":
+		return ec.fieldContext_ChampionWinFactorBucket_upperBound(ctx, field)
+	case "games":
+		return ec.fieldContext_ChampionWinFactorBucket_games(ctx, field)
+	case "wins":
+		return ec.fieldContext_ChampionWinFactorBucket_wins(ctx, field)
+	case "samplePlayers":
+		return ec.fieldContext_ChampionWinFactorBucket_samplePlayers(ctx, field)
+	case "observedWinRate":
+		return ec.fieldContext_ChampionWinFactorBucket_observedWinRate(ctx, field)
+	case "observedWinRateDelta":
+		return ec.fieldContext_ChampionWinFactorBucket_observedWinRateDelta(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ChampionWinFactorBucket", field.Name)
+}
+
+func (ec *executionContext) childFields_ChampionWinFactorsResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "championId":
+		return ec.fieldContext_ChampionWinFactorsResult_championId(ctx, field)
+	case "championName":
+		return ec.fieldContext_ChampionWinFactorsResult_championName(ctx, field)
+	case "position":
+		return ec.fieldContext_ChampionWinFactorsResult_position(ctx, field)
+	case "resolvedVersion":
+		return ec.fieldContext_ChampionWinFactorsResult_resolvedVersion(ctx, field)
+	case "regionScope":
+		return ec.fieldContext_ChampionWinFactorsResult_regionScope(ctx, field)
+	case "tierGroup":
+		return ec.fieldContext_ChampionWinFactorsResult_tierGroup(ctx, field)
+	case "revision":
+		return ec.fieldContext_ChampionWinFactorsResult_revision(ctx, field)
+	case "algorithm":
+		return ec.fieldContext_ChampionWinFactorsResult_algorithm(ctx, field)
+	case "dataThrough":
+		return ec.fieldContext_ChampionWinFactorsResult_dataThrough(ctx, field)
+	case "publishedAt":
+		return ec.fieldContext_ChampionWinFactorsResult_publishedAt(ctx, field)
+	case "availability":
+		return ec.fieldContext_ChampionWinFactorsResult_availability(ctx, field)
+	case "unavailableReason":
+		return ec.fieldContext_ChampionWinFactorsResult_unavailableReason(ctx, field)
+	case "cohortScope":
+		return ec.fieldContext_ChampionWinFactorsResult_cohortScope(ctx, field)
+	case "sampleGames":
+		return ec.fieldContext_ChampionWinFactorsResult_sampleGames(ctx, field)
+	case "samplePlayers":
+		return ec.fieldContext_ChampionWinFactorsResult_samplePlayers(ctx, field)
+	case "factors":
+		return ec.fieldContext_ChampionWinFactorsResult_factors(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ChampionWinFactorsResult", field.Name)
 }
 
 func (ec *executionContext) childFields_CurrentUser(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3517,6 +4515,18 @@ func (ec *executionContext) childFields_TFTLineup(ctx context.Context, field gra
 		return ec.fieldContext_TFTLineup_commonAugments(ctx, field)
 	case "commonTraits":
 		return ec.fieldContext_TFTLineup_commonTraits(ctx, field)
+	case "unitItems":
+		return ec.fieldContext_TFTLineup_unitItems(ctx, field)
+	case "starLevels":
+		return ec.fieldContext_TFTLineup_starLevels(ctx, field)
+	case "starCompositionKnownSamples":
+		return ec.fieldContext_TFTLineup_starCompositionKnownSamples(ctx, field)
+	case "starCompositionUnknownSamples":
+		return ec.fieldContext_TFTLineup_starCompositionUnknownSamples(ctx, field)
+	case "starCompositionCoverage":
+		return ec.fieldContext_TFTLineup_starCompositionCoverage(ctx, field)
+	case "starCompositions":
+		return ec.fieldContext_TFTLineup_starCompositions(ctx, field)
 	case "metrics":
 		return ec.fieldContext_TFTLineup_metrics(ctx, field)
 	}
@@ -3541,6 +4551,106 @@ func (ec *executionContext) childFields_TFTLineupMetrics(ctx context.Context, fi
 		return ec.fieldContext_TFTLineupMetrics_contestedRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TFTLineupMetrics", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTLineupStarComposition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "levels":
+		return ec.fieldContext_TFTLineupStarComposition_levels(ctx, field)
+	case "totalStars":
+		return ec.fieldContext_TFTLineupStarComposition_totalStars(ctx, field)
+	case "sampleSize":
+		return ec.fieldContext_TFTLineupStarComposition_sampleSize(ctx, field)
+	case "rate":
+		return ec.fieldContext_TFTLineupStarComposition_rate(ctx, field)
+	case "avgPlacement":
+		return ec.fieldContext_TFTLineupStarComposition_avgPlacement(ctx, field)
+	case "firstRate":
+		return ec.fieldContext_TFTLineupStarComposition_firstRate(ctx, field)
+	case "top4Rate":
+		return ec.fieldContext_TFTLineupStarComposition_top4Rate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTLineupStarComposition", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTLineupStarCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "stars":
+		return ec.fieldContext_TFTLineupStarCount_stars(ctx, field)
+	case "unitCount":
+		return ec.fieldContext_TFTLineupStarCount_unitCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTLineupStarCount", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTLineupStarStrength(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalStars":
+		return ec.fieldContext_TFTLineupStarStrength_totalStars(ctx, field)
+	case "sampleSize":
+		return ec.fieldContext_TFTLineupStarStrength_sampleSize(ctx, field)
+	case "lobbyCount":
+		return ec.fieldContext_TFTLineupStarStrength_lobbyCount(ctx, field)
+	case "rate":
+		return ec.fieldContext_TFTLineupStarStrength_rate(ctx, field)
+	case "avgPlacement":
+		return ec.fieldContext_TFTLineupStarStrength_avgPlacement(ctx, field)
+	case "firstRate":
+		return ec.fieldContext_TFTLineupStarStrength_firstRate(ctx, field)
+	case "top4Rate":
+		return ec.fieldContext_TFTLineupStarStrength_top4Rate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTLineupStarStrength", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTLineupUnitItems(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "unit":
+		return ec.fieldContext_TFTLineupUnitItems_unit(ctx, field)
+	case "commonItems":
+		return ec.fieldContext_TFTLineupUnitItems_commonItems(ctx, field)
+	case "isCore":
+		return ec.fieldContext_TFTLineupUnitItems_isCore(ctx, field)
+	case "coreRank":
+		return ec.fieldContext_TFTLineupUnitItems_coreRank(ctx, field)
+	case "averageItems":
+		return ec.fieldContext_TFTLineupUnitItems_averageItems(ctx, field)
+	case "itemInvestmentRate":
+		return ec.fieldContext_TFTLineupUnitItems_itemInvestmentRate(ctx, field)
+	case "equippedRate":
+		return ec.fieldContext_TFTLineupUnitItems_equippedRate(ctx, field)
+	case "threeItemRate":
+		return ec.fieldContext_TFTLineupUnitItems_threeItemRate(ctx, field)
+	case "knownStarSamples":
+		return ec.fieldContext_TFTLineupUnitItems_knownStarSamples(ctx, field)
+	case "unknownStarSamples":
+		return ec.fieldContext_TFTLineupUnitItems_unknownStarSamples(ctx, field)
+	case "starCoverage":
+		return ec.fieldContext_TFTLineupUnitItems_starCoverage(ctx, field)
+	case "starDistribution":
+		return ec.fieldContext_TFTLineupUnitItems_starDistribution(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTLineupUnitItems", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTLineupUnitStarBucket(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "stars":
+		return ec.fieldContext_TFTLineupUnitStarBucket_stars(ctx, field)
+	case "sampleSize":
+		return ec.fieldContext_TFTLineupUnitStarBucket_sampleSize(ctx, field)
+	case "rate":
+		return ec.fieldContext_TFTLineupUnitStarBucket_rate(ctx, field)
+	case "knownRate":
+		return ec.fieldContext_TFTLineupUnitStarBucket_knownRate(ctx, field)
+	case "avgPlacement":
+		return ec.fieldContext_TFTLineupUnitStarBucket_avgPlacement(ctx, field)
+	case "firstRate":
+		return ec.fieldContext_TFTLineupUnitStarBucket_firstRate(ctx, field)
+	case "top4Rate":
+		return ec.fieldContext_TFTLineupUnitStarBucket_top4Rate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTLineupUnitStarBucket", field.Name)
 }
 
 func (ec *executionContext) childFields_TFTLineupsResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3617,6 +4727,62 @@ func (ec *executionContext) childFields_TFTMatchPageInfo(ctx context.Context, fi
 		return ec.fieldContext_TFTMatchPageInfo_returned(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TFTMatchPageInfo", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTObservedLineupsResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "dataKind":
+		return ec.fieldContext_TFTObservedLineupsResult_dataKind(ctx, field)
+	case "runId":
+		return ec.fieldContext_TFTObservedLineupsResult_runId(ctx, field)
+	case "platform":
+		return ec.fieldContext_TFTObservedLineupsResult_platform(ctx, field)
+	case "platforms":
+		return ec.fieldContext_TFTObservedLineupsResult_platforms(ctx, field)
+	case "queueId":
+		return ec.fieldContext_TFTObservedLineupsResult_queueId(ctx, field)
+	case "setNumber":
+		return ec.fieldContext_TFTObservedLineupsResult_setNumber(ctx, field)
+	case "patch":
+		return ec.fieldContext_TFTObservedLineupsResult_patch(ctx, field)
+	case "rawGameVersions":
+		return ec.fieldContext_TFTObservedLineupsResult_rawGameVersions(ctx, field)
+	case "locale":
+		return ec.fieldContext_TFTObservedLineupsResult_locale(ctx, field)
+	case "algorithmVersion":
+		return ec.fieldContext_TFTObservedLineupsResult_algorithmVersion(ctx, field)
+	case "catalogSnapshot":
+		return ec.fieldContext_TFTObservedLineupsResult_catalogSnapshot(ctx, field)
+	case "assetSnapshot":
+		return ec.fieldContext_TFTObservedLineupsResult_assetSnapshot(ctx, field)
+	case "sourceMatches":
+		return ec.fieldContext_TFTObservedLineupsResult_sourceMatches(ctx, field)
+	case "sourceParticipants":
+		return ec.fieldContext_TFTObservedLineupsResult_sourceParticipants(ctx, field)
+	case "usableParticipants":
+		return ec.fieldContext_TFTObservedLineupsResult_usableParticipants(ctx, field)
+	case "exactLineups":
+		return ec.fieldContext_TFTObservedLineupsResult_exactLineups(ctx, field)
+	case "windowStart":
+		return ec.fieldContext_TFTObservedLineupsResult_windowStart(ctx, field)
+	case "windowEnd":
+		return ec.fieldContext_TFTObservedLineupsResult_windowEnd(ctx, field)
+	case "items":
+		return ec.fieldContext_TFTObservedLineupsResult_items(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTObservedLineupsResult", field.Name)
+}
+
+func (ec *executionContext) childFields_TFTObservedStaticSnapshot(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "source":
+		return ec.fieldContext_TFTObservedStaticSnapshot_source(ctx, field)
+	case "patch":
+		return ec.fieldContext_TFTObservedStaticSnapshot_patch(ctx, field)
+	case "revision":
+		return ec.fieldContext_TFTObservedStaticSnapshot_revision(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TFTObservedStaticSnapshot", field.Name)
 }
 
 func (ec *executionContext) childFields_TFTPlayerProfile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3841,6 +5007,28 @@ func (ec *executionContext) field_Query_championRankings_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_championWinFactors_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (ChampionWinFactorsFilter, error) {
+			return ec.unmarshalNChampionWinFactorsFilter2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorsFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_summonerLookupJob_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3916,6 +5104,20 @@ func (ec *executionContext) field_Query_tftMatchHistory_args(ctx context.Context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_tftObservedLineups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (TFTObservedLineupsFilter, error) {
+			return ec.unmarshalNTFTObservedLineupsFilter2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedLineupsFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
 	return args, nil
 }
 
@@ -4599,6 +5801,829 @@ func (ec *executionContext) fieldContext_ChampionRanking_kda(_ context.Context, 
 	return graphql.NewScalarFieldContext("ChampionRanking", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _ChampionWinFactor_metricKey(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_metricKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MetricKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_metricKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_kind(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v ChampionInsightFactorKind) graphql.Marshaler {
+			return ec.marshalNChampionInsightFactorKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightFactorKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type ChampionInsightFactorKind does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_startMinute(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_startMinute(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartMinute, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_startMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_endMinute(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_endMinute(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndMinute, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_endMinute(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_unit(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_unit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Unit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_unit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_p50(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_p50(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.P50, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_p50(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_p70(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_p70(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.P70, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_p70(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_p90(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_p90(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.P90, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_p90(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_evidenceGrade(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_evidenceGrade(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EvidenceGrade, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v ChampionInsightEvidenceGrade) graphql.Marshaler {
+			return ec.marshalNChampionInsightEvidenceGrade2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightEvidenceGrade(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_evidenceGrade(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type ChampionInsightEvidenceGrade does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_displayOrder(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_displayOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DisplayOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_displayOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactor", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactor_buckets(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactor_buckets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Buckets, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*ChampionWinFactorBucket) graphql.Marshaler {
+			return ec.marshalNChampionWinFactorBucket2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorBucketᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactor_buckets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChampionWinFactor",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ChampionWinFactorBucket(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_ordinal(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_ordinal(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ordinal, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_ordinal(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_lowerBound(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_lowerBound(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LowerBound, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_lowerBound(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_upperBound(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_upperBound(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpperBound, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_upperBound(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_games(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_games(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Games, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_games(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_wins(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_wins(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Wins, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_wins(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_samplePlayers(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_samplePlayers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SamplePlayers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_samplePlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_observedWinRate(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_observedWinRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ObservedWinRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_observedWinRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorBucket_observedWinRateDelta(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorBucket_observedWinRateDelta(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ObservedWinRateDelta, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorBucket_observedWinRateDelta(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_championId(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_championId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChampionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_championId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_championName(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_championName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChampionName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_championName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_position(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_resolvedVersion(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_resolvedVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ResolvedVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_resolvedVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_regionScope(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_regionScope(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RegionScope, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_regionScope(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_tierGroup(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_tierGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TierGroup, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v TierGroup) graphql.Marshaler {
+			return ec.marshalNTierGroup2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTierGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_tierGroup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type TierGroup does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_revision(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_algorithm(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_algorithm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Algorithm, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_algorithm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_dataThrough(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_dataThrough(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DataThrough, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_dataThrough(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_publishedAt(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_publishedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_publishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_availability(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_availability(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Availability, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v ChampionInsightAvailability) graphql.Marshaler {
+			return ec.marshalNChampionInsightAvailability2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightAvailability(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_availability(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type ChampionInsightAvailability does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_unavailableReason(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_unavailableReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnavailableReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_unavailableReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_cohortScope(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_cohortScope(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CohortScope, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_cohortScope(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_sampleGames(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_sampleGames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleGames, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_sampleGames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_samplePlayers(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_samplePlayers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SamplePlayers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_samplePlayers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChampionWinFactorsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChampionWinFactorsResult_factors(ctx context.Context, field graphql.CollectedField, obj *ChampionWinFactorsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChampionWinFactorsResult_factors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Factors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*ChampionWinFactor) graphql.Marshaler {
+			return ec.marshalNChampionWinFactor2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChampionWinFactorsResult_factors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChampionWinFactorsResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ChampionWinFactor(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CurrentUser_id(ctx context.Context, field graphql.CollectedField, obj *CurrentUser) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5112,6 +7137,50 @@ func (ec *executionContext) fieldContext_Query_championDetail(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_championWinFactors(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_championWinFactors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ChampionWinFactors(ctx, fc.Args["id"].(int), fc.Args["filter"].(ChampionWinFactorsFilter))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *ChampionWinFactorsResult) graphql.Marshaler {
+			return ec.marshalOChampionWinFactorsResult2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorsResult(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_championWinFactors(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ChampionWinFactorsResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_championWinFactors_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_championRankings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5314,6 +7383,50 @@ func (ec *executionContext) fieldContext_Query_tftLineups(ctx context.Context, f
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_tftLineups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_tftObservedLineups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_tftObservedLineups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TftObservedLineups(ctx, fc.Args["filter"].(TFTObservedLineupsFilter))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TFTObservedLineupsResult) graphql.Marshaler {
+			return ec.marshalOTFTObservedLineupsResult2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedLineupsResult(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_tftObservedLineups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTObservedLineupsResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_tftObservedLineups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9996,6 +12109,171 @@ func (ec *executionContext) fieldContext_TFTLineup_commonTraits(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _TFTLineup_unitItems(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_unitItems(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnitItems, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineupUnitItems) graphql.Marshaler {
+			return ec.marshalNTFTLineupUnitItems2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitItemsᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_unitItems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineupUnitItems(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineup_starLevels(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_starLevels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarLevels, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineupStarStrength) graphql.Marshaler {
+			return ec.marshalNTFTLineupStarStrength2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarStrengthᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_starLevels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineupStarStrength(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineup_starCompositionKnownSamples(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_starCompositionKnownSamples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarCompositionKnownSamples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_starCompositionKnownSamples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineup", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineup_starCompositionUnknownSamples(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_starCompositionUnknownSamples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarCompositionUnknownSamples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_starCompositionUnknownSamples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineup", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineup_starCompositionCoverage(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_starCompositionCoverage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarCompositionCoverage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_starCompositionCoverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineup", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineup_starCompositions(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineup_starCompositions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarCompositions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineupStarComposition) graphql.Marshaler {
+			return ec.marshalNTFTLineupStarComposition2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCompositionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineup_starCompositions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineupStarComposition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TFTLineup_metrics(ctx context.Context, field graphql.CollectedField, obj *TFTLineup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10187,6 +12465,847 @@ func (ec *executionContext) _TFTLineupMetrics_contestedRate(ctx context.Context,
 }
 func (ec *executionContext) fieldContext_TFTLineupMetrics_contestedRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TFTLineupMetrics", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_levels(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_levels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Levels, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineupStarCount) graphql.Marshaler {
+			return ec.marshalNTFTLineupStarCount2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_levels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineupStarComposition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineupStarCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_totalStars(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_totalStars(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalStars, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_totalStars(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_sampleSize(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_sampleSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_sampleSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_avgPlacement(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_avgPlacement(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgPlacement, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_avgPlacement(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_firstRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_firstRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_firstRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarComposition_top4Rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarComposition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarComposition_top4Rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Top4Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarComposition_top4Rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarComposition", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarCount_stars(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarCount_stars(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stars, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarCount_stars(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarCount", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarCount_unitCount(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarCount_unitCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnitCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarCount_unitCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarCount", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_totalStars(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_totalStars(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalStars, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_totalStars(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_sampleSize(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_sampleSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_sampleSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_lobbyCount(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_lobbyCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LobbyCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_lobbyCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_avgPlacement(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_avgPlacement(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgPlacement, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_avgPlacement(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_firstRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_firstRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_firstRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupStarStrength_top4Rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupStarStrength) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupStarStrength_top4Rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Top4Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupStarStrength_top4Rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupStarStrength", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_unit(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_unit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Unit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TFTEntity) graphql.Marshaler {
+			return ec.marshalNTFTEntity2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTEntity(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_unit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineupUnitItems",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTEntity(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_commonItems(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_commonItems(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CommonItems, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTEntityCount) graphql.Marshaler {
+			return ec.marshalNTFTEntityCount2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTEntityCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_commonItems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineupUnitItems",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTEntityCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_isCore(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_isCore(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsCore, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_isCore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_coreRank(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_coreRank(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CoreRank, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_coreRank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_averageItems(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_averageItems(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AverageItems, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_averageItems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_itemInvestmentRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_itemInvestmentRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ItemInvestmentRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_itemInvestmentRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_equippedRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_equippedRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EquippedRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_equippedRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_threeItemRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_threeItemRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThreeItemRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_threeItemRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_knownStarSamples(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_knownStarSamples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KnownStarSamples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_knownStarSamples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_unknownStarSamples(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_unknownStarSamples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnknownStarSamples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_unknownStarSamples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_starCoverage(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_starCoverage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarCoverage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_starCoverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitItems", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitItems_starDistribution(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitItems) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitItems_starDistribution(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StarDistribution, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineupUnitStarBucket) graphql.Marshaler {
+			return ec.marshalNTFTLineupUnitStarBucket2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitStarBucketᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitItems_starDistribution(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTLineupUnitItems",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineupUnitStarBucket(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_stars(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_stars(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stars, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_stars(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_sampleSize(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_sampleSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_sampleSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_knownRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_knownRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KnownRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_knownRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_avgPlacement(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_avgPlacement(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgPlacement, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_avgPlacement(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_firstRate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_firstRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_firstRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket_top4Rate(ctx context.Context, field graphql.CollectedField, obj *TFTLineupUnitStarBucket) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTLineupUnitStarBucket_top4Rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Top4Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTLineupUnitStarBucket_top4Rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTLineupUnitStarBucket", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
 func (ec *executionContext) _TFTLineupsResult_platform(ctx context.Context, field graphql.CollectedField, obj *TFTLineupsResult) (ret graphql.Marshaler) {
@@ -10872,6 +13991,539 @@ func (ec *executionContext) _TFTMatchPageInfo_returned(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_TFTMatchPageInfo_returned(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TFTMatchPageInfo", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_dataKind(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_dataKind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DataKind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v TFTObservedDataKind) graphql.Marshaler {
+			return ec.marshalNTFTObservedDataKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedDataKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_dataKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type TFTObservedDataKind does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_runId(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_runId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_platform(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_platform(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Platform, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_platform(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_platforms(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_platforms(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Platforms, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_platforms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_queueId(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_queueId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.QueueID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_queueId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_setNumber(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_setNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SetNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_setNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_patch(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_patch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Patch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_patch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_rawGameVersions(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_rawGameVersions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RawGameVersions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_rawGameVersions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_locale(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_locale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Locale, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_locale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_algorithmVersion(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_algorithmVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AlgorithmVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_algorithmVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_catalogSnapshot(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_catalogSnapshot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CatalogSnapshot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TFTObservedStaticSnapshot) graphql.Marshaler {
+			return ec.marshalNTFTObservedStaticSnapshot2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedStaticSnapshot(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_catalogSnapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTObservedLineupsResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTObservedStaticSnapshot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_assetSnapshot(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_assetSnapshot(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AssetSnapshot, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *TFTObservedStaticSnapshot) graphql.Marshaler {
+			return ec.marshalOTFTObservedStaticSnapshot2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedStaticSnapshot(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_assetSnapshot(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTObservedLineupsResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTObservedStaticSnapshot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_sourceMatches(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_sourceMatches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SourceMatches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_sourceMatches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_sourceParticipants(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_sourceParticipants(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SourceParticipants, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_sourceParticipants(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_usableParticipants(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_usableParticipants(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UsableParticipants, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_usableParticipants(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_exactLineups(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_exactLineups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExactLineups, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_exactLineups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_windowStart(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_windowStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WindowStart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_windowStart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_windowEnd(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_windowEnd(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WindowEnd, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_windowEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedLineupsResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedLineupsResult_items(ctx context.Context, field graphql.CollectedField, obj *TFTObservedLineupsResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedLineupsResult_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*TFTLineup) graphql.Marshaler {
+			return ec.marshalNTFTLineup2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedLineupsResult_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TFTObservedLineupsResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TFTLineup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TFTObservedStaticSnapshot_source(ctx context.Context, field graphql.CollectedField, obj *TFTObservedStaticSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedStaticSnapshot_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedStaticSnapshot_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedStaticSnapshot", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedStaticSnapshot_patch(ctx context.Context, field graphql.CollectedField, obj *TFTObservedStaticSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedStaticSnapshot_patch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Patch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedStaticSnapshot_patch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedStaticSnapshot", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TFTObservedStaticSnapshot_revision(ctx context.Context, field graphql.CollectedField, obj *TFTObservedStaticSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TFTObservedStaticSnapshot_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TFTObservedStaticSnapshot_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TFTObservedStaticSnapshot", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _TFTPlayerProfile_platform(ctx context.Context, field graphql.CollectedField, obj *TFTPlayerProfile) (ret graphql.Marshaler) {
@@ -12294,6 +15946,77 @@ func (ec *executionContext) unmarshalInputChampionRankingsFilter(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputChampionWinFactorsFilter(ctx context.Context, obj any) (ChampionWinFactorsFilter, error) {
+	var it ChampionWinFactorsFilter
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["queueId"]; !present {
+		asMap["queueId"] = 420
+	}
+	if _, present := asMap["version"]; !present {
+		asMap["version"] = "latest"
+	}
+	if _, present := asMap["region"]; !present {
+		asMap["region"] = ""
+	}
+	if _, present := asMap["tierGroup"]; !present {
+		asMap["tierGroup"] = "ALL"
+	}
+
+	fieldsInOrder := [...]string{"queueId", "version", "region", "tierGroup", "position"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "queueId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("queueId"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.QueueID = data
+		case "version":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("version"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Version = data
+		case "region":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("region"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Region = data
+		case "tierGroup":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tierGroup"))
+			data, err := ec.unmarshalOTierGroup2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTierGroup(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TierGroup = data
+		case "position":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Position = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSummonerHistoryInput(ctx context.Context, obj any) (SummonerHistoryInput, error) {
 	var it SummonerHistoryInput
 	if obj == nil {
@@ -12613,6 +16336,70 @@ func (ec *executionContext) unmarshalInputTFTLineupsFilter(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTFTObservedLineupsFilter(ctx context.Context, obj any) (TFTObservedLineupsFilter, error) {
+	var it TFTObservedLineupsFilter
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["platform"]; !present {
+		asMap["platform"] = "KR"
+	}
+	if _, present := asMap["locale"]; !present {
+		asMap["locale"] = "en_us"
+	}
+	if _, present := asMap["minSamples"]; !present {
+		asMap["minSamples"] = 20
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 30
+	}
+
+	fieldsInOrder := [...]string{"platform", "locale", "minSamples", "limit"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "platform":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("platform"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Platform = data
+		case "locale":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locale"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Locale = data
+		case "minSamples":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minSamples"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinSamples = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -12856,6 +16643,283 @@ func (ec *executionContext) _ChampionRanking(ctx context.Context, sel ast.Select
 			}
 		case "kda":
 			out.Values[i] = ec._ChampionRanking_kda(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var championWinFactorImplementors = []string{"ChampionWinFactor"}
+
+func (ec *executionContext) _ChampionWinFactor(ctx context.Context, sel ast.SelectionSet, obj *ChampionWinFactor) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, championWinFactorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ChampionWinFactor")
+		case "metricKey":
+			out.Values[i] = ec._ChampionWinFactor_metricKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._ChampionWinFactor_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startMinute":
+			out.Values[i] = ec._ChampionWinFactor_startMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endMinute":
+			out.Values[i] = ec._ChampionWinFactor_endMinute(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unit":
+			out.Values[i] = ec._ChampionWinFactor_unit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "p50":
+			out.Values[i] = ec._ChampionWinFactor_p50(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "p70":
+			out.Values[i] = ec._ChampionWinFactor_p70(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "p90":
+			out.Values[i] = ec._ChampionWinFactor_p90(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "evidenceGrade":
+			out.Values[i] = ec._ChampionWinFactor_evidenceGrade(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "displayOrder":
+			out.Values[i] = ec._ChampionWinFactor_displayOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "buckets":
+			out.Values[i] = ec._ChampionWinFactor_buckets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var championWinFactorBucketImplementors = []string{"ChampionWinFactorBucket"}
+
+func (ec *executionContext) _ChampionWinFactorBucket(ctx context.Context, sel ast.SelectionSet, obj *ChampionWinFactorBucket) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, championWinFactorBucketImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ChampionWinFactorBucket")
+		case "ordinal":
+			out.Values[i] = ec._ChampionWinFactorBucket_ordinal(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lowerBound":
+			out.Values[i] = ec._ChampionWinFactorBucket_lowerBound(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "upperBound":
+			out.Values[i] = ec._ChampionWinFactorBucket_upperBound(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "games":
+			out.Values[i] = ec._ChampionWinFactorBucket_games(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "wins":
+			out.Values[i] = ec._ChampionWinFactorBucket_wins(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samplePlayers":
+			out.Values[i] = ec._ChampionWinFactorBucket_samplePlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "observedWinRate":
+			out.Values[i] = ec._ChampionWinFactorBucket_observedWinRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "observedWinRateDelta":
+			out.Values[i] = ec._ChampionWinFactorBucket_observedWinRateDelta(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var championWinFactorsResultImplementors = []string{"ChampionWinFactorsResult"}
+
+func (ec *executionContext) _ChampionWinFactorsResult(ctx context.Context, sel ast.SelectionSet, obj *ChampionWinFactorsResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, championWinFactorsResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ChampionWinFactorsResult")
+		case "championId":
+			out.Values[i] = ec._ChampionWinFactorsResult_championId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "championName":
+			out.Values[i] = ec._ChampionWinFactorsResult_championName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._ChampionWinFactorsResult_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resolvedVersion":
+			out.Values[i] = ec._ChampionWinFactorsResult_resolvedVersion(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "regionScope":
+			out.Values[i] = ec._ChampionWinFactorsResult_regionScope(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tierGroup":
+			out.Values[i] = ec._ChampionWinFactorsResult_tierGroup(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revision":
+			out.Values[i] = ec._ChampionWinFactorsResult_revision(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "algorithm":
+			out.Values[i] = ec._ChampionWinFactorsResult_algorithm(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "dataThrough":
+			out.Values[i] = ec._ChampionWinFactorsResult_dataThrough(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "publishedAt":
+			out.Values[i] = ec._ChampionWinFactorsResult_publishedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "availability":
+			out.Values[i] = ec._ChampionWinFactorsResult_availability(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unavailableReason":
+			out.Values[i] = ec._ChampionWinFactorsResult_unavailableReason(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cohortScope":
+			out.Values[i] = ec._ChampionWinFactorsResult_cohortScope(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sampleGames":
+			out.Values[i] = ec._ChampionWinFactorsResult_sampleGames(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samplePlayers":
+			out.Values[i] = ec._ChampionWinFactorsResult_samplePlayers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "factors":
+			out.Values[i] = ec._ChampionWinFactorsResult_factors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -13241,6 +17305,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "championWinFactors":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_championWinFactors(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "championRankings":
 			field := field
 
@@ -13340,6 +17426,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_tftLineups(ctx, field)
 				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "tftObservedLineups":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_tftObservedLineups(ctx, field)
+				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -15087,6 +19195,36 @@ func (ec *executionContext) _TFTLineup(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "unitItems":
+			out.Values[i] = ec._TFTLineup_unitItems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starLevels":
+			out.Values[i] = ec._TFTLineup_starLevels(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starCompositionKnownSamples":
+			out.Values[i] = ec._TFTLineup_starCompositionKnownSamples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starCompositionUnknownSamples":
+			out.Values[i] = ec._TFTLineup_starCompositionUnknownSamples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starCompositionCoverage":
+			out.Values[i] = ec._TFTLineup_starCompositionCoverage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starCompositions":
+			out.Values[i] = ec._TFTLineup_starCompositions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "metrics":
 			out.Values[i] = ec._TFTLineup_metrics(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -15159,6 +19297,351 @@ func (ec *executionContext) _TFTLineupMetrics(ctx context.Context, sel ast.Selec
 		case "contestedRate":
 			out.Values[i] = ec._TFTLineupMetrics_contestedRate(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTLineupStarCompositionImplementors = []string{"TFTLineupStarComposition"}
+
+func (ec *executionContext) _TFTLineupStarComposition(ctx context.Context, sel ast.SelectionSet, obj *TFTLineupStarComposition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTLineupStarCompositionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTLineupStarComposition")
+		case "levels":
+			out.Values[i] = ec._TFTLineupStarComposition_levels(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalStars":
+			out.Values[i] = ec._TFTLineupStarComposition_totalStars(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleSize":
+			out.Values[i] = ec._TFTLineupStarComposition_sampleSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rate":
+			out.Values[i] = ec._TFTLineupStarComposition_rate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgPlacement":
+			out.Values[i] = ec._TFTLineupStarComposition_avgPlacement(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "firstRate":
+			out.Values[i] = ec._TFTLineupStarComposition_firstRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "top4Rate":
+			out.Values[i] = ec._TFTLineupStarComposition_top4Rate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTLineupStarCountImplementors = []string{"TFTLineupStarCount"}
+
+func (ec *executionContext) _TFTLineupStarCount(ctx context.Context, sel ast.SelectionSet, obj *TFTLineupStarCount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTLineupStarCountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTLineupStarCount")
+		case "stars":
+			out.Values[i] = ec._TFTLineupStarCount_stars(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unitCount":
+			out.Values[i] = ec._TFTLineupStarCount_unitCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTLineupStarStrengthImplementors = []string{"TFTLineupStarStrength"}
+
+func (ec *executionContext) _TFTLineupStarStrength(ctx context.Context, sel ast.SelectionSet, obj *TFTLineupStarStrength) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTLineupStarStrengthImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTLineupStarStrength")
+		case "totalStars":
+			out.Values[i] = ec._TFTLineupStarStrength_totalStars(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleSize":
+			out.Values[i] = ec._TFTLineupStarStrength_sampleSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lobbyCount":
+			out.Values[i] = ec._TFTLineupStarStrength_lobbyCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rate":
+			out.Values[i] = ec._TFTLineupStarStrength_rate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgPlacement":
+			out.Values[i] = ec._TFTLineupStarStrength_avgPlacement(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "firstRate":
+			out.Values[i] = ec._TFTLineupStarStrength_firstRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "top4Rate":
+			out.Values[i] = ec._TFTLineupStarStrength_top4Rate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTLineupUnitItemsImplementors = []string{"TFTLineupUnitItems"}
+
+func (ec *executionContext) _TFTLineupUnitItems(ctx context.Context, sel ast.SelectionSet, obj *TFTLineupUnitItems) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTLineupUnitItemsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTLineupUnitItems")
+		case "unit":
+			out.Values[i] = ec._TFTLineupUnitItems_unit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "commonItems":
+			out.Values[i] = ec._TFTLineupUnitItems_commonItems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isCore":
+			out.Values[i] = ec._TFTLineupUnitItems_isCore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "coreRank":
+			out.Values[i] = ec._TFTLineupUnitItems_coreRank(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "averageItems":
+			out.Values[i] = ec._TFTLineupUnitItems_averageItems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "itemInvestmentRate":
+			out.Values[i] = ec._TFTLineupUnitItems_itemInvestmentRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "equippedRate":
+			out.Values[i] = ec._TFTLineupUnitItems_equippedRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "threeItemRate":
+			out.Values[i] = ec._TFTLineupUnitItems_threeItemRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "knownStarSamples":
+			out.Values[i] = ec._TFTLineupUnitItems_knownStarSamples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unknownStarSamples":
+			out.Values[i] = ec._TFTLineupUnitItems_unknownStarSamples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starCoverage":
+			out.Values[i] = ec._TFTLineupUnitItems_starCoverage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "starDistribution":
+			out.Values[i] = ec._TFTLineupUnitItems_starDistribution(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTLineupUnitStarBucketImplementors = []string{"TFTLineupUnitStarBucket"}
+
+func (ec *executionContext) _TFTLineupUnitStarBucket(ctx context.Context, sel ast.SelectionSet, obj *TFTLineupUnitStarBucket) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTLineupUnitStarBucketImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTLineupUnitStarBucket")
+		case "stars":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_stars(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleSize":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_sampleSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rate":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_rate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "knownRate":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_knownRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgPlacement":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_avgPlacement(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "firstRate":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_firstRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "top4Rate":
+			out.Values[i] = ec._TFTLineupUnitStarBucket_top4Rate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -15405,6 +19888,184 @@ func (ec *executionContext) _TFTMatchPageInfo(ctx context.Context, sel ast.Selec
 			}
 		case "returned":
 			out.Values[i] = ec._TFTMatchPageInfo_returned(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTObservedLineupsResultImplementors = []string{"TFTObservedLineupsResult"}
+
+func (ec *executionContext) _TFTObservedLineupsResult(ctx context.Context, sel ast.SelectionSet, obj *TFTObservedLineupsResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTObservedLineupsResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTObservedLineupsResult")
+		case "dataKind":
+			out.Values[i] = ec._TFTObservedLineupsResult_dataKind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runId":
+			out.Values[i] = ec._TFTObservedLineupsResult_runId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "platform":
+			out.Values[i] = ec._TFTObservedLineupsResult_platform(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "platforms":
+			out.Values[i] = ec._TFTObservedLineupsResult_platforms(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queueId":
+			out.Values[i] = ec._TFTObservedLineupsResult_queueId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setNumber":
+			out.Values[i] = ec._TFTObservedLineupsResult_setNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "patch":
+			out.Values[i] = ec._TFTObservedLineupsResult_patch(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "rawGameVersions":
+			out.Values[i] = ec._TFTObservedLineupsResult_rawGameVersions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "locale":
+			out.Values[i] = ec._TFTObservedLineupsResult_locale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "algorithmVersion":
+			out.Values[i] = ec._TFTObservedLineupsResult_algorithmVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "catalogSnapshot":
+			out.Values[i] = ec._TFTObservedLineupsResult_catalogSnapshot(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assetSnapshot":
+			out.Values[i] = ec._TFTObservedLineupsResult_assetSnapshot(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "sourceMatches":
+			out.Values[i] = ec._TFTObservedLineupsResult_sourceMatches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceParticipants":
+			out.Values[i] = ec._TFTObservedLineupsResult_sourceParticipants(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "usableParticipants":
+			out.Values[i] = ec._TFTObservedLineupsResult_usableParticipants(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exactLineups":
+			out.Values[i] = ec._TFTObservedLineupsResult_exactLineups(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "windowStart":
+			out.Values[i] = ec._TFTObservedLineupsResult_windowStart(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "windowEnd":
+			out.Values[i] = ec._TFTObservedLineupsResult_windowEnd(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "items":
+			out.Values[i] = ec._TFTObservedLineupsResult_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var tFTObservedStaticSnapshotImplementors = []string{"TFTObservedStaticSnapshot"}
+
+func (ec *executionContext) _TFTObservedStaticSnapshot(ctx context.Context, sel ast.SelectionSet, obj *TFTObservedStaticSnapshot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tFTObservedStaticSnapshotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TFTObservedStaticSnapshot")
+		case "source":
+			out.Values[i] = ec._TFTObservedStaticSnapshot_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "patch":
+			out.Values[i] = ec._TFTObservedStaticSnapshot_patch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revision":
+			out.Values[i] = ec._TFTObservedStaticSnapshot_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -16005,6 +20666,36 @@ func (ec *executionContext) marshalNBuildChoice2ᚖgithubᚗcomᚋcrafffᚋgogg�
 	return ec._BuildChoice(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNChampionInsightAvailability2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightAvailability(ctx context.Context, v any) (ChampionInsightAvailability, error) {
+	var res ChampionInsightAvailability
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNChampionInsightAvailability2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightAvailability(ctx context.Context, sel ast.SelectionSet, v ChampionInsightAvailability) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNChampionInsightEvidenceGrade2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightEvidenceGrade(ctx context.Context, v any) (ChampionInsightEvidenceGrade, error) {
+	var res ChampionInsightEvidenceGrade
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNChampionInsightEvidenceGrade2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightEvidenceGrade(ctx context.Context, sel ast.SelectionSet, v ChampionInsightEvidenceGrade) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNChampionInsightFactorKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightFactorKind(ctx context.Context, v any) (ChampionInsightFactorKind, error) {
+	var res ChampionInsightFactorKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNChampionInsightFactorKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionInsightFactorKind(ctx context.Context, sel ast.SelectionSet, v ChampionInsightFactorKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNChampionRanking2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionRankingᚄ(ctx context.Context, sel ast.SelectionSet, v []*ChampionRanking) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -16029,6 +20720,63 @@ func (ec *executionContext) marshalNChampionRanking2ᚖgithubᚗcomᚋcrafffᚋg
 		return graphql.Null
 	}
 	return ec._ChampionRanking(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNChampionWinFactor2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorᚄ(ctx context.Context, sel ast.SelectionSet, v []*ChampionWinFactor) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNChampionWinFactor2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactor(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNChampionWinFactor2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactor(ctx context.Context, sel ast.SelectionSet, v *ChampionWinFactor) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ChampionWinFactor(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNChampionWinFactorBucket2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorBucketᚄ(ctx context.Context, sel ast.SelectionSet, v []*ChampionWinFactorBucket) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNChampionWinFactorBucket2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorBucket(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNChampionWinFactorBucket2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorBucket(ctx context.Context, sel ast.SelectionSet, v *ChampionWinFactorBucket) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ChampionWinFactorBucket(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNChampionWinFactorsFilter2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorsFilter(ctx context.Context, v any) (ChampionWinFactorsFilter, error) {
+	res, err := ec.unmarshalInputChampionWinFactorsFilter(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
@@ -16652,6 +21400,136 @@ func (ec *executionContext) marshalNTFTLineupMetrics2ᚖgithubᚗcomᚋcrafffᚋ
 	return ec._TFTLineupMetrics(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNTFTLineupStarComposition2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCompositionᚄ(ctx context.Context, sel ast.SelectionSet, v []*TFTLineupStarComposition) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTFTLineupStarComposition2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarComposition(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTFTLineupStarComposition2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarComposition(ctx context.Context, sel ast.SelectionSet, v *TFTLineupStarComposition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTLineupStarComposition(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTFTLineupStarCount2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*TFTLineupStarCount) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTFTLineupStarCount2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCount(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTFTLineupStarCount2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarCount(ctx context.Context, sel ast.SelectionSet, v *TFTLineupStarCount) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTLineupStarCount(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTFTLineupStarStrength2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarStrengthᚄ(ctx context.Context, sel ast.SelectionSet, v []*TFTLineupStarStrength) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTFTLineupStarStrength2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarStrength(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTFTLineupStarStrength2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupStarStrength(ctx context.Context, sel ast.SelectionSet, v *TFTLineupStarStrength) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTLineupStarStrength(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTFTLineupUnitItems2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitItemsᚄ(ctx context.Context, sel ast.SelectionSet, v []*TFTLineupUnitItems) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTFTLineupUnitItems2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitItems(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTFTLineupUnitItems2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitItems(ctx context.Context, sel ast.SelectionSet, v *TFTLineupUnitItems) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTLineupUnitItems(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTFTLineupUnitStarBucket2ᚕᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitStarBucketᚄ(ctx context.Context, sel ast.SelectionSet, v []*TFTLineupUnitStarBucket) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTFTLineupUnitStarBucket2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitStarBucket(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTFTLineupUnitStarBucket2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupUnitStarBucket(ctx context.Context, sel ast.SelectionSet, v *TFTLineupUnitStarBucket) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTLineupUnitStarBucket(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNTFTLineupsFilter2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTLineupsFilter(ctx context.Context, v any) (TFTLineupsFilter, error) {
 	res, err := ec.unmarshalInputTFTLineupsFilter(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -16701,6 +21579,31 @@ func (ec *executionContext) marshalNTFTMatchPageInfo2ᚖgithubᚗcomᚋcrafffᚋ
 	return ec._TFTMatchPageInfo(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNTFTObservedDataKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedDataKind(ctx context.Context, v any) (TFTObservedDataKind, error) {
+	var res TFTObservedDataKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTFTObservedDataKind2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedDataKind(ctx context.Context, sel ast.SelectionSet, v TFTObservedDataKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNTFTObservedLineupsFilter2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedLineupsFilter(ctx context.Context, v any) (TFTObservedLineupsFilter, error) {
+	res, err := ec.unmarshalInputTFTObservedLineupsFilter(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTFTObservedStaticSnapshot2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedStaticSnapshot(ctx context.Context, sel ast.SelectionSet, v *TFTObservedStaticSnapshot) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TFTObservedStaticSnapshot(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTFTPlayerProfile2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTPlayerProfile(ctx context.Context, sel ast.SelectionSet, v *TFTPlayerProfile) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -16732,6 +21635,16 @@ func (ec *executionContext) unmarshalNTFTWindow2githubᚗcomᚋcrafffᚋgoggᚋa
 }
 
 func (ec *executionContext) marshalNTFTWindow2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTWindow(ctx context.Context, sel ast.SelectionSet, v TFTWindow) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNTierGroup2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTierGroup(ctx context.Context, v any) (TierGroup, error) {
+	var res TierGroup
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTierGroup2githubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTierGroup(ctx context.Context, sel ast.SelectionSet, v TierGroup) graphql.Marshaler {
 	return v
 }
 
@@ -16929,6 +21842,13 @@ func (ec *executionContext) unmarshalOChampionRankingsFilter2ᚖgithubᚗcomᚋc
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalOChampionWinFactorsResult2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐChampionWinFactorsResult(ctx context.Context, sel ast.SelectionSet, v *ChampionWinFactorsResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ChampionWinFactorsResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOCurrentUser2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐCurrentUser(ctx context.Context, sel ast.SelectionSet, v *CurrentUser) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -17062,6 +21982,20 @@ func (ec *executionContext) marshalOTFTLookupJob2ᚖgithubᚗcomᚋcrafffᚋgogg
 		return graphql.Null
 	}
 	return ec._TFTLookupJob(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOTFTObservedLineupsResult2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedLineupsResult(ctx context.Context, sel ast.SelectionSet, v *TFTObservedLineupsResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TFTObservedLineupsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOTFTObservedStaticSnapshot2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTObservedStaticSnapshot(ctx context.Context, sel ast.SelectionSet, v *TFTObservedStaticSnapshot) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TFTObservedStaticSnapshot(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOTFTWindow2ᚖgithubᚗcomᚋcrafffᚋgoggᚋappsᚋapiᚋinternalᚋtransportᚋgraphqlᚋgeneratedᚐTFTWindow(ctx context.Context, v any) (*TFTWindow, error) {

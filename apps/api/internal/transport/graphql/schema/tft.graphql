@@ -12,6 +12,43 @@ input TFTLineupsFilter {
   limit: Int = 50
 }
 
+enum TFTObservedDataKind { OBSERVED_RUN_PREVIEW }
+
+input TFTObservedLineupsFilter {
+  platform: String = "KR"
+  locale: String = "en_us"
+  minSamples: Int = 20
+  limit: Int = 30
+}
+
+type TFTObservedStaticSnapshot {
+  source: String!
+  patch: String!
+  revision: String!
+}
+
+type TFTObservedLineupsResult {
+  dataKind: TFTObservedDataKind!
+  runId: ID!
+  platform: String!
+  platforms: [String!]!
+  queueId: Int!
+  setNumber: Int!
+  patch: String
+  rawGameVersions: [String!]!
+  locale: String!
+  algorithmVersion: String!
+  catalogSnapshot: TFTObservedStaticSnapshot!
+  assetSnapshot: TFTObservedStaticSnapshot
+  sourceMatches: Int!
+  sourceParticipants: Int!
+  usableParticipants: Int!
+  exactLineups: Int!
+  windowStart: String!
+  windowEnd: String!
+  items: [TFTLineup!]!
+}
+
 type TFTAnalysisCatalogEntry {
   platform: String!
   patch: String!
@@ -43,12 +80,63 @@ type TFTLineupMetrics {
   top4Rate: Float!
   contestedRate: Float!
 }
+type TFTLineupUnitItems {
+  unit: TFTEntity!
+  commonItems: [TFTEntityCount!]!
+  isCore: Boolean!
+  coreRank: Int
+  averageItems: Float!
+  itemInvestmentRate: Float!
+  equippedRate: Float!
+  threeItemRate: Float!
+  knownStarSamples: Int!
+  unknownStarSamples: Int!
+  starCoverage: Float!
+  starDistribution: [TFTLineupUnitStarBucket!]!
+}
+type TFTLineupUnitStarBucket {
+  stars: Int!
+  sampleSize: Int!
+  rate: Float!
+  knownRate: Float!
+  avgPlacement: Float
+  firstRate: Float
+  top4Rate: Float
+}
+type TFTLineupStarStrength {
+  totalStars: Int!
+  sampleSize: Int!
+  lobbyCount: Int!
+  rate: Float!
+  avgPlacement: Float!
+  firstRate: Float!
+  top4Rate: Float!
+}
+type TFTLineupStarCount {
+  stars: Int!
+  unitCount: Int!
+}
+type TFTLineupStarComposition {
+  levels: [TFTLineupStarCount!]!
+  totalStars: Int!
+  sampleSize: Int!
+  rate: Float!
+  avgPlacement: Float
+  firstRate: Float
+  top4Rate: Float
+}
 type TFTLineup {
   id: ID!
   coreUnits: [TFTEntity!]!
   commonItems: [TFTEntityCount!]!
   commonAugments: [TFTEntityCount!]!
   commonTraits: [TFTEntityCount!]!
+  unitItems: [TFTLineupUnitItems!]!
+  starLevels: [TFTLineupStarStrength!]!
+  starCompositionKnownSamples: Int!
+  starCompositionUnknownSamples: Int!
+  starCompositionCoverage: Float!
+  starCompositions: [TFTLineupStarComposition!]!
   metrics: TFTLineupMetrics!
 }
 type TFTLineupsResult {
@@ -70,6 +158,7 @@ type TFTLineupsResult {
 extend type Query {
   tftAnalysisCatalog: [TFTAnalysisCatalogEntry!]!
   tftLineups(filter: TFTLineupsFilter!): TFTLineupsResult!
+  tftObservedLineups(filter: TFTObservedLineupsFilter!): TFTObservedLineupsResult
   tftMatchHistory(input: TFTHistoryInput!): TFTHistoryResult
   tftLookupJob(id: ID!): TFTLookupJob
 }

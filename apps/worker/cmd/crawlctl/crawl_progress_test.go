@@ -55,6 +55,32 @@ func TestRenderCrawlProgressDoesNotClaimStablePercentageDuringDiscovery(t *testi
 	require.Contains(t, output.String(), "percent=growing")
 }
 
+func TestRenderCrawlProgressShowsBalancedCandidatesAndShortfall(t *testing.T) {
+	snapshot := crawlProgressSnapshot{
+		Run: sqlcgen.TftCrawlRun{
+			ID: 9, WorkflowID: "balanced", Status: "running",
+			Config: []byte(`{"platforms":["NA1","KR"],"match_target_per_region":1000,"match_selection_revision":"route-balance-v1"}`),
+		},
+		Routes: []sqlcgen.ListTFTRunRouteProgressRow{{
+			RoutingRegion: "AMERICAS", DiscoveredMatches: 946, PendingMatches: 946,
+		}},
+		Candidates: []sqlcgen.ListTFTRunCandidateRouteProgressRow{{
+			RoutingRegion: "AMERICAS", CandidateMatches: 946, SelectedMatches: 946,
+		}},
+		Sampling: &sqlcgen.TftRunMatchSampling{Phase: "finalized", TargetPerRegion: 1000},
+	}
+
+	var output bytes.Buffer
+	renderCrawlProgress(&output, snapshot, "unknown", false)
+	require.Contains(t, output.String(), "stage=unknown")
+	require.Contains(t, output.String(), "route=AMERICAS candidates=946 target=1000 admitted=946 shortfall=54 run_matches=0/946")
+
+	output.Reset()
+	snapshot.Sampling.Phase = "open"
+	renderCrawlProgress(&output, snapshot, "seed_and_candidate_discover", false)
+	require.Contains(t, output.String(), "admitted=pending shortfall=pending")
+}
+
 func TestRenderCrawlProgressCanInferStableTotalWhenTemporalStageIsUnavailable(t *testing.T) {
 	snapshot := crawlProgressSnapshot{
 		Run:      sqlcgen.TftCrawlRun{ID: 8, WorkflowID: "fallback", Status: "running", Config: []byte(`{"platforms":["KR"]}`)},
@@ -83,6 +109,14 @@ func TestLatestScheduledWorkflowUsesNewestWorkflowAction(t *testing.T) {
 func TestConfiguredPlatformCountRejectsInvalidConfig(t *testing.T) {
 	require.Equal(t, int64(0), configuredPlatformCount([]byte(`not-json`)))
 	require.Equal(t, int64(3), configuredPlatformCount([]byte(`{"platforms":["KR","NA1","EUW1"]}`)))
+}
+
+func TestConfiguredMatchBalanceRequiresTargetAndRevision(t *testing.T) {
+	target, ok := configuredMatchBalance([]byte(`{"match_target_per_region":1000,"match_selection_revision":"route-balance-v1"}`))
+	require.True(t, ok)
+	require.Equal(t, 1000, target)
+	_, ok = configuredMatchBalance([]byte(`{"match_target_per_region":1000}`))
+	require.False(t, ok)
 }
 
 func TestStableMatchTotal(t *testing.T) {
