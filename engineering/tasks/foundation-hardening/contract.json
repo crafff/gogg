@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "foundation-hardening",
+  "status": "completed",
+  "objective": "Fix the reviewed foundation, staged-candidate validation and knowledge-query defects before the first product refactor slice",
+  "authorization": ["reversible local engineering fixes", "isolated reproductions and behavior tests", "update affected task routing and tool documentation"],
+  "out_of_scope": ["commits or pushes", "product implementation or complete product capability audit", "external data or backup changes", "persistent agent runtime or automatic learning"],
+  "acceptance": [
+    "Missing required skills or roles, malformed task contracts and model/reasoning drift fail foundation checks",
+    "Task routing identifies at most one active contract and retains completed bootstrap as history",
+    "Precommit verifies the staged candidate in isolation without altering the original index or working tree; missing staged dependencies and index changes fail",
+    "Knowledge search needs no persistent index, returns current authoritative facts and reports expired/inactive source drift without blocking unrelated valid facts",
+    "Active source drift, private source access, unsafe paths and concurrent knowledge changes remain rejected",
+    "Regression tests, integrated make check and scoped candidate review pass with explicit evidence boundaries"
+  ]
+}

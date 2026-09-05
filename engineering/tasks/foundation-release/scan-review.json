@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "scanner": "Gitleaks 8.30.1, builtin rules, inline allow comments ignored",
+  "rule": "generic-api-key",
+  "raw_scan_exit": 1,
+  "findings": 19,
+  "reviewed_false_positives": 19,
+  "unresolved": 0,
+  "scope": "Whole staged source tree; entries bind the exact reviewed Git blobs, not runtime data or historical commits.",
+  "acceptance": "Independent source review; no default scanner allowlist was added and archived sources were not rewritten.",
+  "entries": [
+    {
+      "path": "legecy/apps/worker/internal/storage/champion_detail_rollup.go",
+      "git_blob": "257c6ce9d89b1fb68cd64b68778bb256f6d61657",
+      "lines": [
+        32,
+        48
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/apps/worker/internal/storage/champion_insights_rollup.go",
+      "git_blob": "2e65d254570e3b5d65e3326c3cc36c9e965924d9",
+      "lines": [
+        70,
+        96,
+        106,
+        186,
+        403
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/apps/worker/internal/storage/rankings_rollup.go",
+      "git_blob": "cb4c21b377e8e7a9b4e4e5b4a067aff4b451065d",
+      "lines": [
+        76,
+        99,
+        141
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/docs/architecture/champion-insights.md",
+      "git_blob": "1e8722b12d699f3cde9b22d2a6a6f003dbefd65d",
+      "lines": [
+        24
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/docs/security/http-bearer-authorization.md",
+      "git_blob": "83d7a716b0d334243e70c3d2e919c9cdeb950e74",
+      "lines": [
+        197
+      ],
+      "classification": "false_positive",
+      "reason": "Truncated token in a documented JSON response example; literal ellipsis and invalid JWT segment structure."
+    },
+    {
+      "path": "legecy/packages/sqlc/gen/champion_insights.sql.go",
+      "git_blob": "ac1684e22ab8fad581c1374941241cbdaa0f3654",
+      "lines": [
+        18,
+        39,
+        105
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/packages/sqlc/migrations/034_champion_win_factors.up.sql",
+      "git_blob": "9fe483474fe761b3eb903b5566f12792c0e45a4f",
+      "lines": [
+        8
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    },
+    {
+      "path": "legecy/packages/sqlc/queries/champion_insights.sql",
+      "git_blob": "184e5cff81f83ae053751211b4259ccce56bf1e6",
+      "lines": [
+        5,
+        16,
+        26
+      ],
+      "classification": "false_positive",
+      "reason": "Business dataset enum used in SQL predicates, a CHECK constraint or its architecture documentation; not an authentication credential."
+    }
+  ]
+}

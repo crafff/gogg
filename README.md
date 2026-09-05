@@ -1,175 +1,40 @@
 # GOGG
 
-League of Legends champion stats and summoner search website.
-Two regions (KR + NA1), bilingual UI (zh-CN + en-US), cloud-agnostic
-deploy (AWS or domestic Chinese cloud). The full refactoring plan
-lives at [`docs/architecture/adr/`](./docs/architecture/adr/).
+面向长期演进的游戏数据与玩家成长产品，现处于全新工程基础建设阶段。
 
-## Current state
+目标：保全已有 LoL/TFT 用户能力，先做到单机稳定、高性能、低资源占用，再验证
+多机；逐步建设可靠采集、可重现历史数据、个性化推荐、取胜因素分析与提升反馈。
+技术栈与旧实现没有兼容约束，选择依据是可验证的质量和维护收益。
 
-| Phase | Status | Branch |
-|---|---|---|
-| A · Foundation (monorepo, Docker, CI, SOPS, ADRs) | ✅ shipped | — |
-| B · Backend rewrite (chi + gqlgen + sqlc + JWT/OAuth) | ✅ shipped | — |
-| C · Crawler → Temporal | ✅ shipped | — |
-| D · Frontend rewrite (Tailwind + TanStack + Router) | ✅ shipped | — |
-| E · New features (champion detail, summoner, user system) | 🚧 in progress | — |
-| F · Production hardening (k8s, Terraform, runbooks) | ⏳ next | — |
+## 从这里开始
 
-The previous single-binary MVP has been archived outside the project
-tree at `/home/zrt/apps/gogg-legacy-archive-2026-06-23.tar.gz`. The
-repository now keeps only the `apps/` + `packages/` architecture.
+- [研发入口](engineering/README.md)：当前状态、工作协议与知识导航。
+- [产品目标](engineering/charter/product.md)：保全范围和新的产品目标。
+- [设计总览](engineering/design/README.md)：Agent、存储、学习及后续落地设计。
+- [迁移记录](engineering/migrations/2026-09-05-clean-rebuild.md)：保存、归档与恢复边界。
 
-## Repository layout
-
-```
-apps/
-  api/        gogg-api binary — chi + gqlgen GraphQL BFF + REST compat + auth
-  worker/     gogg-worker binary — Temporal worker hosting crawl/enrich workflows
-  web/        React 18 + Vite + Tailwind + TanStack Query + React Router 6
-packages/
-  domain/     shared Go enums (Champion, Tier, Region) + error codes
-  sqlc/       SQL migrations, queries, generated bindings
-  riotapi/    Riot API client (lifted from internal/riotapi)
-  proto/      reserved for future gRPC contracts
-deploy/
-  docker/     Dockerfiles + nginx.conf
-  compose/    local dev stack (docker-compose.dev.yml)
-  k8s/        Kustomize base + dev/staging/prod overlays
-  terraform/  cloud-agnostic IaC (modules/aws, modules/aliyun)
-  observability/  Prometheus + Grafana + Alertmanager
-  secrets/    SOPS-encrypted env files (age-encrypted)
-docs/
-  architecture/  C4 diagrams + ADRs
-  runbooks/      on-call procedures
-  api/           GraphQL schema docs + OpenAPI for REST compat
-config/
-  *.example.yaml tracked example configs; local *.yaml files are gitignored
+```sh
+make check
+make test
 ```
 
-## Prerequisites
+当前工具要求 Linux/WSL、Python 3.11+（SQLite含FTS5）、Git和GNU Make；本机验证环境
+为Python 3.12.3。离线知识工具无第三方Python依赖。
 
-- **Go 1.26.4+** (toolchain pinned in `go.mod`)
-- **Node 22.12+** (vite 8 peer)
-- **Docker + Compose v2** (the dev stack is containerized)
-- **sops + age** for decrypting `deploy/secrets/dev.enc.yaml`
-- **golangci-lint v1.62+**, **sqlc v1.27+**, **golang-migrate v4.18+** (for `make gen` / `make migrate-*`)
-- **lefthook** (`make hooks`) for pre-commit gates — optional locally, enforced in CI
+当前提供研发指导、知识工具与验证基础；尚未提供新网站、LangGraph 运行服务或
+自动学习服务。不要从 `legecy/` 启动旧服务来冒充新系统已经运行。
 
-## Quick start
+## 目录
 
-```bash
-# 1. Bring up postgres + redis + temporal + temporal-ui + mailhog
-make dev
-
-# 2. Apply database migrations
-make migrate-up
-
-# 3. Create local plaintext config if you are not using SOPS
-cp config/dev.example.yaml config/dev.yaml
-# edit config/dev.yaml and set riot.api_key before starting the worker
-# for Google login, also set oauth.google client_id/client_secret/redirect_url
-
-# 4. Run the three processes in three terminals
-make run-api      # apps/api — http://localhost:8080
-make run-worker   # apps/worker — Temporal worker on the crawl-{region} task queues
-make run-web      # apps/web — http://localhost:5173 (proxies /api + /graphql to :8080)
+```text
+.codex/                 生效于新会话的模型和专家配置
+.agents/skills/         可复用的研发流程
+engineering/            目标、知识、契约、决策、评测和设计
+tools/                  当前工程工具
+tests/                  当前工程工具的行为测试
+legecy/                 原工作区，业务逻辑和历史研究参考
+.local/                 私有备份/恢复记录，不进入 Git 或检索
 ```
 
-`make run-api` and `make run-worker` decrypt `deploy/secrets/dev.enc.yaml`
-via sops if the file exists; otherwise they use `config/dev.yaml`. The
-vite dev server in `make run-web` proxies `/api`, `/graphql`, `/game-assets`,
-`/oauth`, and `/auth` to `:8080`, so browser sessions remain same-origin in
-development.
-
-Open `http://localhost:5173` for the rankings page. Google login uses
-`http://localhost:5173/oauth/callback/google`; register that exact authorized
-redirect URI in Google Cloud and configure all three Google OAuth fields
-together. `/me` is session-protected, and Google login does not automatically
-link a Riot account.
-
-## Common workflows
-
-```bash
-# Quality gates
-make lint            # golangci-lint + apps/web eslint
-make test            # go test ./... + apps/web vitest
-make ci              # vet + lint + test (CI parity)
-
-# Integration tests (require the dev stack running)
-make test-int        # tagged `integration` Go tests
-
-# E2E tests (require Playwright browser deps)
-make test-e2e-install   # one-time: installs chromium
-make test-e2e           # Playwright golden path against apps/web
-
-# Code generation
-make gen-sqlc        # regenerate packages/sqlc/gen
-make gen-gql         # regenerate apps/api gqlgen resolvers
-make gen-web         # regenerate apps/web/src/shared/api/generated
-make gen             # all three at once
-
-# Migrations
-make migrate-up                                  # apply pending
-make migrate-down                                # roll back one
-make migrate-new name=add_user_favorites         # scaffold new
-
-# Build
-make build-api       # → bin/gogg-api
-make build-worker    # → bin/gogg-worker
-make build-web       # apps/web/dist
-```
-
-For the granular vitest / playwright / tsc workflows, run from
-`apps/web/`:
-
-```bash
-cd apps/web
-npm run dev          # vite dev server
-npm run codegen      # graphql-codegen against apps/api schema
-npm run type-check   # tsc -b --noEmit
-npm run lint         # eslint
-npm test             # vitest run
-npm run test:watch   # vitest watch
-npm run test:e2e     # playwright (chromium)
-npm run build        # type-check + vite production build
-```
-
-## Verifying your setup
-
-Once everything builds, walk through
-[`docs/manual-verification.md`](./docs/manual-verification.md) — it
-covers the smoke checks for each binary, the GraphQL + REST surface,
-the worker's Temporal workflows, and the apps/web UI flows, plus the
-test suites you should run end-to-end.
-
-## Learning the codebase
-
-If you're new to the repo, work through
-[`docs/tutorial/`](./docs/tutorial/README.md) in order. It's a 13-chapter
-hand-held walkthrough split into three parts:
-
-- **Part I — Understanding GOGG** (chapters 01–08): from "what is this?"
-  to "I can trace a single `winRate` value from Riot's API into a row in
-  the browser." Assumes no Go / React / GraphQL / Temporal background.
-- **Part II — Transferable knowledge** (chapters 10–13): Go essentials
-  + React/TypeScript essentials + a meta-skill chapter on reading any
-  unfamiliar codebase + six annotated line-by-line code tours.
-- **Part III — Going further** (chapter 09): Phase E + F roadmap, ADR
-  pointers, contribution workflow.
-
-## Documentation
-
-- [`docs/azure/vm-operations.md`](./docs/azure/vm-operations.md) — Azure VM 开关机、公网 IP 与费用操作手册
-- [`CLAUDE.md`](./CLAUDE.md) — load-bearing project context (read first)
-- [`docs/tutorial/`](./docs/tutorial/README.md) — 9-chapter hand-held codebase walkthrough
-- [`docs/manual-verification.md`](./docs/manual-verification.md) — step-by-step manual smoke + test guide
-- [`docs/contributing.md`](./docs/contributing.md) — developer workflow + PR checklist
-- [`docs/architecture/adr/`](./docs/architecture/adr/) — architectural decision records
-- [`docs/runbooks/`](./docs/runbooks/) — on-call procedures
-- [`deploy/secrets/README.md`](./deploy/secrets/README.md) — SOPS + age workflow
-- [`deploy/compose/docker-compose.dev.yml`](./deploy/compose/docker-compose.dev.yml) — local dev stack details
-
-## License
-
-UNLICENSED — private project. Do not redistribute.
+Git 历史保留在根 `.git/`。旧代码移到 `legecy/`，旧构建、CI 和配置不再是新工程
+的入口。保存点和归档边界见迁移记录，外部数据库及历史数据保持原地。

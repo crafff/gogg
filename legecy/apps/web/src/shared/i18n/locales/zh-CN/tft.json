@@ -1,0 +1,209 @@
+{
+  "analysis": {
+    "title": "TFT 强势阵容",
+    "description": "基于已抓取的高分段对局统计阵容强度、热度与竞争度。正式版本切片发布前，会先展示口径清楚的实战样本预览。",
+    "lineupListLabel": "阵容排行",
+    "formalDetailLimit": "正式归并阵容目前只提供核心弈子和阵容级统计；逐英雄装备、星级共现与可导入阵容码仅在精确终局棋盘预览中展示，避免用归并后的模糊阵容生成不可靠详情。"
+  },
+  "preview": {
+    "pageTitle": "TFT 实战阵容",
+    "pageDescription": "来自一次已完成排位抓取任务的完整对局终局棋盘；统计不对每位参与者的段位作额外声明。",
+    "badge": "实战样本预览",
+    "title": "第一批真实终局阵容已经可以查看",
+    "description": "这里按同一抓取任务中的真实终局棋盘精确聚合，使用独立静态目录排除召唤物后按平均名次排序。它适合先观察阵容方向，但还不是按补丁发布的正式强势阵容榜。",
+    "provenance": "Riot 返回的原始版本：{{version}}。可购买弈子由 {{catalogSource}} {{catalogPatch}}（{{catalogRevision}}）识别，名称与图片参考 {{assetSource}} {{assetPatch}}（{{assetRevision}}）；两个静态版本都不代表比赛版本。",
+    "run": "抓取 Run {{runId}}",
+    "global": "全球汇总",
+    "unknownPatch": "未知（Riot 已屏蔽）",
+    "noAssets": "不可用",
+    "usableParticipants": "可用终局棋盘",
+    "window": "实战窗口：{{start}} 至 {{end}} · 来源玩家 {{participants}} · 算法 {{version}}",
+    "lineupListLabel": "实战终局阵容排行",
+    "noLineupsDescription": "当前最低样本为 {{minSamples}}；预览为了避免极小样本误导，最低只能降到 20。",
+    "error": "无法加载实战阵容预览",
+    "errorDescription": "真实比赛数据已经存在，但预览聚合暂时失败，请重试。"
+  },
+  "filter": {
+    "platform": "服务器",
+    "patch": "版本",
+    "set": "赛季",
+    "setValue": "第 {{value}} 赛季",
+    "cohort": "分段",
+    "window": "时间范围",
+    "minSamples": "最低样本",
+    "lineupFacets": "阵容快捷筛选",
+    "quickFilters": "按高频共同出现筛选",
+    "quickFiltersScope": "仅筛选当前显示的阵容",
+    "core": "装备核心",
+    "emblem": "纹章",
+    "artifact": "神器",
+    "augment": "强化符文",
+    "filterByEntity": "按{{category}} {{entity}}筛选阵容",
+    "filterByCore": "按装备核心英雄 {{entity}} 筛选阵容"
+  },
+  "cohort": {
+    "MASTER_PLUS": "大师及以上",
+    "DIAMOND": "钻石"
+  },
+  "window": {
+    "PATCH": "当前版本",
+    "THREE_DAYS": "近 3 天"
+  },
+  "coverage": {
+    "matches": "来源对局",
+    "participants": "来源玩家",
+    "exactLineups": "精确阵容",
+    "familyThreshold": "阵容归并阈值",
+    "publishedAt": "发布时间",
+    "window": "统计窗口：{{start}} 至 {{end}} · 算法 {{version}}"
+  },
+  "lineup": {
+    "rank": "第 {{rank}} 名",
+    "summaryUnits": "费用从低到高的阵容与常用装备摘要",
+    "coreUnits": "核心弈子",
+    "items": "常用装备",
+    "unitItems": "英雄常见装备",
+    "unitAnalysis": "英雄装备与星级分布",
+    "unitItemsLabel": "{{unit}} 的常见装备",
+    "coreUnit": "装备主力 {{rank}}",
+    "coreBadge": "核心",
+    "threeStarBadge": "{{entity}} 与三星强关联",
+    "itemInvestment": "平均 {{average}} 件 · 三件套 {{fullRate}}",
+    "unitStarCoverage": "星级记录 {{known}} 个，缺失 {{unknown}} 个，覆盖率 {{coverage}}；占比以全部阵容样本为分母",
+    "starBucketStrength": "平均第 {{placement}} · 前四 {{top4}}",
+    "smallSample": "{{samples}} 个样本",
+    "unitStarDistributionLabel": "{{unit}} {{stars}} 星：占阵容样本 {{rate}}，{{samples}} 个样本，{{strength}}",
+    "starStrength": "阵容终局总星级汇总",
+    "starStrengthDescription": "“装备主力”依据终局装备槽投入识别：平均装备投入至少达到 60%，且不低于阵容内最高投入的 75%；并列英雄同级。它不等同于主 C 或主 T。逐英雄展示 1–4 星分布；阵容强度按完整的星级构成分别统计，相同总星级不会再混为一组。强度档至少 5 个样本，结果是观测相关性，不表示装备或升星本身造成胜率变化。",
+    "starComposition": "阵容星级构成强度",
+    "starDistribution": "星级构成",
+    "starCompositionCoverage": "完整星级记录 {{known}} 个，缺失 {{unknown}} 个，覆盖率 {{coverage}}；强度仅展示至少 5 个样本的构成。",
+    "totalStarsLabel": "总星级",
+    "totalStars": "总星级 {{value}}",
+    "augments": "常用强化符文",
+    "traits": "常用羁绊",
+    "signalDisclaimer": "共现信号来自终局装备、升星或强化在该阵容内的出现频率，只表示当前样本中的高频共同出现；没有总体基线或可获得性记录，因此不等于阵容依赖，也不证明因果。",
+    "signalDetails": "观测共现详情",
+    "signalHolder": "常见携带者：{{unit}}",
+    "signalEvidence": "观测到 {{samples}} 个样本，占该阵容 {{rate}}",
+    "signal": {
+      "EMBLEM": "纹章：{{entity}} {{rate}}",
+      "ARTIFACT": "神器：{{entity}} {{rate}}",
+      "THREE_STAR": "三星：{{entity}} {{rate}}",
+      "AUGMENT": "强化：{{entity}} {{rate}}"
+    }
+  },
+  "metric": {
+    "samples": "样本",
+    "lobbies": "对局",
+    "sampleShare": "样本占比",
+    "pickRate": "登场率",
+    "avgPlacement": "平均名次",
+    "firstRate": "吃鸡率",
+    "top4Rate": "前四率",
+    "contestedRate": "同行率"
+  },
+  "state": {
+    "catalogError": "无法加载阵容数据目录",
+    "catalogErrorDescription": "服务暂时不可用，请稍后重试。",
+    "notPublished": "还没有可用的阵容分析",
+    "notPublishedDescription": "抓取和分析任务尚未发布第一批完整数据，你仍然可以查询已经收录的玩家战绩。",
+    "lineupsError": "无法加载阵容排行",
+    "lineupsErrorDescription": "所选数据已经发布，但本次查询失败，请重试。",
+    "noLineups": "没有达到样本要求的阵容",
+    "noLineupsDescription": "当前最低样本为 {{minSamples}}，可以降低门槛查看更多阵容。",
+    "noFilteredLineups": "没有同时满足这些筛选的阵容",
+    "noFilteredLineupsDescription": "当前显示的阵容中没有匹配项；清除一个或多个装备核心、纹章、神器或强化筛选后再试。"
+  },
+  "action": {
+    "retry": "重试",
+    "searchPlayer": "查询 TFT 战绩",
+    "viewLineups": "查看强势阵容",
+    "showAllSamples": "显示全部样本",
+    "clearFilters": "清除筛选",
+    "showDetails": "详情",
+    "hideDetails": "收起",
+    "copyTeamCode": "复制阵容码",
+    "teamCodeUnavailableShort": "阵容码不可用",
+    "copyTeamCodeDescription": "复制后可粘贴到游戏内小队规划器；阵容码只包含英雄，不包含装备、星级、强化或站位。",
+    "teamCodeUnavailable": "该阵容缺少完整的官方规划器编号，暂时不能生成可导入阵容码。",
+    "copied": "已复制",
+    "copyFailed": "复制失败"
+  },
+  "player": {
+    "title": "查询 TFT 战绩",
+    "description": "输入 Riot ID，查看已抓取的对局、最终阵容、装备、强化符文与羁绊。",
+    "search": {
+      "label": "TFT 玩家搜索",
+      "platform": "服务器",
+      "riotID": "游戏名称和标签",
+      "placeholder": "游戏名称#标签",
+      "submit": "查询",
+      "invalid": "请输入完整的 Riot ID，例如：Hide on bush#KR1",
+      "supported": "支持全球 15 个 TFT 平台；首次查询会在后台抓取并保存最近对局。"
+    },
+    "profile": {
+      "updated": "数据更新时间：{{value}}"
+    },
+    "history": {
+      "title": "最近对局",
+      "scope": "展示本地已保存的 Riot TFT 比赛数据，可按模式筛选并继续加载。",
+      "queueFilter": "TFT 模式筛选",
+      "loadMore": "加载更多",
+      "loadingMore": "正在加载…",
+      "end": "已加载全部对局"
+    },
+    "queue": {
+      "ALL": "全部模式",
+      "1100": "排位赛",
+      "1090": "匹配赛",
+      "1160": "双人作战",
+      "1130": "狂暴模式"
+    },
+    "match": {
+      "placement": "第 {{value}} 名",
+      "patchSet": "版本 {{patch}} · 第 {{set}} 赛季",
+      "units": "最终阵容",
+      "augments": "强化符文",
+      "level": "等级",
+      "gold": "剩余金币",
+      "round": "最终回合",
+      "eliminations": "淘汰玩家",
+      "damage": "玩家伤害",
+      "duration": "时长"
+    },
+    "state": {
+      "error": "无法读取 TFT 战绩",
+      "errorDescription": "服务暂时不可用，请稍后重试。",
+      "fetchingFirst": "正在抓取首次数据",
+      "fetchingFirstDescription": "任务会解析账号并保存最近的 TFT 对局，页面将自动更新。",
+      "notFound": "尚未收录该玩家",
+      "notFoundDescription": "如果 Riot ID 正确，点击刷新或稍后再试。",
+      "empty": "没有符合条件的对局",
+      "emptyDescription": "本地数据中暂时没有该模式的比赛，可以切换模式或刷新。"
+    },
+    "refresh": {
+      "action": "刷新战绩",
+      "refreshing": "正在刷新…",
+      "alreadyFresh": "数据仍然新鲜，无需重复抓取。",
+      "complete": "战绩刷新完成。",
+      "partial": "刷新已完成，但部分对局暂时无法获取。",
+      "failed": "战绩刷新失败，请稍后重试。",
+      "notFound": "未找到该 Riot ID，请检查名称和标签。",
+      "notFoundInPlatform": "该账号不属于 {{platform}}，请切换服务器。",
+      "profileUnavailable": "Riot 暂时没有返回该玩家的 TFT 资料。",
+      "jobExpired": "刷新任务记录已过期，已重新读取本地数据。",
+      "progress": "已扫描 {{scanned}} 场，保存 {{fetched}} 场",
+      "rateLimited": "请求过于频繁，请在 {{seconds}} 秒后重试。",
+      "networkError": "无法连接服务，请检查网络。",
+      "serviceUnavailable": "刷新服务暂时不可用。"
+    },
+    "stage": {
+      "QUEUED": "等待 TFT 抓取任务",
+      "RESOLVE_ACCOUNT": "正在解析 Riot 账号",
+      "FETCH_MATCH_IDS": "正在读取比赛列表",
+      "FETCH_MATCHES": "正在抓取比赛详情",
+      "FINALIZE": "正在保存比赛数据"
+    }
+  }
+}

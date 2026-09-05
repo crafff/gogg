@@ -1,0 +1,31 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "workspace-write"
+
+[features]
+memories = true
+multi_agent = true
+
+[memories]
+generate_memories = true
+use_memories = true
+disable_on_external_context = true
+min_rollout_idle_hours = 6
+max_rollout_age_days = 30
+max_unused_days = 90
+min_rate_limit_remaining_percent = 25
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-5.6-sol"
+default_subagent_reasoning_effort = "xhigh"
+
+[auto_review]
+policy = """
+This is a trusted local GOGG development repository. Automatically approve low- and medium-risk actions needed for the user's requested work, including scoped workspace edits, code generation, builds, tests, local Docker services, dependency downloads, and narrowly scoped documentation access.
+Deny broad or ambiguous deletion, credential discovery or disclosure, persistent security weakening, production mutations, publishing, purchases, and external messages unless the user explicitly authorizes the exact action.
+Treat database volume deletion, make dev-reset, destructive Git history changes, and writes outside the development workflow as high risk.
+"""

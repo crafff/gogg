@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "foundation-release",
+  "status": "completed",
+  "objective": "Review maintainability, verify the complete archive and new foundation candidate, commit the validated result, and prepare the first product slice",
+  "authorization": ["local review and small in-scope corrections", "stage and create a local Git commit after validation", "prepare the next refactor scope"],
+  "out_of_scope": ["push or publish", "product implementation", "external data or backup changes", "running archived services"],
+  "acceptance": [
+    "No unresolved substantive finding blocks use of the current engineering foundation",
+    "All previously tracked source files remain preserved under legecy with their file modes",
+    "The complete staged candidate passes make check, scoped diff review and real secret scanning without private or runtime data",
+    "The validated candidate is committed locally and the next product slice is described with its remaining acceptance work"
+  ]
+}

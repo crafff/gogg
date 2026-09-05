@@ -1,62 +1,43 @@
-# ── Sensitive config ───────────────────────────────────────
+# Private local state and credentials; applies in the archived tree as well.
+/.local/
 .env
-.env.local
-.env.*.local
-config.yaml
-config/*.yaml
-!config/*.example.yaml
-secrets.json
+.env.*
+!.env.example
 *.key
 *.pem
+secrets.json
+config.yaml
+.claude/
 
-# ── Go build artifacts ─────────────────────────────────────
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-bin/
-dist/
-
-# Top-level binaries built from local go build commands
-/gogg
-/api
-/gogg-api
-/gogg-worker
-/worker             # `go build ./apps/worker/cmd/worker` from repo root
-cmd/*/main          # any accidentally-built binaries
-
-# ── Logs ───────────────────────────────────────────────────
-*.log
-logs/
-.pids
-
-# ── Node / web ─────────────────────────────────────────────
+# Rebuildable or host-specific products, including retained legacy dependencies.
 node_modules/
-apps/web/dist/
-apps/web/.vite/
-apps/web/playwright-report/
-apps/web/test-results/
-
-# ── Editor / OS ────────────────────────────────────────────
-.vscode/
-.idea/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.vite/
+dist/
+build/
+bin/
+*.egg-info/
+*.log
+coverage/
+htmlcov/
+.coverage
+playwright-report/
+test-results/
 .DS_Store
-Thumbs.db
 
-# ── Test / coverage ────────────────────────────────────────
-coverage.out
-coverage.html
-.nyc_output/
-
-# ── Local dev volumes ──────────────────────────────────────
-.docker-data/
-tmp/
-data/game-assets
-data/riot-raw
-experiments/**/data
-experiments/**/artifacts
-experiments/**/.venv/
-experiments/**/__pycache__/
+# Runtime data is never an engineering knowledge source.
+/data/
+/artifacts/
+/tmp/
+/legecy/data/
+/legecy/tmp/
+/legecy/experiments/**/data
+/legecy/experiments/**/artifacts
+/legecy/config/*.yaml
+!/legecy/config/*.example.yaml

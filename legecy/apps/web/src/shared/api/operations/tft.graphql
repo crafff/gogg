@@ -1,0 +1,451 @@
+query TFTAnalysisCatalog {
+  tftAnalysisCatalog {
+    platform
+    patch
+    setNumber
+    queueId
+    cohort
+    window
+    publishedAt
+    sourceMatches
+    sourceParticipants
+    coverage {
+      windowStart
+      windowEnd
+      exactLineups
+      familyThreshold
+    }
+  }
+}
+
+query TFTLineups($filter: TFTLineupsFilter!) {
+  tftLineups(filter: $filter) {
+    platform
+    patch
+    setNumber
+    queueId
+    cohort
+    window
+    locale
+    algorithmVersion
+    publishedAt
+    sourceMatches
+    sourceParticipants
+    coverage {
+      windowStart
+      windowEnd
+      exactLineups
+      familyThreshold
+    }
+    items {
+      id
+      teamCode
+      coreUnits {
+        id
+        name
+        iconUrl
+        cost
+        itemClass
+      }
+      commonItems {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      commonAugments {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      commonTraits {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      signals {
+        kind
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        holderUnit {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        sampleSize
+        rate
+      }
+      unitItems {
+        unit {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        commonItems {
+          entity {
+            id
+            name
+            iconUrl
+            cost
+            itemClass
+          }
+          count
+          rate
+        }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels {
+          stars
+          unitCount
+        }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      metrics {
+        sampleSize
+        lobbyCount
+        pickRate
+        avgPlacement
+        firstRate
+        top4Rate
+        contestedRate
+      }
+    }
+  }
+}
+
+query TFTObservedLineups($filter: TFTObservedLineupsFilter!) {
+  tftObservedLineups(filter: $filter) {
+    dataKind
+    runId
+    platform
+    platforms
+    queueId
+    setNumber
+    patch
+    rawGameVersions
+    locale
+    algorithmVersion
+    catalogSnapshot {
+      source
+      patch
+      revision
+    }
+    assetSnapshot {
+      source
+      patch
+      revision
+    }
+    sourceMatches
+    sourceParticipants
+    usableParticipants
+    exactLineups
+    windowStart
+    windowEnd
+    items {
+      id
+      teamCode
+      coreUnits {
+        id
+        name
+        iconUrl
+        cost
+        itemClass
+      }
+      commonItems {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      commonAugments {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      commonTraits {
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        count
+        rate
+      }
+      signals {
+        kind
+        entity {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        holderUnit {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        sampleSize
+        rate
+      }
+      unitItems {
+        unit {
+          id
+          name
+          iconUrl
+          cost
+          itemClass
+        }
+        commonItems {
+          entity {
+            id
+            name
+            iconUrl
+            cost
+            itemClass
+          }
+          count
+          rate
+        }
+        isCore
+        coreRank
+        averageItems
+        itemInvestmentRate
+        equippedRate
+        threeItemRate
+        knownStarSamples
+        unknownStarSamples
+        starCoverage
+        starDistribution {
+          stars
+          sampleSize
+          rate
+          knownRate
+          avgPlacement
+          firstRate
+          top4Rate
+        }
+      }
+      starLevels {
+        totalStars
+        sampleSize
+        lobbyCount
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      starCompositionKnownSamples
+      starCompositionUnknownSamples
+      starCompositionCoverage
+      starCompositions {
+        levels {
+          stars
+          unitCount
+        }
+        totalStars
+        sampleSize
+        rate
+        avgPlacement
+        firstRate
+        top4Rate
+      }
+      metrics {
+        sampleSize
+        lobbyCount
+        pickRate
+        avgPlacement
+        firstRate
+        top4Rate
+        contestedRate
+      }
+    }
+  }
+}
+
+query TFTMatchHistory($input: TFTHistoryInput!) {
+  tftMatchHistory(input: $input) {
+    profile {
+      platform
+      gameName
+      tagLine
+      lastRefreshedAt
+      isStale
+    }
+    matches {
+      matchId
+      platform
+      queueId
+      patch
+      gameVersion
+      gameDatetime
+      gameLengthSeconds
+      setNumber
+      tftGameType
+      endOfGameResult
+      participant {
+        puuid
+        gameName
+        tagLine
+        isCurrentPlayer
+        placement
+        level
+        goldLeft
+        lastRound
+        playersEliminated
+        totalDamageToPlayers
+        augments {
+          id
+          name
+          iconUrl
+        }
+        traits {
+          entity {
+            id
+            name
+            iconUrl
+          }
+          numUnits
+          style
+          tierCurrent
+          tierTotal
+        }
+        units {
+          entity {
+            id
+            name
+            iconUrl
+          }
+          rarity
+          tier
+          items {
+            id
+            name
+            iconUrl
+          }
+        }
+      }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+      returned
+    }
+  }
+}
+
+mutation RefreshTFTPlayer($identity: TFTIdentityInput!) {
+  refreshTFTPlayer(identity: $identity) {
+    fresh
+    reused
+    job {
+      id
+      platform
+      gameName
+      tagLine
+      status
+      stage
+      scannedCount
+      fetchedCount
+      failedCount
+      errorCode
+      createdAt
+      updatedAt
+      completedAt
+    }
+  }
+}
+
+query TFTLookupJob($id: ID!) {
+  tftLookupJob(id: $id) {
+    id
+    platform
+    gameName
+    tagLine
+    status
+    stage
+    scannedCount
+    fetchedCount
+    failedCount
+    errorCode
+    createdAt
+    updatedAt
+    completedAt
+  }
+}

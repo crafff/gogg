@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "facts": [
+    {
+      "id": "FACT-CLEAN-REBUILD",
+      "status": "verified",
+      "scope": "current",
+      "claim": "当前工程允许无兼容负担重建；legecy 只保留旧工作区供业务与研究参考，旧技术栈和路径不约束新系统。",
+      "sources": [{"path": "engineering/decisions/0001-clean-rebuild.md", "sha256": "045275645486582008c5deeb05f66c726a13e8a47ee450bf7bc86e28d784d956"}],
+      "verified_at": "2026-09-05T00:33:02Z"
+    },
+    {
+      "id": "FACT-QUALITY-FIRST",
+      "status": "verified",
+      "scope": "current",
+      "claim": "研发质量优先，使用最强可用模型 Astra 基线；先验证目标和正确性，再比较资源与速度，多 Agent 一致不替代行为证据。",
+      "sources": [{"path": "engineering/charter/quality.md", "sha256": "02db84eadd828d4fd01379d9cd96bf2253467a15b4ba35b0de27dce0215e1a0a"}],
+      "verified_at": "2026-09-05T00:33:02Z"
+    },
+    {
+      "id": "FACT-PRODUCT-ROADMAP",
+      "status": "verified",
+      "scope": "current",
+      "claim": "产品目标保全 LoL/TFT 能力，先单机稳定高性能低占用，再验证多机，并发展自动采集、历史数据、个性化推荐与玩家提升反馈；这些目标不等于已实现。",
+      "sources": [{"path": "engineering/charter/product.md", "sha256": "63d274aace5f9d93cb9947524e08cd4ed146caa80d0cfaece16092cbd856f976"}],
+      "verified_at": "2026-09-05T00:33:02Z"
+    },
+    {
+      "id": "FACT-KNOWLEDGE-BOUNDARY",
+      "status": "verified",
+      "scope": "current",
+      "claim": "知识工具只处理显式 facts 条目；默认只召回当前且有效的 verified 知识，不全文扫描归档、备份、凭据或玩家资料，哈希只证明来源完整性。",
+      "sources": [{"path": "engineering/knowledge/README.md", "sha256": "1dc10821374c208876dd7f5c89ab55c20b93e0c4afb16606f07c1653201cf28f"}],
+      "verified_at": "2026-09-05T01:47:08Z"
+    },
+    {
+      "id": "LEGACY-LOL-FACTORS",
+      "status": "verified",
+      "scope": "legacy",
+      "claim": "归档 LoL 取胜因素服务的已观察实现限于打野，并以样本门槛和可用状态表达观察指标；这是旧实现参考，不证明新系统已提供该功能或因果提升。",
+      "sources": [{"path": "legecy/apps/api/internal/service/championinsights/service.go", "sha256": "0add4e2c6e69699393e5d7da5108d8bb27f14a11f03c815cc9ab17d245ba444c"}],
+      "verified_at": "2026-09-05T00:33:02Z"
+    },
+    {
+      "id": "LEGACY-RECOMMENDER-RESEARCH",
+      "status": "verified",
+      "scope": "legacy",
+      "claim": "归档中保有英雄个性化推荐实验说明与脚本入口，是离线研发参考；本轮没有复跑其结果，也没有据此认定个性化教练已经上线。",
+      "sources": [{"path": "legecy/experiments/champion-recommender/README.md", "sha256": "955ce665e8c42872a85b30fb479afcb61092f1958a658814890d305255759874"}],
+      "verified_at": "2026-09-05T00:33:02Z"
+    }
+  ]
+}

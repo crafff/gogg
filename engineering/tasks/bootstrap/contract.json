@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "bootstrap-clean-rebuild",
+  "status": "completed",
+  "objective": "Save all existing work, archive the old workspace under legecy, and establish the independent agent engineering foundation",
+  "authorization": ["local backup", "workspace archival", "new root layout", "agent configuration and engineering tools"],
+  "out_of_scope": ["commits or pushes", "external database migration", "product rewrite", "unattended runtime deployment", "automatic model training"],
+  "acceptance": [
+    "The original workspace and Git metadata have a verified recoverable snapshot",
+    "Original non-Git entries are preserved under legecy, with protected config handling recorded",
+    "Ignored and private data remains ignored and is excluded from knowledge indexing",
+    "New guidance and commands have no runtime dependency on the archived implementation",
+    "Knowledge tools have behavior tests for stale data and scope boundaries",
+    "Configured model and skill state is validated separately from current-session activation"
+  ]
+}

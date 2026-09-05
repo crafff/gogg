@@ -1,0 +1,62 @@
+# ── Sensitive config ───────────────────────────────────────
+.env
+.env.local
+.env.*.local
+config.yaml
+config/*.yaml
+!config/*.example.yaml
+secrets.json
+*.key
+*.pem
+
+# ── Go build artifacts ─────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+
+# Top-level binaries built from local go build commands
+/gogg
+/api
+/gogg-api
+/gogg-worker
+/worker             # `go build ./apps/worker/cmd/worker` from repo root
+cmd/*/main          # any accidentally-built binaries
+
+# ── Logs ───────────────────────────────────────────────────
+*.log
+logs/
+.pids
+
+# ── Node / web ─────────────────────────────────────────────
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/playwright-report/
+apps/web/test-results/
+
+# ── Editor / OS ────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Test / coverage ────────────────────────────────────────
+coverage.out
+coverage.html
+.nyc_output/
+
+# ── Local dev volumes ──────────────────────────────────────
+.docker-data/
+tmp/
+data/game-assets
+data/riot-raw
+experiments/**/data
+experiments/**/artifacts
+experiments/**/.venv/
+experiments/**/__pycache__/
